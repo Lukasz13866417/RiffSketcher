@@ -11,10 +11,13 @@ playing anything, because hearing a wrong candidate can overwrite the melody in 
 ```bash
 uv sync            # app + tests
 uv sync --extra ml # also torch, pretty_midi (for the ML track)
-uv run uvicorn api.main:app --reload --port 8765
+uv run uvicorn api.main:app --reload --host 0.0.0.0 --port 8765
 ```
 
-Open <http://localhost:8765>. The UI is a five-step wizard: `→` / `←` move between steps (or click the
+Open <http://localhost:8765>. With `--host 0.0.0.0` the app is also reachable from other devices on your
+network at `http://<this machine's LAN IP>:8765` (find it with `hostname -I`); the desktop app's launch
+config in `.claude/launch.json` does the same. There is no authentication, so only do this on a network
+you trust. Each device keeps its own saved sketch, since it lives in the browser's local storage. The UI is a five-step wizard: `→` / `←` move between steps (or click the
 step pills). Keys: `R` start recording, `Space`/letters tap, `Enter` stop, drag points to draw,
 `Shift`+click to select a range, `↑`/`↓` nudge the selection, `Delete` removes notes, double-click adds
 one, hold `P` and drag to paint heights. The graph toolbar zooms the time and pitch axes (pitch zoom
