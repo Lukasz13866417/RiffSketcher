@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+data/raw/
+data/processed/
+*.wav
+*.pt
+*.ckpt
+runs/
+.pytest_cache/
+experiments/notebooks/.ipynb_checkpoints/
+*.egg-info/

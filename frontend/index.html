@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Riff Sketcher</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <h1>Riff Sketcher</h1>
+  <p class="tagline">Get the riff out of your head without an instrument. Tap it, draw it, tag it, then listen once.</p>
+  <div class="header-actions">
+    <button id="btn-save" class="ghost" title="Download the sketch as JSON">Save</button>
+    <label class="ghost file-label">Load<input id="file-load" type="file" accept="application/json"></label>
+    <button id="btn-clear" class="ghost danger">Clear</button>
+  </div>
+</header>
+
+<main>
+  <!-- ------------------------------------------------------------ Step 1 -->
+  <section class="step" id="step-tap">
+    <h2><span class="num">1</span> Tap the rhythm</h2>
+    <p class="hint">Replay the riff in your head and tap <kbd>Space</kbd> or any letter key (or click the pad) on every note attack. Press <kbd>Enter</kbd> or click Stop when done. Record several passes for fast parts; they get merged.</p>
+    <div class="row">
+      <button id="btn-record" class="primary">Start recording</button>
+      <button id="btn-stop" disabled>Stop</button>
+      <div id="tap-pad" class="tap-pad" tabindex="0">tap here</div>
+      <div class="passes">
+        <div class="passes-head">Passes <button id="btn-merge" class="small" disabled>Merge passes</button></div>
+        <ul id="pass-list"></ul>
+      </div>
+    </div>
+    <div class="row">
+      <label>Tempo hint (BPM, optional) <input id="tempo-hint" type="number" min="40" max="240" placeholder="auto"></label>
+      <span id="rhythm-info" class="muted"></span>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------ Step 2 -->
+  <section class="step" id="step-draw">
+    <h2><span class="num">2</span> Draw the pitch shape</h2>
+    <p class="hint">Drag points up or down to show rising, falling or repeated notes. The vertical unit is roughly a semitone, but don't worry about exact values. Click a point to select it, <kbd>Shift</kbd>+click to extend a range, double-click empty space to add a note, <kbd>Delete</kbd> to remove the selection. Hold <kbd>P</kbd> and drag to paint heights.</p>
+    <div class="graph-wrap">
+      <svg id="graph" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div class="row">
+      <span class="muted">Selection: <span id="sel-info">none</span></span>
+      <label>Confidence of selected points <input id="conf-slider" type="range" min="0" max="1" step="0.05" value="0.5"> <span id="conf-val">0.50</span></label>
+      <button id="btn-mark-unknown" class="small">Mark height unknown</button>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------ Step 3 -->
+  <section class="step" id="step-tag">
+    <h2><span class="num">3</span> Tag gestures and facts</h2>
+    <p class="hint">Select notes, then add what you know: how they're played, the shape of the line, or exact facts. Everything you tag constrains the reconstruction so it doesn't have to guess.</p>
+    <div class="row top">
+      <div class="col">
+        <h3>Gesture library</h3>
+        <div id="gesture-library"></div>
+        <button id="btn-suggest" class="small">Suggest gestures from the sketch</button>
+        <ul id="suggestions" class="suggestions"></ul>
+      </div>
+      <div class="col">
+        <h3>Facts about the selection</h3>
+        <div class="row">
+          <label>Exact pitch of first selected note
+            <select id="pitch-select"></select>
+          </label>
+          <button id="btn-set-pitch" class="small">Pin</button>
+        </div>
+        <div class="row">
+          <span>Next note is</span>
+          <button class="small dir" data-dir="1">higher ↑</button>
+          <button class="small dir" data-dir="0">same =</button>
+          <button class="small dir" data-dir="-1">lower ↓</button>
+        </div>
+        <div class="row">
+          <button id="btn-same" class="small">First and last selected have the same pitch</button>
+        </div>
+        <h3>Tags on this sketch</h3>
+        <ul id="tag-list" class="tags"></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------ Step 4 -->
+  <section class="step" id="step-reconstruct">
+    <h2><span class="num">4</span> Reconstruct candidates</h2>
+    <p class="hint">The engine proposes several plausible riffs that fit your taps, shape and tags. Nothing is played yet. Pick one to see it on the graph.</p>
+    <div class="row">
+      <button id="btn-reconstruct" class="primary">Reconstruct</button>
+      <label>Candidates <input id="n-cand" type="number" min="1" max="20" value="5"></label>
+      <span id="recon-status" class="muted"></span>
+    </div>
+    <ol id="candidates" class="candidates"></ol>
+  </section>
+
+  <!-- ------------------------------------------------------------ Step 5 -->
+  <section class="step" id="step-listen">
+    <h2><span class="num">5</span> Listen and refine</h2>
+    <p class="hint">Only press play when you have told the sketch everything you can. Hearing a wrong candidate can overwrite the riff in your head. After listening, click notes on the graph and say whether they were right, too high or too low; that becomes new constraints.</p>
+    <div class="row">
+      <button id="btn-play" class="primary" disabled>Play selected candidate</button>
+      <button id="btn-stop-audio" disabled>Stop</button>
+      <span class="muted">Audio exposure: <span id="exposure">0 previews, 0.0 s</span></span>
+    </div>
+    <div class="row feedback" id="feedback" hidden>
+      <span>Note <b id="fb-note">–</b> was</span>
+      <button id="fb-right" class="small">right (pin it)</button>
+      <button id="fb-high" class="small">too high</button>
+      <button id="fb-low" class="small">too low</button>
+    </div>
+  </section>
+</main>
+
+<footer><span id="status" class="muted">ready</span></footer>
+<script src="/app.js"></script>
+</body>
+</html>
