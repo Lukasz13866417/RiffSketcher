@@ -121,3 +121,39 @@ uv run python -m ml.evaluate --checkpoint runs/pop909/best.pt --data data/proces
 
 The deterministic engine dominates evaluation time (~7.5 min for the test
 split); pass `--no-deterministic` or `--limit 300` while iterating.
+
+### Decoding experiments (2026-11-05)
+
+A user reported a flat "all the same note" top candidate for a chug-heavy riff
+with clearly drawn moves. Reproduced with a 16-note riff (mostly repeated E2,
+moves of 1, 3 and 6 semitones) at the UI's then-default confidence 0.5:
+
+| setting | top-1 interval accuracy | top candidate |
+| --- | --- | --- |
+| exact heights, confidence 0.5 | 0.60 | only the 6-semitone leap survives |
+| exact heights, confidence 0.8 | 0.73 | 3-semitone moves recovered |
+| heights drawn at half scale, confidence 0.8 | 0.53 | moves shrunk to 2 semitones |
+
+The simulator ties confidence to the noise it applied (`conf = exp(-|noise|/1.5)`),
+so to the model confidence 0.5 means "about one semitone of error", and it
+then prefers its prior (repeats dominate POP909 melodies) over the drawing.
+The UI default is now 0.8.
+
+Adding a contour-fit term to the beam score (`TransformerReconstructor.guide_weight`,
+Gaussian penalty on realised pitch vs drawn height, sigma from confidence) did
+**not** help. On 300 POP909 test sketches:
+
+```
+preset  guide  top1_acc  best_of_5_acc  top5_exact
+medium  0.0    0.527     0.691          0.217
+medium  0.5    0.520     0.674          0.191
+medium  1.0    0.502     0.661          0.157
+medium  2.0    0.479     0.641          0.147
+hard    0.0    0.415     0.534          0.084
+hard    1.0    0.367     0.492          0.050
+```
+
+So the option stays at 0. The remaining gap for metal riffs is training data:
+POP909 is pop vocal melody, so tritones, chromatic moves and chug patterns are
+out of distribution. The next lever is adding guitar-riff data (DadaGP, Lakh
+guitar tracks) to the training set.

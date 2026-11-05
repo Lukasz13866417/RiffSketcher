@@ -299,7 +299,7 @@ svg.addEventListener('dblclick', (ev) => {
   const t = g.tOf(ev.clientX - rect.left), y = Math.max(HMIN, Math.min(HMAX, Math.round(g.hOf(ev.clientY - rect.top))));
   const obs = state.sketch.observations;
   snapshot();
-  obs.push({ t: Math.max(0, t), y, confidence: 0.5 });
+  obs.push({ t: Math.max(0, t), y, confidence: 0.8 });
   const order = obs.map((o, i) => i).sort((a, b) => obs[a].t - obs[b].t);
   const remap = new Map(order.map((old, nw) => [old, nw]));
   state.sketch.observations = order.map((i) => obs[i]);
@@ -367,7 +367,7 @@ function addNoteAtEnd() {
   const iois = obs.slice(1).map((o, i) => o.t - obs[i].t).sort((a, b) => a - b);
   const gap = iois.length ? iois[Math.floor(iois.length / 2)] : 0.5;
   const last = obs[obs.length - 1];
-  obs.push({ t: last ? last.t + gap : 0, y: last ? last.y : 0, confidence: 0.5 });
+  obs.push({ t: last ? last.t + gap : 0, y: last ? last.y : 0, confidence: 0.8 });
   state.selection.clear(); state.selection.add(obs.length - 1);
   state.candidates = []; state.selectedCandidate = -1;
   renderAll(); updateRhythmInfo(); updateGraphPanel();
@@ -540,7 +540,11 @@ function renderCandidates() {
   state.candidates.forEach((c, i) => {
     const li = document.createElement('li');
     if (i === state.selectedCandidate) li.classList.add('selected');
-    li.innerHTML = `<span class="key">${c.key}</span> <span class="muted">score ${c.score.toFixed(2)} · ${(c.meta && c.meta.method) || ''}</span><br>` +
+    const method = (c.meta && c.meta.method) || '';
+    const scoreTxt = method.startsWith('transformer')
+      ? `model log-prob ${c.score.toFixed(2)} (≈${(100 * Math.exp(c.score)).toPrecision(2)}% of the model's probability mass)`
+      : `search score ${c.score.toFixed(2)}`;
+    li.innerHTML = `<span class="key">${c.key}</span> <span class="muted">${scoreTxt} · ${method}</span><br>` +
       `<span class="notes">${c.note_names.join(' ')}</span>` +
       (c.violations.length ? `<br><span class="viol">violates: ${c.violations.join('; ')}</span>` : '');
     li.onclick = () => { state.selectedCandidate = i; renderCandidates(); renderGraph(); $('btn-play').disabled = false; state.feedbackNote = -1; $('feedback').hidden = true; };
@@ -590,7 +594,7 @@ function nudge(dir) {
   // move the drawn height in the opposite direction of the error and raise confidence;
   // also exclude the candidate pitch via a direction fact relative to the previous note when unambiguous
   const o = state.sketch.observations[i];
-  o.y = (o.y ?? 0) + dir; o.confidence = Math.min(1, o.confidence + 0.2);
+  o.y = (o.y ?? 0) + dir; o.confidence = Math.min(1, o.confidence + 0.15);
   if (i > 0) {
     const prev = cand.notes[i - 1].pitch, cur = cand.notes[i].pitch;
     const pinnedPrev = state.sketch.constraints.find((c) => c.kind === 'pitch' && c.i === i - 1);
@@ -609,6 +613,10 @@ function save() {
 function load(obj) {
   state.sketch = obj.sketch || obj; state.passes = obj.passes || [];
   state.sketch.gestures ||= []; state.sketch.constraints ||= []; state.sketch.meta ||= {};
+  // sketches saved before the default confidence moved from 0.5 to 0.8: if nothing was ever
+  // touched, lift them, otherwise the model treats every height as a semitone of noise
+  const obs = state.sketch.observations;
+  if (obs.length && obs.every((o) => o.confidence === 0.5)) obs.forEach((o) => { o.confidence = 0.8; });
   state.selection.clear(); state.candidates = []; state.selectedCandidate = -1;
   renderAll(); renderPasses(); updateRhythmInfo(); updateGraphPanel();
 }

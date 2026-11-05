@@ -36,7 +36,7 @@
       <button id="zoom-fit" class="small">Fit</button>
       <span id="zoom-info" class="muted"></span>
       <span class="muted">Selection: <span id="sel-info">none</span></span>
-      <label>Confidence of selected points <input id="conf-slider" type="range" min="0" max="1" step="0.05" value="0.5"> <span id="conf-val">0.50</span></label>
+      <label>Confidence of selected points <input id="conf-slider" type="range" min="0" max="1" step="0.05" value="0.8"> <span id="conf-val">0.80</span></label>
       <button id="btn-mark-unknown" class="small">Mark height unknown</button>
     </div>
   </section>
@@ -73,7 +73,7 @@
   <!-- ------------------------------------------------------------ Step 2 -->
   <section class="step" id="step-draw" data-title="Draw">
     <h2><span class="num">2</span> Draw the pitch shape</h2>
-    <p class="hint">Drag points up or down to show rising, falling or repeated notes. The vertical unit is roughly a semitone, but don't worry about exact values. Click a point to select it, <kbd>Shift</kbd>+click to extend a range, <kbd>↑</kbd>/<kbd>↓</kbd> nudge the selection, double-click empty space to add a note, <kbd>Delete</kbd> removes it. Hold <kbd>P</kbd> and drag to paint heights.</p>
+    <p class="hint">Drag points up or down to show rising, falling or repeated notes. The vertical unit is roughly a semitone. Points start at confidence 0.8; lower the confidence of notes you are unsure about, and the engine will lean on its musical prior for those instead of your drawing. Click a point to select it, <kbd>Shift</kbd>+click to extend a range, <kbd>↑</kbd>/<kbd>↓</kbd> nudge the selection, double-click empty space to add a note, <kbd>Delete</kbd> removes it. Hold <kbd>P</kbd> and drag to paint heights.</p>
   </section>
 
   <!-- ------------------------------------------------------------ Step 3 -->
