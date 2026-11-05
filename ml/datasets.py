@@ -1,9 +1,10 @@
 """Phrase extraction, synthetic fallback, song-level splits and torch datasets.
 
-A :class:`Phrase` is a short monophonic melody in beats.  Phrases come either
-from MIDI files (:func:`phrases_from_midi`, used with POP909) or from the
-MIDI-free generator :func:`synthetic_phrases` so that tests and smoke runs
-work offline.  :class:`PhraseDataset` turns phrases into noisy sketches on the
+A :class:`Phrase` is a short monophonic melody in beats.  Phrases come from
+melody tracks of MIDI files (:func:`phrases_from_midi`, used with POP909),
+from guitar riff tracks (:func:`phrases_from_guitar_midi` for Lakh-style MIDI,
+:func:`phrases_from_dadagp` for DadaGP token files) or from the MIDI-free
+generator :func:`synthetic_phrases` so that tests and smoke runs work offline.  :class:`PhraseDataset` turns phrases into noisy sketches on the
 fly with a :class:`ml.sketch_simulator.SketchSimulator` and returns the
 tensors consumed by :mod:`ml.model`.
 """
@@ -19,7 +20,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 
-from core.representation import Sketch, interval_to_class
+from core.representation import INTERVAL_MAX, Sketch, interval_to_class
 
 if TYPE_CHECKING:  # avoid a circular import at runtime
     from ml.sketch_simulator import SketchSimulator
@@ -207,6 +208,204 @@ def phrases_from_midi(path: str | Path, min_notes: int = 5, max_notes: int = 16,
                                   [round(starts[i] - t0, 4) for i in idx],
                                   [round(durs[i], 4) for i in idx], source))
     return phrases
+
+
+# --------------------------------------------------------------------------- #
+# Guitar riffs: guitar tracks in general MIDI files and DadaGP token files
+# --------------------------------------------------------------------------- #
+#
+# A riff line is the *lowest* note of each onset: the root of a power chord is
+# what you hum, and a lead line is monophonic anyway so the rule costs nothing
+# there.  Onsets with more than MAX_RIFF_CHORD notes are strummed chords, not
+# riff notes; they end the current phrase instead of being dropped silently
+# (dropping them would fake a rest in the middle of a riff).
+
+GUITAR_PROGRAMS = range(24, 32)  # General MIDI 25-32: nylon ... overdrive, distortion, harmonics
+GUITAR_NAME_KEYS = ("guitar", "gtr")
+MAX_RIFF_CHORD = 3  # a power chord with its octave
+
+# (start_beat, end_beat, pitches sounding from that onset)
+Onset = tuple[float, float, list[int]]
+
+
+def riff_line_phrases(onsets: list[Onset], song_id: str, source: str, min_notes: int = 5,
+                      max_notes: int = 16, rest_split_beats: float = 2.0,
+                      max_chord: int = MAX_RIFF_CHORD) -> list[Phrase]:
+    """Phrases from one guitar track given as onsets ``(start, end, pitches)`` in beats.
+
+    Keeps the lowest pitch per onset, cuts at strummed chords (more than
+    ``max_chord`` notes), at rests longer than ``rest_split_beats`` and, for
+    over-long runs, at their largest gaps (:func:`split_segment`).  Phrases
+    shorter than ``min_notes`` or with an interval beyond the model's range
+    (±24 semitones, e.g. an octave-displaced MIDI transcription) are dropped.
+    """
+    runs: list[list[tuple[float, float, int]]] = [[]]  # (start, duration, pitch)
+    for start, end, pitches in sorted(onsets, key=lambda o: o[0]):
+        if not pitches or len(pitches) > max_chord:
+            if runs[-1]:
+                runs.append([])
+            continue
+        if runs[-1]:
+            prev_start, prev_dur, _ = runs[-1][-1]
+            if start - (prev_start + prev_dur) > rest_split_beats:
+                runs.append([])
+        runs[-1].append((start, end - start, min(pitches)))
+
+    phrases: list[Phrase] = []
+    for run in runs:
+        if len(run) < min_notes:
+            continue
+        starts = [s for s, _, _ in run]
+        # trim durations so no note runs past the next onset
+        durs = [max(0.125, min(d, (starts[i + 1] - s) if i + 1 < len(run) else d))
+                for i, (s, d, _) in enumerate(run)]
+        for seg in split_segment(starts, durs, min_notes, max_notes):
+            if len(seg) < min_notes:
+                continue
+            pitches = [run[i][2] for i in seg]
+            if any(abs(b - a) > INTERVAL_MAX for a, b in zip(pitches, pitches[1:])):
+                continue
+            t0 = starts[seg[0]]
+            phrases.append(Phrase(song_id, pitches, [round(starts[i] - t0, 4) for i in seg],
+                                  [round(durs[i], 4) for i in seg], source))
+    return phrases
+
+
+def unique_phrases(phrases: list[Phrase]) -> list[Phrase]:
+    """Drop exact repeats (same pitches and onsets): riffs repeat and doubled
+    guitar tracks copy each other, and copies would only inflate the metrics."""
+    seen: set[tuple] = set()
+    out: list[Phrase] = []
+    for p in phrases:
+        key = (p.song_id, tuple(p.pitches), tuple(p.onsets_beats))
+        if key not in seen:
+            seen.add(key)
+            out.append(p)
+    return out
+
+
+def _is_guitar_track(ins: Any) -> bool:
+    name = ins.name.lower()
+    if ins.is_drum or not ins.notes or "bass" in name:
+        return False
+    return ins.program in GUITAR_PROGRAMS or any(k in name for k in GUITAR_NAME_KEYS)
+
+
+def _onsets_from_notes(notes: list[Any], to_beats: Any, tol_beats: float = 0.05) -> list[Onset]:
+    """Group notes that start (almost) together; the onset ends with its lowest note."""
+    out: list[list[Any]] = []  # [start, end, pitches]
+    for n in sorted(notes, key=lambda n: (n.start, n.pitch)):
+        start, end, pitch = to_beats(n.start), to_beats(n.end), int(n.pitch)
+        if out and start - out[-1][0] <= tol_beats:
+            if pitch < min(out[-1][2]):
+                out[-1][1] = end
+            out[-1][2].append(pitch)
+        else:
+            out.append([start, end, [pitch]])
+    return [(s, e, p) for s, e, p in out]
+
+
+def phrases_from_guitar_midi(path: str | Path, min_notes: int = 5, max_notes: int = 16,
+                             rest_split_beats: float = 2.0, song_id: str | None = None,
+                             source: str = "guitar_midi") -> list[Phrase]:
+    """Riff phrases from every guitar track of a general MIDI file (e.g. Lakh).
+
+    A track counts as guitar when its program is one of the General MIDI
+    guitars (25-32) or its name mentions "guitar"/"gtr"; bass tracks are
+    excluded by name.  See :func:`riff_line_phrases` for the riff-line rule.
+    """
+    import pretty_midi  # heavy import, keep it local
+
+    path = Path(path)
+    pm = pretty_midi.PrettyMIDI(str(path))
+    sid = song_id or path.stem
+    res = float(pm.resolution)
+
+    def to_beats(t: float) -> float:
+        return float(pm.time_to_tick(t)) / res
+
+    phrases: list[Phrase] = []
+    for ins in pm.instruments:
+        if _is_guitar_track(ins):
+            phrases.extend(riff_line_phrases(_onsets_from_notes(ins.notes, to_beats), sid, source,
+                                             min_notes, max_notes, rest_split_beats))
+    return unique_phrases(phrases)
+
+
+# DadaGP (https://github.com/dada-bots/dadaGP) writes one token per line:
+# "distorted0:note:s6:f3" = instrument track, string 6, fret 3; "wait:480" =
+# advance 480 ticks (960 per beat); "nfx:tie"/"nfx:dead" qualify the note
+# token just before them; "downtune:2" = every guitar tuned 2 semitones down.
+DADAGP_TICKS_PER_BEAT = 960
+DADAGP_GUITARS = ("distorted", "clean")  # bass, leads, pads and drums are not riff tracks
+DADAGP_STRING_PITCH = {1: 64, 2: 59, 3: 55, 4: 50, 5: 45, 6: 40, 7: 35}  # standard tuning, 7-string adds a low B
+
+
+def dadagp_track_events(tokens: Iterable[str]) -> dict[str, list[tuple[float, list[int] | None]]]:
+    """Per guitar track, ``(beat, pitches)`` for each note event and ``(beat, None)``
+    for each rest.  Tied and dead notes are removed from their event, so an
+    event with an empty pitch list is a sustain (tie) or a muted chug."""
+    downtune, tick = 0, 0
+    tracks: dict[str, list[tuple[float, list[int] | None]]] = {}
+    last_note: tuple[list[int], int] | None = None  # (pitches of the current event, pitch)
+    for tok in tokens:
+        parts = tok.strip().split(":")
+        head = parts[0]
+        if head == "wait" and len(parts) == 2:
+            tick += int(parts[1])
+            last_note = None
+        elif head == "downtune" and len(parts) == 2:
+            downtune = int(parts[1])
+        elif head == "nfx" and len(parts) >= 2:
+            if last_note is not None and parts[1] in ("tie", "dead") and last_note[1] in last_note[0]:
+                last_note[0].remove(last_note[1])
+        elif head.rstrip("0123456789") in DADAGP_GUITARS and len(parts) >= 2:
+            events = tracks.setdefault(head, [])
+            beat = tick / DADAGP_TICKS_PER_BEAT
+            if parts[1] == "rest":
+                events.append((beat, None))
+            elif parts[1] == "note" and len(parts) == 4 and parts[2][:1] == "s" and parts[3][:1] == "f":
+                string = int(parts[2][1:])
+                if string not in DADAGP_STRING_PITCH:
+                    continue
+                pitch = DADAGP_STRING_PITCH[string] + int(parts[3][1:]) - downtune
+                if not events or events[-1][0] != beat or events[-1][1] is None:
+                    events.append((beat, []))
+                events[-1][1].append(pitch)  # type: ignore[union-attr]
+                last_note = (events[-1][1], pitch)  # type: ignore[arg-type]
+    return tracks
+
+
+def _onsets_from_dadagp_events(events: list[tuple[float, list[int] | None]]) -> list[Onset]:
+    """Each sounding event lasts until the next rest or sounding event (ties
+    and dead notes in between just extend it); the last one gets one beat."""
+    onsets: list[Onset] = []
+    cuts = [(beat, pitches) for beat, pitches in events if pitches is None or pitches]
+    for i, (beat, pitches) in enumerate(cuts):
+        if pitches is None:
+            continue
+        end = cuts[i + 1][0] if i + 1 < len(cuts) else beat + 1.0
+        onsets.append((beat, max(end, beat + 0.125), list(pitches)))
+    return onsets
+
+
+def phrases_from_dadagp(path: str | Path, min_notes: int = 5, max_notes: int = 16,
+                        rest_split_beats: float = 2.0, song_id: str | None = None,
+                        source: str = "dadagp") -> list[Phrase]:
+    """Riff phrases from one DadaGP token file (every distorted/clean guitar track).
+
+    Repeats are not unrolled, so a riff that the tab repeats four times
+    appears once.  See :func:`riff_line_phrases` for the riff-line rule.
+    """
+    path = Path(path)
+    sid = song_id or path.name.split(".")[0]
+    with path.open(encoding="utf-8", errors="replace") as f:
+        tracks = dadagp_track_events(f)
+    phrases: list[Phrase] = []
+    for events in tracks.values():
+        phrases.extend(riff_line_phrases(_onsets_from_dadagp_events(events), sid, source,
+                                         min_notes, max_notes, rest_split_beats))
+    return unique_phrases(phrases)
 
 
 # --------------------------------------------------------------------------- #

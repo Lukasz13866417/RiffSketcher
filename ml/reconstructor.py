@@ -28,7 +28,9 @@ from core.inference import (SCALES, DeterministicReconstructor, InferenceConfig,
 from core.representation import Note, Riff, Sketch, class_to_interval, interval_to_class
 from core.rhythm import quantise
 
-DEFAULT_CHECKPOINT = os.environ.get("RIFF_MODEL", "runs/pop909/best.pt")
+# runs/mixed/best.pt is trained on POP909 melodies plus Lakh guitar riffs; it beats
+# the POP909-only model on both sources (see ml/README.md, "Results: mixed data").
+DEFAULT_CHECKPOINT = os.environ.get("RIFF_MODEL", "runs/mixed/best.pt")
 
 
 def guess_key(pitches: list[int]) -> str:

@@ -12,6 +12,7 @@ import torch
 from core.representation import N_INTERVAL_CLASSES, Riff, Sketch
 from ml.baseline import ContourBaseline, DeterministicBaseline, topk_sequences
 from ml.datasets import (GESTURE_KINDS, PAD_TARGET, Phrase, PhraseDataset, collate, load_phrases,
+                         phrases_from_dadagp, phrases_from_guitar_midi, riff_line_phrases, unique_phrases,
                          phrases_from_midi, save_phrases, sketch_to_features, split_by_song,
                          split_segment, synthetic_phrases)
 from ml.evaluate import evaluate_predictor, expected_calibration_error, make_examples
@@ -175,6 +176,155 @@ def test_phrases_from_midi_picks_melody_and_splits_in_beats(tmp_path, tempo_chan
         assert p.onsets_beats == pytest.approx([0.5 * i for i in range(len(p))], abs=0.01)
         assert all(0.4 < d <= 0.5 for d in p.durations_beats)
     assert all(abs(d) <= 24 for p in ph for d in p.intervals)
+
+
+# -- guitar riffs (Lakh guitar tracks, DadaGP tokens) ----------------------- #
+
+def test_riff_line_phrases_takes_lowest_note_and_cuts_at_strums_and_rests():
+    # power chords (root + fifth [+ octave]) -> the root; a 4-note strum and a
+    # long rest both end the phrase; a 2-octave jump drops its phrase
+    onsets = []
+    beat = 0.0
+    for pitch in [40, 40, 43, 40, 46]:  # E2 chugs with a 3rd and a tritone
+        onsets.append((beat, beat + 0.5, [pitch, pitch + 7, pitch + 12]))
+        beat += 0.5
+    onsets.append((beat, beat + 1.0, [40, 47, 52, 56]))  # strummed E chord: boundary
+    beat += 1.0
+    for pitch in [45, 45, 48, 45, 51, 45]:
+        onsets.append((beat, beat + 0.5, [pitch, pitch + 7]))
+        beat += 0.5
+    beat += 3.0  # a long rest
+    for pitch in [52, 54, 55, 54, 52, 80]:  # last note is 26 semitones up
+        onsets.append((beat, beat + 0.25, [pitch]))
+        beat += 0.25
+    ph = riff_line_phrases(onsets, "song", "test", min_notes=5, max_notes=16)
+    assert [p.pitches for p in ph] == [[40, 40, 43, 40, 46], [45, 45, 48, 45, 51, 45]]
+    assert ph[0].onsets_beats == [0.0, 0.5, 1.0, 1.5, 2.0] and ph[0].durations_beats == [0.5] * 5
+    assert ph[1].onsets_beats[0] == 0.0 and all(p.source == "test" and p.song_id == "song" for p in ph)
+    # repeats of the same riff collapse to one phrase
+    assert len(unique_phrases(ph + ph)) == 2
+
+
+DADAGP_FIXTURE = """artist:test
+downtune:2
+tempo:120
+start
+new_measure
+distorted0:note:s6:f0
+distorted0:note:s5:f2
+bass:note:s4:f0
+drums:note:36
+wait:480
+distorted0:note:s6:f0
+clean0:rest
+wait:480
+distorted0:note:s6:f3
+wait:480
+distorted0:note:s6:f3
+nfx:tie
+wait:480
+distorted0:note:s6:f6
+bfx:stroke:2:32
+wait:480
+distorted0:note:s6:f0
+nfx:dead
+wait:480
+distorted0:note:s6:f0
+wait:480
+distorted0:note:s4:f2
+distorted0:note:s3:f2
+distorted0:note:s2:f3
+distorted0:note:s1:f2
+wait:960
+distorted0:note:s5:f0
+wait:480
+distorted0:note:s5:f2
+wait:480
+distorted0:note:s5:f0
+wait:480
+distorted0:note:s5:f3
+wait:480
+distorted0:note:s5:f0
+wait:480
+distorted0:rest
+wait:960
+end
+"""
+
+
+def test_phrases_from_dadagp_tokens(tmp_path):
+    # downtune 2: open low E is D2 (38); the power chord keeps its root; the
+    # tied D2 sustains the previous note, the dead note is dropped, the 4-note
+    # strum ends the phrase and the song id is the file name before the first "."
+    path = tmp_path / "Band - Song.tokens.txt"
+    path.write_text(DADAGP_FIXTURE)
+    ph = phrases_from_dadagp(path, min_notes=5, max_notes=16)
+    assert [p.pitches for p in ph] == [[38, 38, 41, 44, 38], [43, 45, 43, 46, 43]]
+    first, second = ph
+    assert first.onsets_beats == [0.0, 0.5, 1.0, 2.0, 3.0]
+    assert first.durations_beats == [0.5, 0.5, 1.0, 1.0, 0.5]
+    assert second.onsets_beats == [0.0, 0.5, 1.0, 1.5, 2.0] and second.durations_beats == [0.5] * 5
+    assert all(p.song_id == "Band - Song" and p.source == "dadagp" for p in ph)
+
+
+def _write_band_midi(path: Path) -> None:
+    """Drums, bass, piano chords and a distortion guitar playing power chords."""
+    import pretty_midi
+
+    pm = pretty_midi.PrettyMIDI(resolution=480, initial_tempo=100.0)
+    guitar = pretty_midi.Instrument(program=30, name="Distortion")
+    lead = pretty_midi.Instrument(program=0, name="Lead Gtr")  # guitar by name only
+    piano = pretty_midi.Instrument(program=0, name="Piano")
+    bass = pretty_midi.Instrument(program=33, name="Bass Guitar")
+    drums = pretty_midi.Instrument(program=0, is_drum=True, name="Drums")
+    riff = [40, 40, 43, 40, 46, 40, 41, 40]
+    for i, pitch in enumerate(riff):
+        start, end = pm.tick_to_time(i * 240), pm.tick_to_time(i * 240 + 230)
+        for extra in (0, 7, 12):
+            guitar.notes.append(pretty_midi.Note(velocity=100, pitch=pitch + extra, start=start, end=end))
+        lead.notes.append(pretty_midi.Note(velocity=100, pitch=pitch + 24, start=start, end=end))
+        bass.notes.append(pretty_midi.Note(velocity=100, pitch=pitch - 12, start=start, end=end))
+        drums.notes.append(pretty_midi.Note(velocity=100, pitch=36, start=start, end=end))
+        for c in (60, 64, 67, 71):
+            piano.notes.append(pretty_midi.Note(velocity=60, pitch=c, start=start, end=end))
+    pm.instruments.extend([drums, piano, bass, lead, guitar])
+    pm.write(str(path))
+
+
+def test_phrases_from_guitar_midi_picks_guitar_tracks(tmp_path):
+    path = tmp_path / "Band" / "Song.mid"
+    path.parent.mkdir()
+    _write_band_midi(path)
+    ph = phrases_from_guitar_midi(path, min_notes=5, max_notes=16, song_id="Band/Song", source="lakh")
+    riff = [40, 40, 43, 40, 46, 40, 41, 40]
+    # the distortion track (program 30) by program, the lead by name; no bass, piano or drums
+    assert sorted(p.pitches for p in ph) == sorted([riff, [p + 24 for p in riff]])
+    for p in ph:
+        assert p.song_id == "Band/Song" and p.source == "lakh"
+        assert p.onsets_beats == pytest.approx([0.5 * i for i in range(8)], abs=0.01)
+        assert all(0.4 < d <= 0.5 for d in p.durations_beats)
+
+
+def test_prepare_dataset_helpers(tmp_path):
+    from ml.prepare_dataset import cap_per_song, lakh_song_id, split_keeping
+
+    root = tmp_path / "clean_midi"
+    assert lakh_song_id(root / "Metallica" / "One.3.mid", root) == "Metallica/One"
+    assert lakh_song_id(root / "Metallica" / "One.mid", root) == "Metallica/One"
+    assert lakh_song_id(root / "loose.mid", root) == "loose"
+
+    phrases = [Phrase(f"s{i % 3}", [60, 62, 64, 65, 67], [0, 1, 2, 3, 4], [1] * 5, "x") for i in range(30)]
+    capped = cap_per_song(phrases, 4, seed=1)
+    assert len(capped) == 12 and all(sum(p.song_id == s for p in capped) == 4 for s in ("s0", "s1", "s2"))
+    assert cap_per_song(phrases, None) is phrases
+
+    # songs named in the base split keep their split; new songs are drawn at random
+    base = {"train": ["s0"], "val": [], "test": ["s1"]}
+    new = phrases + [Phrase(f"n{i}", [60, 62, 64, 65, 67], [0, 1, 2, 3, 4], [1] * 5, "y") for i in range(20)]
+    splits = split_keeping(new, base, 0.2, 0.2, seed=0)
+    assert {p.song_id for p in splits["test"]} >= {"s1"} and "s0" in {p.song_id for p in splits["train"]}
+    assert "s0" not in {p.song_id for p in splits["test"]} | {p.song_id for p in splits["val"]}
+    assert sum(len(v) for v in splits.values()) == len(new)
 
 
 # -- splits ---------------------------------------------------------------- #

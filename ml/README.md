@@ -8,11 +8,12 @@ with a synthetic fallback; a GPU is used automatically when available.
 
 | file | what |
 |---|---|
-| `datasets.py` | `Phrase`, MIDI extraction (`phrases_from_midi`), `synthetic_phrases`, `split_by_song`, features, `PhraseDataset` + `collate` |
+| `datasets.py` | `Phrase`, melody extraction (`phrases_from_midi`), guitar-riff extraction (`phrases_from_guitar_midi`, `phrases_from_dadagp`, shared `riff_line_phrases`), `synthetic_phrases`, `split_by_song`, features, `PhraseDataset` + `collate` |
 | `sketch_simulator.py` | `SketchSimulator` / `SimConfig` (`easy`/`medium`/`hard`): jitter, dropped/doubled taps, tempo drift, noisy compressed contour, missing heights, imperfect gesture tags |
 | `baseline.py` | `ContourBaseline` (round drawn heights, optional scale snap) and `DeterministicBaseline` (wraps `core.inference`) |
 | `model.py` | `SketchTransformer` (encoder over sketch tokens, autoregressive interval decoder), `predict`, `candidates`, `riffs_from_sketch` |
-| `train.py`, `evaluate.py`, `prepare_dataset.py` | CLIs |
+| `train.py`, `evaluate.py`, `prepare_dataset.py` | CLIs (`evaluate` compares several checkpoints and reports per data source) |
+| `../experiments/chug_probe.py` | the 16-note chug-riff probe from the decoding experiments, run against any checkpoint |
 
 ## Data: POP909
 
@@ -42,6 +43,62 @@ dataset's licence/terms before redistributing the MIDI or anything derived
 from it. The `data/raw/` and `data/processed/` folders are git-ignored.
 
 No MIDI? `--synthetic 4000` writes generated phrases in the same format.
+
+## Data: guitar riffs (Lakh guitar tracks; DadaGP when you have it)
+
+POP909 is pop vocal melody, so a model trained on it alone treats tritones,
+chromatic moves and chug patterns as noise (see "Decoding experiments"
+below). The second source is guitar riff lines.
+
+**DadaGP** (26k rock/metal GuitarPro tabs as tokens, the ideal source) is not
+a public download: the [repo](https://github.com/dada-bots/dadaGP) asks you to
+email the authors for research access. The loader is written and tested
+against the repo's example token file (`phrases_from_dadagp`: standard tuning
+plus the `downtune` token, `wait` ticks at 960 per beat, tied notes sustain,
+dead notes are dropped, `distorted*`/`clean*` tracks only, repeats not
+unrolled). Once you have the files, point `--dadagp-dir` at them; they are
+tagged `source = "dadagp"`.
+
+**Fallback used here: Lakh MIDI `clean_midi`** (17,256 general MIDI files
+named `Artist/Title.mid`, 234 MB; licence: the MIDI files were scraped from
+the web and are *not* cleared for redistribution, so treat them as
+research-only and keep `data/raw/` out of git):
+
+```bash
+mkdir -p data/raw/lakh_clean && cd data/raw/lakh_clean
+curl -L -o clean_midi.tar.gz http://hog.ee.columbia.edu/craffel/lmd/clean_midi.tar.gz
+tar -xzf clean_midi.tar.gz && rm clean_midi.tar.gz && cd -
+cp data/processed/splits.json data/processed/pop909_splits.json   # keep the POP909 song split
+uv run python -m ml.prepare_dataset --midi-dir data/raw/pop909/POP909 \
+    --guitar-midi-dir data/raw/lakh_clean/clean_midi --max-per-song 12 \
+    --base-splits data/processed/pop909_splits.json --out data/processed/mixed.jsonl
+```
+
+`phrases_from_guitar_midi` takes every track whose General MIDI program is
+a guitar (25–32, including overdrive and distortion) or whose name says
+"guitar"/"gtr" (bass tracks excluded by name). The riff line is the
+**lowest** note of each onset: the root of a power chord is what you hum,
+and lead lines are monophonic anyway. Onsets with more than three
+simultaneous notes are strummed chords, not riff notes, and end the phrase
+(dropping them silently would fake a rest mid-riff); in a 600-file sample
+92% of guitar onsets had at most three notes. Then the same rest / largest-gap
+splitting as the melody loader, phrases with an interval beyond ±24 semitones
+dropped, exact repeats within a song dropped (riffs repeat, and doubled
+guitar tracks copy each other). `Title.1.mid`, `Title.2.mid` versions of the
+same song share a song id so they never straddle a split.
+
+`--max-per-song 12` keeps a random 12 phrases per guitar song (Lakh songs
+have several guitar tracks and would otherwise outweigh POP909 twenty to
+one); `--base-splits` keeps every POP909 song in the split it already had, so
+the earlier POP909 model is never evaluated on songs it trained on. Result:
+`data/processed/mixed.jsonl`, 119,956 phrases (89,279 `lakh_guitar` from
+7,970 songs, 30,677 `pop909` from 909 songs; 279 unreadable MIDI files
+skipped), 95,779 / 12,040 / 12,137 train / val / test phrases over 7,103 /
+888 / 888 songs. The guitar phrases are a different distribution: interval
+histogram 0: 33%, 1: 7%, 2: 16%, 3: 10%, 4: 6%, 5: 9%, 6: 1%, 7: 6%, ≥8: 12%
+(POP909: 0: 22%, 2: 38%, ≥8: 3%) — more repeats, fourths, fifths and octave
+leaps, far fewer whole steps. Tritones are still rare (1%), so Lakh is a
+partial substitute for DadaGP, not a metal corpus.
 
 ## Train / evaluate
 
@@ -121,6 +178,85 @@ uv run python -m ml.evaluate --checkpoint runs/pop909/best.pt --data data/proces
 
 The deterministic engine dominates evaluation time (~7.5 min for the test
 split); pass `--no-deterministic` or `--limit 300` while iterating.
+
+### Results: mixed data (2026-11-05)
+
+Same model and recipe (1.93M params, 20 epochs, batch 64, lr 3e-4, `--sim
+medium`), trained on `data/processed/mixed.jsonl` (POP909 melodies + Lakh
+guitar riff lines, see "Data: guitar riffs"); 28 s per epoch on the RTX 5060.
+Teacher-forced validation accuracy 0.762 (POP909-only run: 0.730), still
+creeping up at epoch 20. Evaluated on the mixed **test split** (12,137
+sketches from 888 unseen songs, medium noise, `k = 5`); `pop909` is the
+POP909-only model (`runs/pop909/best.pt`, evaluated on the same POP909 test
+songs as before thanks to `--base-splits`), `mixed` is `runs/mixed/best.pt`.
+The deterministic rows come from a separate run (`runs/eval_mixed_baselines.log`,
+~40 min, with the same seed) because the search engine dominates evaluation time:
+
+```
+all sources (n = 12137)
+predictor       interval_acc         nll         ece  top5_recon     seq_acc
+contour                0.242       2.092       0.059       0.007       0.002
+deterministic          0.417       4.195       0.242       0.122       0.066
+pop909                 0.526       1.570       0.075       0.261       0.141
+mixed                  0.595       1.179       0.025       0.377       0.209
+
+source = lakh_guitar (n = 9113)
+predictor       interval_acc         nll         ece  top5_recon     seq_acc
+contour                0.240       2.129       0.055       0.008       0.003
+deterministic          0.427       4.170       0.236       0.146       0.082
+pop909                 0.515       1.685       0.093       0.261       0.152
+mixed                  0.599       1.178       0.031       0.397       0.231
+
+source = pop909 (n = 3024)
+predictor       interval_acc         nll         ece  top5_recon     seq_acc
+contour                0.248       1.990       0.070       0.004       0.001
+deterministic          0.388       4.263       0.258       0.051       0.017
+pop909                 0.558       1.250       0.026       0.260       0.107
+mixed                  0.582       1.181       0.010       0.315       0.144
+```
+
+Chug-riff probe (`uv run python -m experiments.chug_probe runs/pop909/best.pt
+runs/mixed/best.pt`; the 16-note riff from the decoding experiments, drawn
+exactly at confidence 0.8, no gesture tags):
+
+| model | top-1 interval acc | best candidate | exact riff in top-5 |
+| --- | --- | --- | --- |
+| pop909 | 0.47 | `0 0 0 0 0 +2 -2 0 0 +5 -5 0 +2 -2 0` | no |
+| mixed | 0.53 | same | no |
+
+Takeaways:
+
+* The mixed model is better on **both** sources, so the API default
+  checkpoint (`DEFAULT_CHECKPOINT` in `ml/reconstructor.py`) is now
+  `runs/mixed/best.pt`. On guitar phrases it gains +8 points of interval
+  accuracy and finds the exact phrase in its top-5 half again as often (40%
+  vs 26%); on POP909 it still gains +2 points and +5 points of top-5
+  reconstruction, i.e. three times more data did not cost the pop prior
+  anything. It is also much better calibrated (ECE 0.025 vs 0.075).
+* The POP909 model was confidently wrong on guitar data (NLL 1.69, ECE
+  0.09): exactly the "pop-like candidates" the user saw.
+* The probe shows what changed and what did not. Per step, the mixed model
+  now puts the 3-semitone moves first (0.54 / 0.63 / 0.51 vs 0.40 / 0.36 /
+  0.48 for a whole step) where the POP909 model had 0.17 / 0.33 / 0.35, but
+  the two readings are close enough that beam search still returns the
+  whole-step version as the top candidate. The semitone moves are *more*
+  firmly read as repeats (0.95) and the tritone still becomes a fourth
+  (0.71): Lakh guitar tracks have 7% semitone and 1% tritone intervals, so
+  this is still the prior talking. The fix is genuinely metal data
+  (DadaGP: the loader is ready) or a riff-specific augmentation (transpose
+  moves of 2 to 1/3, 5 to 6) if that data cannot be had.
+* The deterministic engine does better on guitar riffs (0.427) than on pop
+  melodies (0.388) — repeated notes suit its search — but its calibration is
+  as poor as before (ECE 0.24) and the mixed model beats it by 17 points on
+  both sources, so the fallback stays a fallback.
+
+Reproduce:
+
+```bash
+uv run python -m ml.train --data data/processed/mixed.jsonl --epochs 20 --sim medium --out runs/mixed
+uv run python -m ml.evaluate --checkpoint runs/pop909/best.pt runs/mixed/best.pt --data data/processed/mixed.jsonl --split test --sim medium
+uv run python -m experiments.chug_probe runs/pop909/best.pt runs/mixed/best.pt
+```
 
 ### Decoding experiments (2026-11-05)
 

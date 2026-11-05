@@ -31,7 +31,7 @@ FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 app = FastAPI(title="Riff Sketcher", version="0.1.0")
 
 # Reconstruction engines. "deterministic" always exists; "model" is added when a
-# trained checkpoint (env RIFF_MODEL, default runs/pop909/best.pt) can be loaded.
+# trained checkpoint (env RIFF_MODEL, default runs/mixed/best.pt) can be loaded.
 ENGINES: dict[str, Any] = {"deterministic": DeterministicReconstructor(InferenceConfig())}
 try:
     from ml.reconstructor import load_default as _load_model
