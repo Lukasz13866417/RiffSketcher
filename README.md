@@ -14,9 +14,14 @@ uv sync --extra ml # also torch, pretty_midi (for the ML track)
 uv run uvicorn api.main:app --reload --port 8765
 ```
 
-Open <http://localhost:8765>. Keys: `R` start recording, `Space`/letters tap, `Enter` stop, drag points to
-draw, `Shift`+click to select a range, `Delete` removes notes, double-click adds one, hold `P` and drag to
-paint heights, arrow keys nudge the selection.
+Open <http://localhost:8765>. The UI is a five-step wizard: `→` / `←` move between steps (or click the
+step pills). Keys: `R` start recording, `Space`/letters tap, `Enter` stop, drag points to draw,
+`Shift`+click to select a range, `↑`/`↓` nudge the selection, `Delete` removes notes, double-click adds
+one, hold `P` and drag to paint heights.
+
+If `runs/pop909/best.pt` exists (or `RIFF_MODEL` points at a checkpoint) the API loads the trained
+Transformer and makes it the default engine; otherwise it uses the deterministic search. Step 4 has an
+engine switch. Train a model with the commands in `ml/README.md`.
 
 ```bash
 uv run pytest -q                       # all tests
@@ -84,7 +89,8 @@ that drops to 77% / 86%. That is the baseline the Transformer has to beat (`ml/e
 | `POST /api/merge-passes` | `{passes: [[s...], ...]}` | merged onsets |
 | `POST /api/quantise` | `{onsets, tempo_hint}` | tempo, onsets in beats |
 | `POST /api/suggest-gestures` | sketch | rule-based gesture suggestions |
-| `POST /api/reconstruct` | `{sketch, n_candidates}` | ranked candidate riffs with note names and violations |
+| `GET /api/engines` | – | available reconstruction engines and the default |
+| `POST /api/reconstruct` | `{sketch, n_candidates, engine}` | ranked candidate riffs with note names and violations; `engine` is `auto`, `model` or `deterministic` |
 | `POST /api/synthesize` | riff | `audio/wav` |
 
 ## Roadmap (from the plan)
@@ -92,9 +98,12 @@ that drops to 77% / 86%. That is the baseline the Transformer has to beat (`ml/e
 1. Interactive prototype: tapping, timeline, editable pitch graph — **done**
 2. Gesture system: region tags, inserted tropes, rule-based suggestions — **done (first version)**
 3. First playback: deterministic inference + synthesis — **done**
-4. Data pipeline: MIDI extraction, sketch simulator, song-level splits — **scaffolded in `ml/`**
-5. First trained model: 1–5M-parameter Transformer over interval classes — **scaffolded, needs real data**
-6. Model integration into the UI (swap `DeterministicReconstructor` for the model behind `Reconstructor`)
+4. Data pipeline: MIDI extraction, sketch simulator, song-level splits — **done (`ml/`)**
+5. First trained model: 1.9M-parameter Transformer over interval classes — **done on POP909**, see `ml/README.md` Results
+6. Model integration: `ml/reconstructor.py` wraps the trained model behind the same `Reconstructor`
+   protocol (beam + sampled candidates, anchored to pinned pitches, hard-constraint filtering with the
+   search engine as fallback) — **done**; a constrained decoder that honours facts during generation
+   instead of filtering afterwards is the next improvement
 7. Active feedback: choose the most informative silent/audible question
 8. Guitar specialisation: muting, slides, bends, motifs
 

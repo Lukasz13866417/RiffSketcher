@@ -43,3 +43,13 @@ def test_suggest_merge_quantise():
 def test_index_served():
     r = client.get("/")
     assert r.status_code == 200 and b"Riff Sketcher" in r.content
+
+
+def test_engines_and_explicit_engine():
+    e = client.get("/api/engines").json()
+    names = {x["name"] for x in e["engines"]}
+    assert "deterministic" in names and e["default"] in names
+    r = client.post("/api/reconstruct", json={"sketch": SKETCH, "n_candidates": 2, "engine": "deterministic"})
+    assert r.status_code == 200 and r.json()["engine"] == "deterministic"
+    bad = client.post("/api/reconstruct", json={"sketch": SKETCH, "engine": "nope"})
+    assert bad.status_code == 400

@@ -17,11 +17,29 @@
   </div>
 </header>
 
+<nav class="wizard-nav" aria-label="Steps">
+  <button id="nav-prev" class="nav-arrow" title="Previous step (←)">←</button>
+  <ol id="step-dots" class="step-dots"></ol>
+  <button id="nav-next" class="nav-arrow" title="Next step (→)">→</button>
+</nav>
+
 <main>
+  <!-- shared pitch graph: visible on every step after tapping -->
+  <section class="graph-panel" id="graph-panel" hidden>
+    <div class="graph-wrap">
+      <svg id="graph" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div class="row graph-tools">
+      <span class="muted">Selection: <span id="sel-info">none</span></span>
+      <label>Confidence of selected points <input id="conf-slider" type="range" min="0" max="1" step="0.05" value="0.5"> <span id="conf-val">0.50</span></label>
+      <button id="btn-mark-unknown" class="small">Mark height unknown</button>
+    </div>
+  </section>
+
   <!-- ------------------------------------------------------------ Step 1 -->
-  <section class="step" id="step-tap">
+  <section class="step" id="step-tap" data-title="Tap">
     <h2><span class="num">1</span> Tap the rhythm</h2>
-    <p class="hint">Replay the riff in your head and tap <kbd>Space</kbd> or any letter key (or click the pad) on every note attack. Press <kbd>Enter</kbd> or click Stop when done. Record several passes for fast parts; they get merged.</p>
+    <p class="hint">Replay the riff in your head and tap <kbd>Space</kbd> or any letter key (or click the pad) on every note attack. Press <kbd>Enter</kbd> or click Stop when done. Record several passes for fast parts; they get merged. Then press <kbd>→</kbd> to draw the pitch shape.</p>
     <div class="row">
       <button id="btn-record" class="primary">Start recording</button>
       <button id="btn-stop" disabled>Stop</button>
@@ -38,23 +56,15 @@
   </section>
 
   <!-- ------------------------------------------------------------ Step 2 -->
-  <section class="step" id="step-draw">
+  <section class="step" id="step-draw" data-title="Draw">
     <h2><span class="num">2</span> Draw the pitch shape</h2>
-    <p class="hint">Drag points up or down to show rising, falling or repeated notes. The vertical unit is roughly a semitone, but don't worry about exact values. Click a point to select it, <kbd>Shift</kbd>+click to extend a range, double-click empty space to add a note, <kbd>Delete</kbd> to remove the selection. Hold <kbd>P</kbd> and drag to paint heights.</p>
-    <div class="graph-wrap">
-      <svg id="graph" xmlns="http://www.w3.org/2000/svg"></svg>
-    </div>
-    <div class="row">
-      <span class="muted">Selection: <span id="sel-info">none</span></span>
-      <label>Confidence of selected points <input id="conf-slider" type="range" min="0" max="1" step="0.05" value="0.5"> <span id="conf-val">0.50</span></label>
-      <button id="btn-mark-unknown" class="small">Mark height unknown</button>
-    </div>
+    <p class="hint">Drag points up or down to show rising, falling or repeated notes. The vertical unit is roughly a semitone, but don't worry about exact values. Click a point to select it, <kbd>Shift</kbd>+click to extend a range, <kbd>↑</kbd>/<kbd>↓</kbd> nudge the selection, double-click empty space to add a note, <kbd>Delete</kbd> removes it. Hold <kbd>P</kbd> and drag to paint heights.</p>
   </section>
 
   <!-- ------------------------------------------------------------ Step 3 -->
-  <section class="step" id="step-tag">
+  <section class="step" id="step-tag" data-title="Tag">
     <h2><span class="num">3</span> Tag gestures and facts</h2>
-    <p class="hint">Select notes, then add what you know: how they're played, the shape of the line, or exact facts. Everything you tag constrains the reconstruction so it doesn't have to guess.</p>
+    <p class="hint">Select notes on the graph, then add what you know: how they're played, the shape of the line, or exact facts. Everything you tag constrains the reconstruction so it doesn't have to guess.</p>
     <div class="row top">
       <div class="col">
         <h3>Gesture library</h3>
@@ -86,22 +96,24 @@
   </section>
 
   <!-- ------------------------------------------------------------ Step 4 -->
-  <section class="step" id="step-reconstruct">
+  <section class="step" id="step-reconstruct" data-title="Reconstruct">
     <h2><span class="num">4</span> Reconstruct candidates</h2>
     <p class="hint">The engine proposes several plausible riffs that fit your taps, shape and tags. Nothing is played yet. Pick one to see it on the graph.</p>
     <div class="row">
       <button id="btn-reconstruct" class="primary">Reconstruct</button>
       <label>Candidates <input id="n-cand" type="number" min="1" max="20" value="5"></label>
+      <label>Engine <select id="engine-select"></select></label>
       <span id="recon-status" class="muted"></span>
     </div>
     <ol id="candidates" class="candidates"></ol>
   </section>
 
   <!-- ------------------------------------------------------------ Step 5 -->
-  <section class="step" id="step-listen">
+  <section class="step" id="step-listen" data-title="Listen">
     <h2><span class="num">5</span> Listen and refine</h2>
-    <p class="hint">Only press play when you have told the sketch everything you can. Hearing a wrong candidate can overwrite the riff in your head. After listening, click notes on the graph and say whether they were right, too high or too low; that becomes new constraints.</p>
+    <p class="hint">Only press play when you have told the sketch everything you can. Hearing a wrong candidate can overwrite the riff in your head. After listening, click the blue candidate notes on the graph and say whether they were right, too high or too low; that becomes new constraints. Then go back to step 4 and reconstruct again.</p>
     <div class="row">
+      <span class="muted">Selected: <span id="listen-cand">none</span></span>
       <button id="btn-play" class="primary" disabled>Play selected candidate</button>
       <button id="btn-stop-audio" disabled>Stop</button>
       <span class="muted">Audio exposure: <span id="exposure">0 previews, 0.0 s</span></span>
@@ -115,7 +127,7 @@
   </section>
 </main>
 
-<footer><span id="status" class="muted">ready</span></footer>
+<footer><span id="status" class="muted">ready</span><span class="muted keys">← → change step</span></footer>
 <script src="/app.js"></script>
 </body>
 </html>

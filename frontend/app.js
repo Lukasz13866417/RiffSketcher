@@ -17,6 +17,8 @@ const state = {
   feedbackNote: -1,
   library: null,
   paint: false,
+  step: 0,
+  engine: 'auto',
 };
 
 const $ = (id) => document.getElementById(id);
@@ -398,10 +400,10 @@ async function reconstruct() {
   if (state.sketch.observations.length < 2) { setStatus('tap at least two notes first'); return; }
   $('recon-status').textContent = 'thinking…';
   try {
-    const r = await api('/api/reconstruct', { sketch: state.sketch, n_candidates: Number($('n-cand').value) || 5 });
+    const r = await api('/api/reconstruct', { sketch: state.sketch, n_candidates: Number($('n-cand').value) || 5, engine: $('engine-select').value || 'auto' });
     state.candidates = r.candidates; state.selectedCandidate = r.candidates.length ? 0 : -1;
     renderCandidates(); renderGraph();
-    $('recon-status').textContent = `${r.candidates.length} candidates, ${r.candidates[0] ? r.candidates[0].tempo.toFixed(0) : '?'} BPM`;
+    $('recon-status').textContent = `${r.candidates.length} candidates from the ${r.engine} engine, ${r.candidates[0] ? r.candidates[0].tempo.toFixed(0) : '?'} BPM`;
     $('btn-play').disabled = state.selectedCandidate < 0;
   } catch (e) { $('recon-status').textContent = ''; setStatus(e.message); }
 }
@@ -411,12 +413,15 @@ function renderCandidates() {
   state.candidates.forEach((c, i) => {
     const li = document.createElement('li');
     if (i === state.selectedCandidate) li.classList.add('selected');
-    li.innerHTML = `<span class="key">${c.key}</span> <span class="muted">score ${c.score.toFixed(2)}</span><br>` +
+    li.innerHTML = `<span class="key">${c.key}</span> <span class="muted">score ${c.score.toFixed(2)} · ${(c.meta && c.meta.method) || ''}</span><br>` +
       `<span class="notes">${c.note_names.join(' ')}</span>` +
       (c.violations.length ? `<br><span class="viol">violates: ${c.violations.join('; ')}</span>` : '');
     li.onclick = () => { state.selectedCandidate = i; renderCandidates(); renderGraph(); $('btn-play').disabled = false; state.feedbackNote = -1; $('feedback').hidden = true; };
     ol.appendChild(li);
   });
+  const sel = state.candidates[state.selectedCandidate];
+  $('listen-cand').textContent = sel ? `${state.selectedCandidate + 1}. ${sel.key} — ${sel.note_names.join(' ')}` : 'none (reconstruct first)';
+  $('btn-play').disabled = !sel;
 }
 $('btn-reconstruct').onclick = reconstruct;
 
@@ -480,10 +485,10 @@ function load(obj) {
   state.selection.clear(); state.candidates = []; state.selectedCandidate = -1;
   renderAll(); renderPasses(); updateRhythmInfo();
 }
-function persist() { try { localStorage.setItem('riff-sketcher', JSON.stringify({ sketch: state.sketch, passes: state.passes })); } catch (e) { /* ignore */ } }
+function persist() { try { localStorage.setItem('riff-sketcher', JSON.stringify({ sketch: state.sketch, passes: state.passes, step: state.step })); } catch (e) { /* ignore */ } }
 $('btn-save').onclick = save;
 $('file-load').onchange = (ev) => { const f = ev.target.files[0]; if (!f) return; f.text().then((t) => load(JSON.parse(t))).catch((e) => setStatus(e.message)); };
-$('btn-clear').onclick = () => { if (confirm('Clear the whole sketch?')) { load({ sketch: { observations: [], gestures: [], constraints: [], tempo_hint: null, meta: {} }, passes: [] }); } };
+$('btn-clear').onclick = () => { if (confirm('Clear the whole sketch?')) { load({ sketch: { observations: [], gestures: [], constraints: [], tempo_hint: null, meta: {} }, passes: [] }); goTo(0); } };
 $('tempo-hint').onchange = (ev) => { state.sketch.tempo_hint = ev.target.value ? Number(ev.target.value) : null; updateRhythmInfo(); };
 
 $('btn-record').onclick = startRecording;
@@ -499,7 +504,9 @@ document.addEventListener('keydown', (ev) => {
     return;
   }
   if (typing) return;
-  if (ev.key === 'r' || ev.key === 'R') { ev.preventDefault(); startRecording(); }
+  if (ev.key === 'ArrowRight') { ev.preventDefault(); goTo(state.step + 1); return; }
+  if (ev.key === 'ArrowLeft') { ev.preventDefault(); goTo(state.step - 1); return; }
+  if ((ev.key === 'r' || ev.key === 'R') && state.step === 0) { ev.preventDefault(); startRecording(); }
   else if (ev.key === 'Delete' || ev.key === 'Backspace') { ev.preventDefault(); deleteSelection(); }
   else if (ev.key === 'p' || ev.key === 'P') { state.paint = true; svg.style.cursor = 'crosshair'; }
   else if (ev.key === 'ArrowUp' || ev.key === 'ArrowDown') {
@@ -513,14 +520,70 @@ window.addEventListener('resize', renderGraph);
 window.addEventListener('beforeunload', persist);
 setInterval(persist, 5000);
 
-function renderAll() { renderGraph(); renderTags(); renderCandidates(); renderExposure(); }
+function renderAll() { renderGraph(); renderTags(); renderCandidates(); renderExposure(); if (typeof renderDots === 'function' && $('step-dots')) renderDots(); }
+
+// ----------------------------------------------------------------------------- wizard navigation
+const STEPS = [...document.querySelectorAll('main .step')];
+
+function stepDone(i) {
+  const n = state.sketch.observations.length;
+  if (i === 0) return n > 0;
+  if (i === 1) return n > 0 && state.sketch.observations.some((o) => o.y !== null && o.y !== 0);
+  if (i === 2) return state.sketch.gestures.length + state.sketch.constraints.length > 0;
+  if (i === 3) return state.candidates.length > 0;
+  if (i === 4) return state.exposure.count > 0;
+  return false;
+}
+
+function renderDots() {
+  const ol = $('step-dots'); ol.innerHTML = '';
+  STEPS.forEach((sec, i) => {
+    const li = document.createElement('li');
+    if (i === state.step) li.classList.add('active');
+    if (stepDone(i)) li.classList.add('done');
+    li.innerHTML = `<span class="dot"></span><span class="lbl">${i + 1} ${sec.dataset.title}</span>`;
+    li.onclick = () => goTo(i);
+    ol.appendChild(li);
+  });
+  $('nav-prev').disabled = state.step === 0;
+  $('nav-next').disabled = state.step === STEPS.length - 1;
+}
+
+function goTo(i) {
+  if (state.recording) return; // finish the pass first
+  i = Math.max(0, Math.min(STEPS.length - 1, i));
+  if (i > 0 && state.sketch.observations.length === 0) { setStatus('tap a rhythm first'); i = 0; }
+  state.step = i;
+  STEPS.forEach((sec, k) => sec.classList.toggle('active', k === i));
+  $('graph-panel').hidden = i === 0;
+  renderDots();
+  if (i > 0) renderGraph(); // the svg has a size only once it is visible
+  if (i === 3 && !state.candidates.length) $('recon-status').textContent = 'press Reconstruct when the sketch says everything you know';
+  window.scrollTo({ top: 0 });
+  persist();
+}
+$('nav-prev').onclick = () => goTo(state.step - 1);
+$('nav-next').onclick = () => goTo(state.step + 1);
+
+async function loadEngines() {
+  const sel = $('engine-select'); sel.innerHTML = '';
+  const r = await api('/api/engines');
+  r.engines.forEach((e) => {
+    const o = document.createElement('option'); o.value = e.name;
+    o.textContent = e.name === 'model' ? `model (${e.trained_on || 'trained'}, ${e.device})` : 'deterministic search';
+    if (e.default) o.selected = true;
+    sel.appendChild(o);
+  });
+}
 
 // ----------------------------------------------------------------------------- boot
 (async function boot() {
-  try { await loadLibrary(); } catch (e) { setStatus('backend unreachable: ' + e.message); }
+  let step = 0;
+  try { await loadLibrary(); await loadEngines(); } catch (e) { setStatus('backend unreachable: ' + e.message); }
   try {
     const saved = localStorage.getItem('riff-sketcher');
-    if (saved) { load(JSON.parse(saved)); setStatus('restored previous sketch'); }
+    if (saved) { const obj = JSON.parse(saved); load(obj); step = obj.step || 0; setStatus('restored previous sketch'); }
   } catch (e) { /* ignore */ }
   renderAll();
+  goTo(step);
 })();

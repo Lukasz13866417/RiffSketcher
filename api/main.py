@@ -29,7 +29,19 @@ from core.synthesis import riff_to_wav
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
 app = FastAPI(title="Riff Sketcher", version="0.1.0")
-reconstructor = DeterministicReconstructor(InferenceConfig())
+
+# Reconstruction engines. "deterministic" always exists; "model" is added when a
+# trained checkpoint (env RIFF_MODEL, default runs/pop909/best.pt) can be loaded.
+ENGINES: dict[str, Any] = {"deterministic": DeterministicReconstructor(InferenceConfig())}
+try:
+    from ml.reconstructor import load_default as _load_model
+
+    _model_engine = _load_model()
+    if _model_engine is not None:
+        ENGINES["model"] = _model_engine
+except Exception:  # ml extras not installed
+    _model_engine = None
+DEFAULT_ENGINE = "model" if "model" in ENGINES else "deterministic"
 
 
 # --------------------------------------------------------------------------- #
@@ -51,6 +63,7 @@ class SketchIn(BaseModel):
 class ReconstructIn(BaseModel):
     sketch: SketchIn
     n_candidates: int = 5
+    engine: str = "auto"  # "auto" | "model" | "deterministic"
 
 
 class RiffIn(BaseModel):
@@ -91,6 +104,19 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/api/engines")
+def engines() -> dict[str, Any]:
+    info = []
+    for name, eng in ENGINES.items():
+        d: dict[str, Any] = {"name": name, "default": name == DEFAULT_ENGINE}
+        if name == "model":
+            d["checkpoint"] = eng.checkpoint
+            d["device"] = eng.device
+            d["trained_on"] = eng.meta.get("sim")
+        info.append(d)
+    return {"engines": info, "default": DEFAULT_ENGINE}
+
+
 @app.get("/api/gestures")
 def gestures() -> dict[str, Any]:
     return GESTURE_LIBRARY
@@ -120,9 +146,13 @@ def reconstruct(body: ReconstructIn) -> dict[str, Any]:
     if len(sketch) == 0:
         raise HTTPException(400, "sketch has no observations")
     n = max(1, min(body.n_candidates, 20))
-    riffs = reconstructor.reconstruct(sketch, n)
+    name = DEFAULT_ENGINE if body.engine == "auto" else body.engine
+    if name not in ENGINES:
+        raise HTTPException(400, f"unknown engine {name!r}; available: {sorted(ENGINES)}")
+    riffs = ENGINES[name].reconstruct(sketch, n)
     cs = build_constraints(sketch)
     return {
+        "engine": name,
         "candidates": [{**_riff_out(r), "violations": violations(r, cs)} for r in riffs],
         "constraints": {
             "fixed_pitch": cs.fixed_pitch, "direction": cs.direction,
