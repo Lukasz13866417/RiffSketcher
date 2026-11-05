@@ -527,6 +527,7 @@ async function reconstruct() {
   if (state.sketch.observations.length < 2) { setStatus('tap at least two notes first'); return; }
   $('recon-status').textContent = 'thinking…';
   try {
+    state.sketch.meta.genre = $('genre-select').value || 'unknown';
     const r = await api('/api/reconstruct', { sketch: state.sketch, n_candidates: Number($('n-cand').value) || 5, engine: $('engine-select').value || 'auto' });
     state.candidates = r.candidates; state.selectedCandidate = r.candidates.length ? 0 : -1;
     renderCandidates(); renderGraph();
@@ -719,6 +720,16 @@ async function loadEngines() {
     if (e.default) o.selected = true;
     sel.appendChild(o);
   });
+  const model = r.engines.find((e) => e.name === 'model');
+  const gsel = $('genre-select'); gsel.innerHTML = '';
+  const genres = (model && model.genres && model.genres.length) ? model.genres : ['unknown'];
+  genres.forEach((g) => {
+    const o = document.createElement('option'); o.value = g; o.textContent = g === 'unknown' ? 'any' : g;
+    gsel.appendChild(o);
+  });
+  gsel.disabled = genres.length <= 1;
+  gsel.title = genres.length <= 1 ? 'the loaded model has no genre conditioning' : gsel.title;
+  if (state.sketch.meta && genres.includes(state.sketch.meta.genre)) gsel.value = state.sketch.meta.genre;
 }
 
 // ----------------------------------------------------------------------------- boot

@@ -3,7 +3,9 @@
 Encoder
     One token per tapped note built from the continuous features (IOI,
     height, confidence, missing flag) and the gesture multi-hot vector, with
-    learned positional embeddings.
+    learned positional embeddings and, when ``n_genres > 0``, a learned genre
+    embedding added to every token (``sketch.meta["genre"]``; see
+    ``ml.datasets.GENRES``).
 Decoder
     Autoregressive over the 49 interval classes.  Step ``k`` predicts the
     interval between notes ``k`` and ``k+1``; its input is the previous
@@ -46,6 +48,7 @@ class ModelConfig:
     max_len: int = 64
     n_cont: int = N_CONTINUOUS_FEATURES
     n_gest: int = len(GESTURE_KINDS)
+    n_genres: int = 0  # 0 = no genre conditioning (checkpoints trained before it existed)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -67,6 +70,7 @@ class SketchTransformer(nn.Module):
         self.in_proj = nn.Sequential(nn.Linear(c.n_cont + c.n_gest, c.d_model), nn.GELU(),
                                      nn.Linear(c.d_model, c.d_model))
         self.enc_pos = nn.Embedding(c.max_len, c.d_model)
+        self.genre_emb = nn.Embedding(c.n_genres, c.d_model) if c.n_genres > 0 else None
         enc_layer = nn.TransformerEncoderLayer(c.d_model, c.n_heads, c.d_ff, c.dropout,
                                                activation="gelu", batch_first=True, norm_first=True)
         self.encoder = nn.TransformerEncoder(enc_layer, c.n_layers, enable_nested_tensor=False)
@@ -94,6 +98,11 @@ class SketchTransformer(nn.Module):
         x = self.in_proj(torch.cat([cont, gest], dim=-1))
         pos = torch.arange(n, device=cont.device).clamp(max=self.cfg.max_len - 1)
         x = x + self.enc_pos(pos)[None]
+        if self.genre_emb is not None:
+            genre = batch.get("genre")
+            if genre is None:
+                genre = torch.zeros(B, dtype=torch.long, device=cont.device)
+            x = x + self.genre_emb(genre.clamp(max=self.cfg.n_genres - 1))[:, None, :]
         mem = self.encoder(x, src_key_padding_mask=~mask)
         return self.enc_norm(mem), mask
 

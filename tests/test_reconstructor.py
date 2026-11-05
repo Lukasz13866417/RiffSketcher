@@ -59,3 +59,19 @@ def test_single_note_and_empty(rec):
 
 def test_missing_checkpoint_is_not_available():
     assert not TransformerReconstructor(checkpoint="/nonexistent.pt").available
+
+
+def test_untrained_genre_falls_back_to_unknown():
+    torch.manual_seed(0)
+    from ml.datasets import GENRES
+    model = SketchTransformer(ModelConfig(d_model=32, n_layers=1, n_heads=2, n_genres=len(GENRES))).eval()
+    r = TransformerReconstructor(model=model, device="cpu", meta={"genres_seen": ["unknown", "pop"]})
+    assert r.genres == ["unknown", "pop"]
+    # an untrained label must behave exactly like "unknown"
+    sk_metal = make_sketch([0, 2, 4]); sk_metal.meta["genre"] = "metal"
+    sk_unknown = make_sketch([0, 2, 4]); sk_unknown.meta["genre"] = "unknown"
+    seqs = lambda riffs: [tuple(x.pitches) for x in riffs]  # noqa: E731
+    assert seqs(r.reconstruct(sk_metal, 3)) == seqs(r.reconstruct(sk_unknown, 3))
+    # a trained label is passed through and changes the prediction
+    sk_pop = make_sketch([0, 2, 4]); sk_pop.meta["genre"] = "pop"
+    assert seqs(r.reconstruct(sk_pop, 3)) != seqs(r.reconstruct(sk_unknown, 3))

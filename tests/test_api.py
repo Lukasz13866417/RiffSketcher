@@ -53,3 +53,12 @@ def test_engines_and_explicit_engine():
     assert r.status_code == 200 and r.json()["engine"] == "deterministic"
     bad = client.post("/api/reconstruct", json={"sketch": SKETCH, "engine": "nope"})
     assert bad.status_code == 400
+
+
+def test_reconstruct_accepts_genre_and_engines_report_genres():
+    e = client.get("/api/engines").json()
+    model = next((x for x in e["engines"] if x["name"] == "model"), None)
+    if model is not None:
+        assert isinstance(model["genres"], list)
+    r = client.post("/api/reconstruct", json={"sketch": SKETCH, "n_candidates": 2, "engine": "deterministic", "genre": "metal"})
+    assert r.status_code == 200

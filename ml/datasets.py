@@ -41,6 +41,27 @@ PAD_TARGET = -100  # ignore_index for cross-entropy
 # --------------------------------------------------------------------------- #
 
 
+# Genre conditioning. The data source is the first (coarse) genre label; the
+# model gets a learned embedding per genre and is trained with the label
+# dropped to "unknown" part of the time, so inference works with or without
+# a genre choice.
+GENRES: tuple[str, ...] = ("unknown", "pop", "rock", "metal")
+SOURCE_GENRE: dict[str, str] = {
+    "pop909": "pop",
+    "lakh_guitar": "rock", "guitar_midi": "rock",
+    "dadagp": "metal",
+}
+
+
+def genre_of_source(source: str) -> str:
+    return SOURCE_GENRE.get(source, "unknown")
+
+
+def genre_id(name: str | None) -> int:
+    """Index into GENRES; unknown names map to 0 ("unknown")."""
+    return GENRES.index(name) if name in GENRES else 0
+
+
 @dataclass
 class Phrase:
     """A short monophonic melody; onsets/durations in beats, first onset at 0."""
@@ -591,6 +612,7 @@ def example_to_tensors(sketch: Sketch, intervals: list[int] | None) -> dict[str,
         "gest": torch.from_numpy(f["gest"]),
         "mask": torch.ones(n, dtype=torch.bool),
     }
+    item["genre"] = torch.tensor(genre_id(sketch.meta.get("genre")), dtype=torch.long)
     if intervals is not None:
         item["target"] = torch.tensor([interval_to_class(d) for d in intervals], dtype=torch.long)
     return item
@@ -604,11 +626,12 @@ class PhraseDataset(Dataset):
     """
 
     def __init__(self, phrases: list[Phrase], simulator: "SketchSimulator", seed: int = 0,
-                 epoch: int = 0) -> None:
+                 epoch: int = 0, genre_dropout: float = 0.0) -> None:
         self.phrases = phrases
         self.simulator = simulator
         self.seed = seed
         self.epoch = epoch
+        self.genre_dropout = genre_dropout  # probability of showing the model "unknown" instead of the label
 
     def set_epoch(self, epoch: int) -> None:
         self.epoch = epoch
@@ -622,6 +645,12 @@ class PhraseDataset(Dataset):
 
     def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         res = self.simulate(idx)
+        genre = genre_of_source(self.phrases[idx].source)
+        if self.genre_dropout > 0:
+            rng = np.random.default_rng([self.seed, self.epoch, idx, 7])
+            if rng.random() < self.genre_dropout:
+                genre = "unknown"
+        res.sketch.meta["genre"] = genre
         return example_to_tensors(res.sketch, res.intervals)
 
 
@@ -641,7 +670,8 @@ def collate(items: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
         mask[b, :n] = True
         if has_target:
             target[b, :n - 1] = it["target"]
-    batch = {"cont": cont, "gest": gest, "mask": mask}
+    batch = {"cont": cont, "gest": gest, "mask": mask,
+             "genre": torch.stack([it.get("genre", torch.tensor(0)) for it in items])}
     if has_target:
         batch["target"] = target
     return batch

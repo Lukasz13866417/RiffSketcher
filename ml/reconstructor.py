@@ -30,7 +30,7 @@ from core.rhythm import quantise
 
 # runs/mixed/best.pt is trained on POP909 melodies plus Lakh guitar riffs; it beats
 # the POP909-only model on both sources (see ml/README.md, "Results: mixed data").
-DEFAULT_CHECKPOINT = os.environ.get("RIFF_MODEL", "runs/mixed/best.pt")
+DEFAULT_CHECKPOINT = os.environ.get("RIFF_MODEL", "runs/genre/best.pt")
 
 
 def guess_key(pitches: list[int]) -> str:
@@ -77,7 +77,24 @@ class TransformerReconstructor:
         dev = self.device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.model, ckpt = load_checkpoint(self.checkpoint, dev)
         self.device = dev
-        self.meta = {k: ckpt[k] for k in ("config", "epoch", "sim") if k in ckpt}
+        self.meta = {k: ckpt[k] for k in ("config", "epoch", "sim", "sim_level", "genres_seen") if k in ckpt}
+        self.meta.setdefault("sim", self.meta.get("sim_level"))
+
+    @property
+    def genres(self) -> list[str]:
+        """Genre names the loaded model was trained on ([] for unconditioned checkpoints).
+
+        A genre embedding that never saw data is random noise, so only genres
+        recorded in the checkpoint (``genres_seen``) are offered; a checkpoint
+        without that record falls back to all names the config allows.
+        """
+        from .datasets import GENRES
+
+        self._ensure_model()
+        if not self.model.cfg.n_genres:
+            return []
+        seen = self.meta.get("genres_seen")
+        return list(seen) if seen else list(GENRES[: self.model.cfg.n_genres])
 
     @property
     def available(self) -> bool:
@@ -173,6 +190,8 @@ class TransformerReconstructor:
         if len(sketch) == 0:
             return []
         self._ensure_model()
+        if sketch.meta.get("genre") not in self.genres:
+            sketch.meta["genre"] = "unknown"  # unknown or untrained label: let the model guess
         cs = build_constraints(sketch)
         rhythm = quantise(sketch.onsets, tempo_hint=sketch.tempo_hint)
 

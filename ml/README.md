@@ -258,6 +258,75 @@ uv run python -m ml.evaluate --checkpoint runs/pop909/best.pt runs/mixed/best.pt
 uv run python -m experiments.chug_probe runs/pop909/best.pt runs/mixed/best.pt
 ```
 
+### Genre conditioning: one model vs separate models (2026-11-05)
+
+Question: should each genre get its own model? Setup: the data source is the
+genre label (`ml.datasets.GENRES`: unknown / pop / rock / metal; POP909 ->
+pop, Lakh guitar -> rock, DadaGP -> metal). `SketchTransformer` gets a learned
+genre embedding added to every encoder token (`ModelConfig.n_genres`; old
+checkpoints have 0 and load unchanged). Training shows the label as "unknown"
+for 20% of sketches (`--genre-dropout`), so the model also works without a
+choice. Four models, same recipe (20 epochs, medium noise):
+
+| run | data | genre token |
+| --- | --- | --- |
+| `runs/mixed` | POP909 + Lakh guitar | no |
+| `runs/genre` | POP909 + Lakh guitar | yes, dropout 0.2 |
+| `runs/pop909` | POP909 only | no (separate pop model) |
+| `runs/guitar_only` | Lakh guitar only (`--source lakh_guitar`) | no (separate rock model) |
+
+Mixed test split, medium noise, `k = 5`, conditioned model given the true
+label (`--genre auto`; `runs/eval_genre_auto.log`):
+
+```
+source = pop909 (n = 3024)        interval_acc   nll    ece   top5_recon
+mixed        (shared, no token)        0.581    1.186  0.016    0.315
+genre        (shared, token=pop)       0.590    1.181  0.022    0.327
+pop909       (separate pop model)      0.559    1.249  0.024    0.260
+guitar_only  (separate rock model)     0.542    1.271  0.020    0.237
+
+source = lakh_guitar (n = 9113)   interval_acc   nll    ece   top5_recon
+mixed        (shared, no token)        0.600    1.177  0.030    0.397
+genre        (shared, token=rock)      0.597    1.173  0.027    0.398
+pop909       (separate pop model)      0.516    1.682  0.091    0.261
+guitar_only  (separate rock model)     0.592    1.188  0.027    0.385
+```
+
+With no label (`--genre unknown`, `runs/eval_genre_unknown.log`) the
+conditioned model scores 0.578 on pop and 0.598 on guitar, i.e. the same as
+the unconditioned shared model.
+
+Takeaways:
+
+* **Separate models lose.** The pop-only model is 3 points behind the shared
+  model on pop, and the guitar-only model is behind on guitar too (0.592 vs
+  0.597-0.600) despite seeing the same guitar phrases: the other genre's data
+  helps rather than hurts. Keep one model.
+* **The genre token is nearly free and slightly positive**: +0.9 points and
+  +1.2 points of top-5 reconstruction on pop, a wash on rock, and no cost when
+  the label is left at "any". Pop and rock guitar lines are simply not that
+  different in interval statistics; the token should matter more once a
+  genuinely different genre (metal from DadaGP) is in the mix.
+* The API default is now `runs/genre/best.pt`, which turns on the Genre
+  dropdown in the reconstruct step (sent as `sketch.meta["genre"]` or the
+  `genre` field of `/api/reconstruct`).
+* **Only trained genres may be offered.** The checkpoint records
+  `genres_seen` and the reconstructor maps anything else to "unknown". The
+  reason: with no metal data yet, asking the model for "metal" hits an
+  untrained embedding and the chug probe turns into noise (`+1 +1 +1 +5 -5 ...`,
+  0.00 interval accuracy), while unknown / pop / rock all give the same 0.73
+  as the unconditioned model. On this probe the pop/rock token changes
+  nothing; metal data is what would.
+
+Reproduce:
+
+```bash
+uv run python -m ml.train --data data/processed/mixed.jsonl --epochs 20 --sim medium --genre-dropout 0.2 --out runs/genre
+uv run python -m ml.train --data data/processed/mixed.jsonl --epochs 20 --sim medium --source lakh_guitar --no-genre --out runs/guitar_only
+uv run python -m ml.evaluate --checkpoint runs/mixed/best.pt runs/genre/best.pt runs/pop909/best.pt runs/guitar_only/best.pt \
+    --data data/processed/mixed.jsonl --split test --sim medium --no-deterministic --genre auto
+```
+
 ### Decoding experiments (2026-11-05)
 
 A user reported a flat "all the same note" top candidate for a chug-heavy riff

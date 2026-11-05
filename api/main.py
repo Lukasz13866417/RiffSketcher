@@ -64,6 +64,7 @@ class ReconstructIn(BaseModel):
     sketch: SketchIn
     n_candidates: int = 5
     engine: str = "auto"  # "auto" | "model" | "deterministic"
+    genre: str | None = None  # overrides sketch.meta["genre"]; see ml.datasets.GENRES
 
 
 class RiffIn(BaseModel):
@@ -113,6 +114,7 @@ def engines() -> dict[str, Any]:
             d["checkpoint"] = eng.checkpoint
             d["device"] = eng.device
             d["trained_on"] = eng.meta.get("sim")
+            d["genres"] = eng.genres
         info.append(d)
     return {"engines": info, "default": DEFAULT_ENGINE}
 
@@ -145,6 +147,8 @@ def reconstruct(body: ReconstructIn) -> dict[str, Any]:
     sketch = body.sketch.to_sketch()
     if len(sketch) == 0:
         raise HTTPException(400, "sketch has no observations")
+    if body.genre is not None:
+        sketch.meta["genre"] = body.genre
     n = max(1, min(body.n_candidates, 20))
     name = DEFAULT_ENGINE if body.engine == "auto" else body.engine
     if name not in ENGINES:

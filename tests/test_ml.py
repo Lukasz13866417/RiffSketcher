@@ -495,3 +495,50 @@ def test_deterministic_baseline_survives_extreme_heights():
     d = DeterministicBaseline().predict(sk)
     assert d.shape == (7, N_INTERVAL_CLASSES) and np.allclose(d.sum(1), 1.0)
     assert len(DeterministicBaseline().candidates(sk, 2)[0]) == 7
+
+
+# -- genre conditioning ------------------------------------------------------- #
+
+def test_genre_vocabulary_and_ids():
+    from ml.datasets import GENRES, genre_id, genre_of_source
+    assert GENRES[0] == "unknown"
+    assert genre_of_source("pop909") == "pop" and genre_of_source("lakh_guitar") == "rock"
+    assert genre_of_source("something-else") == "unknown"
+    assert genre_id("pop") == GENRES.index("pop") and genre_id(None) == 0 and genre_id("nope") == 0
+
+
+def test_dataset_sets_genre_and_dropout():
+    import numpy as np
+    from ml.datasets import Phrase, PhraseDataset, collate, genre_id
+    from ml.sketch_simulator import SketchSimulator
+    phrases = [Phrase(f"s{i}", [60, 62, 64, 65, 67, 69], [0, 1, 2, 3, 4, 5], [1] * 6, "pop909") for i in range(40)]
+    sim = SketchSimulator(np.random.default_rng(0), "easy")
+    ds = PhraseDataset(phrases, sim, seed=0, genre_dropout=0.0)
+    assert all(int(ds[i]["genre"]) == genre_id("pop") for i in range(10))
+    ds = PhraseDataset(phrases, sim, seed=0, genre_dropout=0.5)
+    ids = [int(ds[i]["genre"]) for i in range(40)]
+    assert 0 in ids and genre_id("pop") in ids  # some dropped to unknown, some kept
+    batch = collate([ds[0], ds[1]])
+    assert batch["genre"].shape == (2,)
+
+
+def test_model_genre_embedding_and_legacy_config():
+    import torch
+    from ml.datasets import GENRES, collate, example_to_tensors
+    from ml.model import ModelConfig, SketchTransformer
+    from core.representation import Observation, Sketch
+    sk = Sketch([Observation(i * 0.5, i, 0.8) for i in range(5)])
+    sk.meta["genre"] = "rock"
+    batch = collate([example_to_tensors(sk, [1, 1, 1, 1])])
+    cond = SketchTransformer(ModelConfig(d_model=32, n_layers=1, n_heads=2, n_genres=len(GENRES))).eval()
+    with torch.no_grad():
+        logits_rock = cond(batch)
+        batch2 = dict(batch); batch2["genre"] = torch.zeros_like(batch["genre"])
+        logits_unknown = cond(batch2)
+    assert logits_rock.shape == (1, 4, 49)
+    assert not torch.allclose(logits_rock, logits_unknown)  # the genre changes the prediction
+    # a config saved before genre conditioning existed has no n_genres and must still build and run
+    legacy = SketchTransformer(ModelConfig.from_dict({"d_model": 32, "n_layers": 1, "n_heads": 2})).eval()
+    assert legacy.genre_emb is None
+    with torch.no_grad():
+        assert legacy(batch).shape == (1, 4, 49)

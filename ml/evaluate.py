@@ -32,7 +32,7 @@ import torch
 
 from core.representation import Sketch, interval_to_class
 from ml.baseline import ContourBaseline, DeterministicBaseline, IntervalPredictor
-from ml.datasets import Phrase, apply_split_ids, load_phrases, synthetic_phrases
+from ml.datasets import Phrase, apply_split_ids, genre_of_source, load_phrases, synthetic_phrases
 from ml.sketch_simulator import SketchSimulator
 
 Example = tuple[Sketch, list[int]]
@@ -137,8 +137,15 @@ def load_examples_from_args(args: argparse.Namespace) -> tuple[list[Example], li
             phrases = apply_split_ids(phrases, ids)[args.split]
         if args.limit:
             phrases = phrases[:args.limit]
+    if getattr(args, "source", None):
+        phrases = [p for p in phrases if p.source == args.source]
     sim = SketchSimulator(args.seed, args.sim)
-    return make_examples(phrases, sim, seed=args.seed), [p.source for p in phrases]
+    examples = make_examples(phrases, sim, seed=args.seed)
+    # genre label shown to conditioned models: the phrase's own (via its source), none, or a fixed one
+    mode = getattr(args, "genre", "auto")
+    for (sketch, _), p in zip(examples, phrases):
+        sketch.meta["genre"] = genre_of_source(p.source) if mode == "auto" else mode
+    return examples, [p.source for p in phrases]
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -154,6 +161,9 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--k", type=int, default=5)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--no-deterministic", action="store_true", help="skip the (slower) deterministic engine")
+    ap.add_argument("--source", default=None, help="only phrases from this source (e.g. pop909, lakh_guitar)")
+    ap.add_argument("--genre", default="auto",
+                    help="genre label given to conditioned models: auto (from the source), unknown, or a name")
     ap.add_argument("--device", default=None)
     args = ap.parse_args(argv)
 
@@ -166,7 +176,7 @@ def main(argv: list[str] | None = None) -> None:
         from ml.model import count_parameters, load_checkpoint
         device = args.device or ("cuda" if torch.cuda.is_available() else "cpu")
         model, ckpt = load_checkpoint(path, device)
-        model.name = f"transformer{i + 1 if len(args.checkpoint) > 1 else ''}"
+        model.name = Path(path).parent.name if len(args.checkpoint or []) > 1 else "transformer"
         print(f"loaded {path} as {model.name}: {count_parameters(model) / 1e6:.2f}M params, "
               f"epoch {ckpt.get('epoch')}, val_acc {ckpt.get('val_acc', float('nan')):.3f}")
         predictors.append(model)

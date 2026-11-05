@@ -23,9 +23,10 @@ step pills). Keys: `R` start recording, `Space`/letters tap, `Enter` stop, drag 
 one, hold `P` and drag to paint heights. The graph toolbar zooms the time and pitch axes (pitch zoom
 centres on the selection) and `Fit` frames the drawn heights.
 
-If `runs/mixed/best.pt` exists (or `RIFF_MODEL` points at a checkpoint) the API loads the trained
+If `runs/genre/best.pt` exists (or `RIFF_MODEL` points at a checkpoint) the API loads the trained
 Transformer and makes it the default engine; otherwise it uses the deterministic search. Step 4 has an
-engine switch. Train a model with the commands in `ml/README.md`.
+engine switch and, for genre-conditioned checkpoints, a genre dropdown listing the genres that
+checkpoint was trained on (any / pop / rock today). Train a model with the commands in `ml/README.md`.
 
 ```bash
 uv run pytest -q                       # all tests
