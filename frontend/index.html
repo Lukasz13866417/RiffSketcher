@@ -30,6 +30,10 @@
       <svg id="graph" xmlns="http://www.w3.org/2000/svg"></svg>
     </div>
     <div class="row graph-tools">
+      <span class="zoom-group" title="Zoom the time axis">Time <button id="zoom-time-out" class="small">−</button><button id="zoom-time-in" class="small">+</button></span>
+      <span class="zoom-group" title="Zoom the pitch axis">Pitch <button id="zoom-pitch-out" class="small">−</button><button id="zoom-pitch-in" class="small">+</button></span>
+      <button id="zoom-fit" class="small">Fit</button>
+      <span id="zoom-info" class="muted"></span>
       <span class="muted">Selection: <span id="sel-info">none</span></span>
       <label>Confidence of selected points <input id="conf-slider" type="range" min="0" max="1" step="0.05" value="0.5"> <span id="conf-val">0.50</span></label>
       <button id="btn-mark-unknown" class="small">Mark height unknown</button>

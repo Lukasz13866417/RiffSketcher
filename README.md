@@ -17,7 +17,8 @@ uv run uvicorn api.main:app --reload --port 8765
 Open <http://localhost:8765>. The UI is a five-step wizard: `→` / `←` move between steps (or click the
 step pills). Keys: `R` start recording, `Space`/letters tap, `Enter` stop, drag points to draw,
 `Shift`+click to select a range, `↑`/`↓` nudge the selection, `Delete` removes notes, double-click adds
-one, hold `P` and drag to paint heights.
+one, hold `P` and drag to paint heights. The graph toolbar zooms the time and pitch axes (pitch zoom
+centres on the selection) and `Fit` frames the drawn heights.
 
 If `runs/pop909/best.pt` exists (or `RIFF_MODEL` points at a checkpoint) the API loads the trained
 Transformer and makes it the default engine; otherwise it uses the deterministic search. Step 4 has an

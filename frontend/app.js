@@ -116,7 +116,43 @@ async function updateRhythmInfo() {
 }
 
 // ----------------------------------------------------------------------------- step 2: graph
-const G = { padL: 44, padR: 16, padT: 12, padB: 24, yMin: -24, yMax: 24 };
+const HMIN = -24, HMAX = 24; // allowed height range for a note
+const G = { padL: 44, padR: 16, padT: 12, padB: 24, yMin: -24, yMax: 24, zoomX: 1, span: 48, center: 0 };
+const SPANS = [8, 12, 18, 24, 36, 48];
+const ZOOMS_X = [1, 1.5, 2, 3, 4, 6, 8];
+
+function applyZoom() {
+  G.span = SPANS.includes(G.span) ? G.span : 48;
+  const half = G.span / 2;
+  G.center = Math.max(HMIN + half, Math.min(HMAX - half, G.center));
+  G.yMin = G.center - half; G.yMax = G.center + half;
+  svg.style.width = `${G.zoomX * 100}%`;
+  $('zoom-info').textContent = `time ×${G.zoomX}, pitch ±${half}`;
+}
+function heightsCenter(all = false) {
+  const sel = all ? [] : [...state.selection];
+  const src = sel.length ? sel.map((i) => state.sketch.observations[i]) : state.sketch.observations;
+  const ys = src.map((o) => o.y).filter((y) => y !== null);
+  return ys.length ? Math.round((Math.min(...ys) + Math.max(...ys)) / 2) : 0;
+}
+function zoomPitch(dir) {
+  const i = SPANS.indexOf(G.span);
+  G.span = SPANS[Math.max(0, Math.min(SPANS.length - 1, i - dir))];
+  G.center = heightsCenter();
+  applyZoom(); renderGraph();
+}
+function zoomTime(dir) {
+  const i = ZOOMS_X.indexOf(G.zoomX);
+  G.zoomX = ZOOMS_X[Math.max(0, Math.min(ZOOMS_X.length - 1, i + dir))];
+  applyZoom(); renderGraph();
+}
+function zoomFit() {
+  const ys = state.sketch.observations.map((o) => o.y).filter((y) => y !== null);
+  const range = ys.length ? Math.max(...ys) - Math.min(...ys) : 0;
+  G.span = SPANS.find((sp) => sp >= range + 6) || 48;
+  G.center = heightsCenter(true); G.zoomX = 1;
+  applyZoom(); renderGraph();
+}
 const svg = $('graph');
 const NS = 'http://www.w3.org/2000/svg';
 const el = (tag, attrs = {}, text) => {
@@ -141,10 +177,11 @@ function renderGraph() {
   const g = geom();
   svg.innerHTML = '';
   // grid
+  const labelEvery = G.span >= 36 ? 6 : G.span >= 18 ? 3 : 1;
   for (let y = G.yMin; y <= G.yMax; y++) {
     const strong = y % 12 === 0;
     svg.appendChild(el('line', { x1: G.padL, x2: g.W - G.padR, y1: g.yOf(y), y2: g.yOf(y), class: `gridline${strong ? ' strong' : ''}` }));
-    if (y % 6 === 0) svg.appendChild(el('text', { x: 6, y: g.yOf(y) + 4, class: 'label' }, y > 0 ? `+${y}` : `${y}`));
+    if (y % labelEvery === 0) svg.appendChild(el('text', { x: 6, y: g.yOf(y) + 4, class: 'label' }, y > 0 ? `+${y}` : `${y}`));
   }
   for (let t = 0; t < g.tMax; t += 0.5) {
     svg.appendChild(el('line', { x1: g.xOf(t), x2: g.xOf(t), y1: G.padT, y2: g.H - G.padB, class: `gridline${t % 2 === 0 ? ' strong' : ''}` }));
@@ -208,11 +245,14 @@ function renderGraph() {
 
 // pointer interaction on the graph
 let drag = null;
+function endDrag() { drag = null; svg.classList.remove('dragging'); }
 svg.addEventListener('pointerdown', (ev) => {
+  if (ev.button !== 0) return;
+  ev.preventDefault(); // no text selection, no focus jump
   const target = ev.target;
   const g = geom();
   if (state.paint) {
-    drag = { paint: true }; svg.setPointerCapture(ev.pointerId); paintAt(ev); return;
+    drag = { paint: true }; svg.setPointerCapture(ev.pointerId); svg.classList.add('dragging'); paintAt(ev); return;
   }
   if (target.classList && target.classList.contains('point')) {
     const i = Number(target.dataset.i);
@@ -226,7 +266,7 @@ svg.addEventListener('pointerdown', (ev) => {
     }
     const idx = [...state.selection];
     drag = { idx, startY: ev.clientY, orig: idx.map((k) => state.sketch.observations[k].y ?? 0), g };
-    svg.setPointerCapture(ev.pointerId);
+    svg.setPointerCapture(ev.pointerId); svg.classList.add('dragging');
     renderGraph(); syncConfSlider();
   } else {
     state.selection.clear(); renderGraph();
@@ -234,20 +274,26 @@ svg.addEventListener('pointerdown', (ev) => {
 });
 svg.addEventListener('pointermove', (ev) => {
   if (!drag) return;
+  if (ev.buttons === 0) { endDrag(); return; } // the release happened somewhere we did not see
+  ev.preventDefault();
   if (drag.paint) { paintAt(ev); return; }
   const dy = (ev.clientY - drag.startY) / ((drag.g.H - G.padT - G.padB) / (G.yMax - G.yMin));
   drag.idx.forEach((k, j) => {
     const o = state.sketch.observations[k];
-    o.y = Math.max(G.yMin, Math.min(G.yMax, Math.round((drag.orig[j] - dy) * 2) / 2));
+    o.y = Math.max(HMIN, Math.min(HMAX, Math.round((drag.orig[j] - dy) * 2) / 2));
   });
   renderGraph();
 });
-svg.addEventListener('pointerup', () => { drag = null; });
+svg.addEventListener('pointerup', endDrag);
+svg.addEventListener('pointercancel', endDrag);
+svg.addEventListener('lostpointercapture', endDrag);
+window.addEventListener('pointerup', endDrag);
+window.addEventListener('blur', endDrag);
 svg.addEventListener('dblclick', (ev) => {
   if (ev.target.classList.contains('point')) return;
   const g = geom();
   const rect = svg.getBoundingClientRect();
-  const t = g.tOf(ev.clientX - rect.left), y = Math.round(g.hOf(ev.clientY - rect.top));
+  const t = g.tOf(ev.clientX - rect.left), y = Math.max(HMIN, Math.min(HMAX, Math.round(g.hOf(ev.clientY - rect.top))));
   const obs = state.sketch.observations;
   obs.push({ t: Math.max(0, t), y, confidence: 0.5 });
   const order = obs.map((o, i) => i).sort((a, b) => obs[a].t - obs[b].t);
@@ -264,7 +310,7 @@ function paintAt(ev) {
   const obs = state.sketch.observations;
   let best = -1, bd = 0.08 * g.tMax;
   obs.forEach((o, i) => { const d = Math.abs(o.t - t); if (d < bd) { best = i; bd = d; } });
-  if (best >= 0) { obs[best].y = Math.max(G.yMin, Math.min(G.yMax, y)); renderGraph(); }
+  if (best >= 0) { obs[best].y = Math.max(HMIN, Math.min(HMAX, y)); renderGraph(); }
 }
 
 function deleteSelection() {
@@ -511,7 +557,7 @@ document.addEventListener('keydown', (ev) => {
   else if (ev.key === 'p' || ev.key === 'P') { state.paint = true; svg.style.cursor = 'crosshair'; }
   else if (ev.key === 'ArrowUp' || ev.key === 'ArrowDown') {
     ev.preventDefault(); const d = ev.key === 'ArrowUp' ? 1 : -1;
-    state.selection.forEach((i) => { const o = state.sketch.observations[i]; o.y = Math.max(G.yMin, Math.min(G.yMax, (o.y ?? 0) + d)); });
+    state.selection.forEach((i) => { const o = state.sketch.observations[i]; o.y = Math.max(HMIN, Math.min(HMAX, (o.y ?? 0) + d)); });
     renderGraph();
   }
 });
@@ -562,6 +608,11 @@ function goTo(i) {
   window.scrollTo({ top: 0 });
   persist();
 }
+$('zoom-time-in').onclick = () => zoomTime(1);
+$('zoom-time-out').onclick = () => zoomTime(-1);
+$('zoom-pitch-in').onclick = () => zoomPitch(1);
+$('zoom-pitch-out').onclick = () => zoomPitch(-1);
+$('zoom-fit').onclick = zoomFit;
 $('nav-prev').onclick = () => goTo(state.step - 1);
 $('nav-next').onclick = () => goTo(state.step + 1);
 
@@ -584,6 +635,7 @@ async function loadEngines() {
     const saved = localStorage.getItem('riff-sketcher');
     if (saved) { const obj = JSON.parse(saved); load(obj); step = obj.step || 0; setStatus('restored previous sketch'); }
   } catch (e) { /* ignore */ }
+  applyZoom();
   renderAll();
   goTo(step);
 })();
