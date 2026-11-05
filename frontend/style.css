@@ -31,6 +31,7 @@ button.active { outline: 2px solid var(--accent2); }
 label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 0.9rem; }
 .file-label { cursor: pointer; border: 1px solid var(--grid-strong); border-radius: 6px; padding: 7px 14px; color: var(--fg); }
 .file-label input { display: none; }
+input[type=number].narrow { width: 58px; }
 input[type=number], select { background: var(--panel2); color: var(--fg); border: 1px solid var(--grid-strong); border-radius: 6px; padding: 5px 8px; width: 90px; font: inherit; }
 select { width: auto; }
 .muted { color: var(--muted); font-size: 0.9rem; }

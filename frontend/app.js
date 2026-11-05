@@ -62,7 +62,7 @@ function stopRecording() {
   if (taps.length === 0) { setStatus('no taps recorded'); return; }
   state.passes.push(taps);
   renderPasses();
-  if (state.passes.length === 1 || state.sketch.observations.length === 0) usePass(state.passes.length - 1);
+  usePass(state.passes.length - 1); // the newest pass becomes the timeline; drawn heights are kept by index
   setStatus(`pass ${state.passes.length}: ${taps.length} taps`);
 }
 
@@ -80,7 +80,7 @@ function setOnsets(onsets) {
   state.sketch.gestures = state.sketch.gestures.filter((g) => g.end < onsets.length);
   state.sketch.constraints = state.sketch.constraints.filter((c) => c.i < onsets.length && (c.j == null || c.j < onsets.length));
   state.selection.clear(); state.candidates = []; state.selectedCandidate = -1;
-  renderAll(); updateRhythmInfo();
+  renderAll(); updateRhythmInfo(); updateGraphPanel(); if (!$('graph-panel').hidden) renderGraph();
 }
 
 async function mergePasses() {
@@ -106,11 +106,14 @@ function renderPasses(active = -1) {
   $('btn-merge').disabled = state.passes.length < 2;
 }
 
+let rhythmReq = 0;
 async function updateRhythmInfo() {
   const obs = state.sketch.observations;
   if (obs.length < 2) { $('rhythm-info').textContent = ''; return; }
+  const req = ++rhythmReq;
   try {
     const q = await api('/api/quantise', { onsets: obs.map((o) => o.t), tempo_hint: state.sketch.tempo_hint });
+    if (req !== rhythmReq) return; // a newer request superseded this one
     $('rhythm-info').textContent = `${obs.length} notes · estimated ${q.tempo.toFixed(0)} BPM · grid error ${(q.error_s * 1000).toFixed(0)} ms`;
   } catch (e) { $('rhythm-info').textContent = ''; }
 }
@@ -295,6 +298,7 @@ svg.addEventListener('dblclick', (ev) => {
   const rect = svg.getBoundingClientRect();
   const t = g.tOf(ev.clientX - rect.left), y = Math.max(HMIN, Math.min(HMAX, Math.round(g.hOf(ev.clientY - rect.top))));
   const obs = state.sketch.observations;
+  snapshot();
   obs.push({ t: Math.max(0, t), y, confidence: 0.5 });
   const order = obs.map((o, i) => i).sort((a, b) => obs[a].t - obs[b].t);
   const remap = new Map(order.map((old, nw) => [old, nw]));
@@ -313,9 +317,28 @@ function paintAt(ev) {
   if (best >= 0) { obs[best].y = Math.max(HMIN, Math.min(HMAX, y)); renderGraph(); }
 }
 
+let undoSnapshot = null;
+function snapshot() {
+  undoSnapshot = JSON.stringify({ sketch: state.sketch, passes: state.passes });
+  $('btn-undo').disabled = false;
+}
+function undo() {
+  if (!undoSnapshot) return;
+  const obj = JSON.parse(undoSnapshot); undoSnapshot = null; $('btn-undo').disabled = true;
+  load(obj); setStatus('undid the last tap edit');
+}
+
 function deleteSelection() {
-  if (!state.selection.size) return;
-  const keep = state.sketch.observations.map((o, i) => i).filter((i) => !state.selection.has(i));
+  if (!state.selection.size) { setStatus('select notes on the timeline first'); return; }
+  const n = state.selection.size;
+  keepIndices(state.sketch.observations.map((o, i) => i).filter((i) => !state.selection.has(i)));
+  setStatus(`removed ${n} note${n > 1 ? 's' : ''}`);
+}
+
+/** Keep only the given observation indices (sorted), re-basing time to the first kept note. */
+function keepIndices(keep) {
+  if (!keep.length) { setStatus('that would remove every note'); return; }
+  snapshot();
   const remap = new Map(keep.map((old, nw) => [old, nw]));
   state.sketch.observations = keep.map((i) => state.sketch.observations[i]);
   state.sketch.gestures = state.sketch.gestures
@@ -325,8 +348,66 @@ function deleteSelection() {
   state.sketch.constraints = state.sketch.constraints
     .filter((c) => remap.has(c.i) && (c.j == null || remap.has(c.j)))
     .map((c) => ({ ...c, i: remap.get(c.i), j: c.j == null ? null : remap.get(c.j) }));
+  const t0 = state.sketch.observations[0].t;
+  state.sketch.observations.forEach((o) => { o.t = Math.max(0, o.t - t0); });
   state.selection.clear(); state.candidates = []; state.selectedCandidate = -1;
-  renderAll(); updateRhythmInfo();
+  renderAll(); updateRhythmInfo(); updateGraphPanel();
+}
+
+function keepRange(from, to) { // 1-based, inclusive
+  const n = state.sketch.observations.length;
+  from = Math.max(1, Math.min(n, from)); to = Math.max(from, Math.min(n, to));
+  keepIndices([...Array(to - from + 1).keys()].map((k) => k + from - 1));
+  setStatus(`kept notes ${from}–${to}`);
+}
+
+function addNoteAtEnd() {
+  const obs = state.sketch.observations;
+  snapshot();
+  const iois = obs.slice(1).map((o, i) => o.t - obs[i].t).sort((a, b) => a - b);
+  const gap = iois.length ? iois[Math.floor(iois.length / 2)] : 0.5;
+  const last = obs[obs.length - 1];
+  obs.push({ t: last ? last.t + gap : 0, y: last ? last.y : 0, confidence: 0.5 });
+  state.selection.clear(); state.selection.add(obs.length - 1);
+  state.candidates = []; state.selectedCandidate = -1;
+  renderAll(); updateRhythmInfo(); updateGraphPanel();
+}
+
+/** Smallest period p such that the inter-onset pattern repeats with period p. */
+function detectRepetition() {
+  const obs = state.sketch.observations;
+  const n = obs.length;
+  if (n < 4) return null;
+  const iois = obs.slice(1).map((o, i) => o.t - obs[i].t);
+  for (let p = 2; p <= Math.floor(n / 2); p++) {
+    let ok = 0, total = 0;
+    for (let i = 0; i + p < iois.length; i++) {
+      const a = iois[i], b = iois[i + p];
+      total++;
+      if (Math.abs(a - b) <= Math.max(0.06, 0.25 * Math.max(a, b))) ok++;
+    }
+    if (total > 0 && ok / total >= 0.8) return p;
+  }
+  return null;
+}
+
+function keepOneRepetition() {
+  const p = detectRepetition();
+  if (!p) { setStatus('no repeated rhythm pattern found; use "Keep notes … to …" instead'); return; }
+  keepRange(1, p);
+  setStatus(`found a pattern of ${p} notes repeating; kept the first occurrence`);
+}
+
+function updateGraphPanel() {
+  const has = state.sketch.observations.length > 0;
+  $('graph-panel').hidden = state.step === 0 && !has;
+  $('edit-taps').hidden = !has;
+  const n = state.sketch.observations.length;
+  if (has && n !== updateGraphPanel.lastN) { // note count changed: reset the range to "everything"
+    $('keep-from').max = $('keep-to').max = n;
+    $('keep-from').value = 1; $('keep-to').value = n;
+  }
+  updateGraphPanel.lastN = n;
 }
 
 function syncConfSlider() {
@@ -529,7 +610,7 @@ function load(obj) {
   state.sketch = obj.sketch || obj; state.passes = obj.passes || [];
   state.sketch.gestures ||= []; state.sketch.constraints ||= []; state.sketch.meta ||= {};
   state.selection.clear(); state.candidates = []; state.selectedCandidate = -1;
-  renderAll(); renderPasses(); updateRhythmInfo();
+  renderAll(); renderPasses(); updateRhythmInfo(); updateGraphPanel();
 }
 function persist() { try { localStorage.setItem('riff-sketcher', JSON.stringify({ sketch: state.sketch, passes: state.passes, step: state.step })); } catch (e) { /* ignore */ } }
 $('btn-save').onclick = save;
@@ -601,13 +682,18 @@ function goTo(i) {
   if (i > 0 && state.sketch.observations.length === 0) { setStatus('tap a rhythm first'); i = 0; }
   state.step = i;
   STEPS.forEach((sec, k) => sec.classList.toggle('active', k === i));
-  $('graph-panel').hidden = i === 0;
+  updateGraphPanel();
   renderDots();
-  if (i > 0) renderGraph(); // the svg has a size only once it is visible
+  if (!$('graph-panel').hidden) renderGraph(); // the svg has a size only once it is visible
   if (i === 3 && !state.candidates.length) $('recon-status').textContent = 'press Reconstruct when the sketch says everything you know';
   window.scrollTo({ top: 0 });
   persist();
 }
+$('btn-keep-rep').onclick = keepOneRepetition;
+$('btn-keep-range').onclick = () => keepRange(Number($('keep-from').value) || 1, Number($('keep-to').value) || 1);
+$('btn-remove-sel').onclick = deleteSelection;
+$('btn-add-note').onclick = addNoteAtEnd;
+$('btn-undo').onclick = undo;
 $('zoom-time-in').onclick = () => zoomTime(1);
 $('zoom-time-out').onclick = () => zoomTime(-1);
 $('zoom-pitch-in').onclick = () => zoomPitch(1);

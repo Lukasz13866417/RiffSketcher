@@ -57,6 +57,16 @@
       <label>Tempo hint (BPM, optional) <input id="tempo-hint" type="number" min="40" max="240" placeholder="auto"></label>
       <span id="rhythm-info" class="muted"></span>
     </div>
+    <div class="row edit-taps" id="edit-taps" hidden>
+      <span class="muted">Edit the taps:</span>
+      <button id="btn-keep-rep" class="small" title="Detects a repeated rhythm pattern and keeps only its first occurrence">Keep one repetition</button>
+      <label>Keep notes <input id="keep-from" type="number" min="1" value="1" class="narrow"> to <input id="keep-to" type="number" min="1" value="1" class="narrow"></label>
+      <button id="btn-keep-range" class="small">Keep only these</button>
+      <button id="btn-remove-sel" class="small">Remove selected</button>
+      <button id="btn-add-note" class="small">Add a note at the end</button>
+      <button id="btn-undo" class="small" disabled>Undo</button>
+      <span class="muted">Select notes on the timeline above; double-click empty space to insert one.</span>
+    </div>
   </section>
 
   <!-- ------------------------------------------------------------ Step 2 -->
