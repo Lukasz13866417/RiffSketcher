@@ -12,7 +12,8 @@ import torch
 from core.representation import N_INTERVAL_CLASSES, Riff, Sketch
 from ml.baseline import ContourBaseline, DeterministicBaseline, topk_sequences
 from ml.datasets import (GESTURE_KINDS, PAD_TARGET, Phrase, PhraseDataset, collate, load_phrases,
-                         save_phrases, sketch_to_features, split_by_song, synthetic_phrases)
+                         phrases_from_midi, save_phrases, sketch_to_features, split_by_song,
+                         split_segment, synthetic_phrases)
 from ml.evaluate import evaluate_predictor, expected_calibration_error, make_examples
 from ml.model import ModelConfig, SketchTransformer, count_parameters, load_checkpoint, save_checkpoint
 from ml.sketch_simulator import PRESETS, SimConfig, SketchSimulator, detect_gestures
@@ -115,6 +116,65 @@ def test_detect_gestures():
     assert ("repeated_note", 6, 8) in kinds
     rep = detect_gestures([60, 64, 67, 60, 64, 67, 60, 64])
     assert any(g.kind == "repeated_figure" and g.params["period"] == 3 for g in rep)
+
+
+# -- MIDI extraction ------------------------------------------------------- #
+
+def test_split_segment_cuts_at_largest_gaps():
+    # 30 eighth-notes with a one-beat rest after notes 10 and 20: the cuts
+    # must land on those rests, not every max_notes notes.
+    starts, durs = [], []
+    t = 0.0
+    for i in range(30):
+        starts.append(t)
+        durs.append(0.5)
+        t += 1.5 if i in (9, 19) else 0.5
+    segs = split_segment(starts, durs, min_notes=5, max_notes=16)
+    assert segs == [list(range(0, 10)), list(range(10, 20)), list(range(20, 30))]
+    # a short run is returned untouched; a long run without rests still obeys max_notes
+    assert split_segment([0.0, 1.0, 2.0], [1.0, 1.0, 1.0], 5, 16) == [[0, 1, 2]]
+    flat = split_segment([float(i) for i in range(40)], [1.0] * 40, 5, 16)
+    assert sum(flat, []) == list(range(40)) and all(5 <= len(s) <= 16 for s in flat)
+
+
+def _write_pop_like_midi(path: Path, tempo_change: bool) -> list[int]:
+    """A POP909-style file: MELODY (mono), BRIDGE and PIANO (chords) tracks."""
+    import pretty_midi
+
+    pm = pretty_midi.PrettyMIDI(resolution=480, initial_tempo=120.0)
+    if tempo_change:  # 120 bpm for the first 8 beats (4 s), then 60 bpm
+        pm._tick_scales.append((pm.time_to_tick(4.0), 60.0 / (60.0 * 480)))
+        pm._update_tick_to_time(pm.time_to_tick(4.0) + 480 * 100)
+    melody = pretty_midi.Instrument(program=0, name="MELODY")
+    piano = pretty_midi.Instrument(program=0, name="PIANO")
+    bridge = pretty_midi.Instrument(program=0, name="BRIDGE")
+    pitches = [60, 62, 64, 65, 67, 69, 71, 72, 71, 69, 67, 65, 64, 62, 60, 62, 64, 65, 67, 69]
+    beat = 0.0
+    for i, pitch in enumerate(pitches):
+        start = pm.tick_to_time(int(beat * 480))
+        end = pm.tick_to_time(int((beat + 0.5) * 480))
+        melody.notes.append(pretty_midi.Note(velocity=90, pitch=pitch, start=start, end=end))
+        for c in (pitch - 24, pitch - 20, pitch - 17):  # a chord under every note
+            piano.notes.append(pretty_midi.Note(velocity=70, pitch=c, start=start, end=end))
+        bridge.notes.append(pretty_midi.Note(velocity=70, pitch=pitch + 12, start=start, end=end))
+        beat += 3.0 if i == 9 else 0.5  # a 2.5-beat rest after the tenth note
+    pm.instruments.extend([piano, bridge, melody])
+    pm.write(str(path))
+    return pitches
+
+
+@pytest.mark.parametrize("tempo_change", [False, True])
+def test_phrases_from_midi_picks_melody_and_splits_in_beats(tmp_path, tempo_change):
+    path = tmp_path / "001.mid"
+    pitches = _write_pop_like_midi(path, tempo_change)
+    ph = phrases_from_midi(path, min_notes=5, max_notes=16, song_id="001")
+    assert [p.pitches for p in ph] == [pitches[:10], pitches[10:]]  # MELODY, cut at the rest
+    for p in ph:
+        assert p.song_id == "001" and p.onsets_beats[0] == 0.0
+        # onsets stay on the eighth-note grid even across the tempo change
+        assert p.onsets_beats == pytest.approx([0.5 * i for i in range(len(p))], abs=0.01)
+        assert all(0.4 < d <= 0.5 for d in p.durations_beats)
+    assert all(abs(d) <= 24 for p in ph for d in p.intervals)
 
 
 # -- splits ---------------------------------------------------------------- #

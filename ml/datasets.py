@@ -121,15 +121,48 @@ def _monophonic_notes(notes: list[Any], onset_tol: float = 0.02) -> list[Any]:
     return kept
 
 
+def split_segment(starts: list[float], durs: list[float], min_notes: int,
+                  max_notes: int) -> list[list[int]]:
+    """Cut a run of note indices into phrases of at most ``max_notes`` notes.
+
+    Pop melodies rarely rest for long, so a rest threshold alone leaves runs
+    of 50+ notes.  Instead of chopping those every ``max_notes`` notes (which
+    cuts through the middle of musical phrases) we recursively split the run
+    at its biggest internal gap: the longest rest before a note, with the
+    inter-onset interval as a tie-breaker.  Both halves must keep at least
+    ``min_notes`` notes where possible.  Returns index lists in time order,
+    some of which may still be shorter than ``min_notes`` (the caller drops
+    those).
+    """
+    n = len(starts)
+    if n <= max_notes:
+        return [list(range(n))]
+    lo, hi = min_notes, n - min_notes  # candidate cut positions (cut before index j)
+    if lo >= hi:
+        lo, hi = 1, n - 1
+    best, best_key = lo, (-1.0, -1.0)
+    for j in range(lo, hi + 1):
+        rest = starts[j] - (starts[j - 1] + durs[j - 1])
+        ioi = starts[j] - starts[j - 1]
+        key = (round(rest, 4), round(ioi, 4))
+        if key > best_key:
+            best, best_key = j, key
+    left = split_segment(starts[:best], durs[:best], min_notes, max_notes)
+    right = split_segment(starts[best:], durs[best:], min_notes, max_notes)
+    return left + [[i + best for i in seg] for seg in right]
+
+
 def phrases_from_midi(path: str | Path, min_notes: int = 5, max_notes: int = 16,
                       rest_split_beats: float = 2.0, song_id: str | None = None,
                       source: str = "midi") -> list[Phrase]:
     """Extract monophonic phrases (in beats) from one MIDI file.
 
     The melody track is chosen by name ("MELODY") or by a monophony/high-pitch
-    heuristic.  Phrases are split at rests longer than ``rest_split_beats`` or
-    when they reach ``max_notes``; phrases shorter than ``min_notes`` are
-    dropped.
+    heuristic.  Times are converted to beats through the file's tempo map, so
+    songs with tempo changes (common in POP909) still get a steady beat grid.
+    The track is first cut at rests longer than ``rest_split_beats``; any run
+    still longer than ``max_notes`` is cut at its largest internal gaps by
+    :func:`split_segment`.  Phrases shorter than ``min_notes`` are dropped.
     """
     import pretty_midi  # heavy import, keep it local
 
@@ -153,26 +186,26 @@ def phrases_from_midi(path: str | Path, min_notes: int = 5, max_notes: int = 16,
     durs = [max(0.125, min(e - s, (starts[i + 1] - s) if i + 1 < len(starts) else e - s))
             for i, (s, e) in enumerate(zip(starts, ends))]
 
-    phrases: list[Phrase] = []
-    cur: list[int] = []
+    # 1) hard cuts at long rests
+    runs: list[list[int]] = [[0]]
+    for i in range(1, len(notes)):
+        prev = runs[-1][-1]
+        rest = starts[i] - (starts[prev] + durs[prev])
+        if rest > rest_split_beats:
+            runs.append([])
+        runs[-1].append(i)
 
-    def flush() -> None:
-        if len(cur) >= min_notes:
-            idx = list(cur)
+    # 2) cut over-long runs at their biggest gaps, drop the too-short ones
+    phrases: list[Phrase] = []
+    for run in runs:
+        for seg in split_segment([starts[i] for i in run], [durs[i] for i in run], min_notes, max_notes):
+            idx = [run[k] for k in seg]
+            if len(idx) < min_notes:
+                continue
             t0 = starts[idx[0]]
             phrases.append(Phrase(sid, [int(notes[i].pitch) for i in idx],
                                   [round(starts[i] - t0, 4) for i in idx],
                                   [round(durs[i], 4) for i in idx], source))
-        cur.clear()
-
-    for i in range(len(notes)):
-        if cur:
-            prev = cur[-1]
-            rest = starts[i] - (starts[prev] + durs[prev])
-            if rest > rest_split_beats or len(cur) >= max_notes:
-                flush()
-        cur.append(i)
-    flush()
     return phrases
 
 
