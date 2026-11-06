@@ -23,17 +23,20 @@ Design
                and ``frame_feature`` for time-indexed signals not aligned to
                notes (loudness curves and the like).
 
-``work.key`` is the legacy ``song_id`` used by the JSONL pipeline (POP909
-``"003"``, Lakh ``"Artist/Title"``), so existing ``splits.json`` files and
-trained models carry over unchanged. ``export`` reproduces the JSONL that
-``ml.prepare_dataset`` wrote, so the rest of ``ml/`` keeps working.
+Identifiers: ``work.id`` is the song id and ``rendition.id`` the rendition id,
+both integers assigned at ingest. A source's own identifier (POP909's folder
+number, Lakh's relative path, a DadaGP file name) is kept as
+``rendition.original_id`` for provenance only. Works are matched across
+sources by normalised artist and title; sources that carry no names get one
+work per rendition. Exported phrases carry ``song_id = work.id`` and
+``rendition_id``.
 
 CLI::
 
     uv run python -m ml.db init
     uv run python -m ml.db ingest --pop909-dir data/raw/pop909/POP909 --guitar-midi-dir data/raw/lakh_clean/clean_midi
-    uv run python -m ml.db split --base-splits data/processed/splits.json
-    uv run python -m ml.db export --out data/processed/mixed.jsonl --max-per-song 40
+    uv run python -m ml.db split --seed 0
+    uv run python -m ml.db export --out data/processed/mixed.jsonl --max-per-song 12
     uv run python -m ml.db stats
     uv run python -m ml.db sql "select role, count(*) from track group by role"
 """
@@ -57,7 +60,7 @@ import numpy as np
 from ml.datasets import (Phrase, _is_guitar_track, _monophonic_notes, _onsets_from_dadagp_events,
                          _onsets_from_notes, _pick_melody_instrument, dadagp_track_events,
                          phrases_from_dadagp, phrases_from_guitar_midi, phrases_from_midi,
-                         save_phrases, split_by_song, split_ids)
+                         save_phrases)
 
 DEFAULT_DB = Path("data/riffs.db")
 
@@ -69,7 +72,7 @@ CREATE TABLE IF NOT EXISTS source (
     id INTEGER PRIMARY KEY, name TEXT UNIQUE NOT NULL, licence TEXT, notes TEXT);
 
 CREATE TABLE IF NOT EXISTS work (
-    id INTEGER PRIMARY KEY, key TEXT UNIQUE NOT NULL,
+    id INTEGER PRIMARY KEY,
     title TEXT, artist TEXT, title_norm TEXT, artist_norm TEXT, genre TEXT, notes TEXT);
 CREATE INDEX IF NOT EXISTS work_norm ON work(artist_norm, title_norm);
 
@@ -180,19 +183,19 @@ def extractor_id(con: sqlite3.Connection, name: str, version: str = "1", params:
     return int(row["id"])
 
 
-def get_or_create_work(con: sqlite3.Connection, key: str, title: str | None = None,
-                       artist: str | None = None, genre: str | None = None) -> int:
-    """Find a work by its key, else by normalised artist+title, else create it."""
-    row = con.execute("SELECT id FROM work WHERE key = ?", (key,)).fetchone()
-    if row is not None:
-        return int(row["id"])
+def get_or_create_work(con: sqlite3.Connection, title: str | None, artist: str | None,
+                       genre: str | None = None) -> int:
+    """The work with this normalised artist+title, created if absent.
+
+    Without both names there is nothing to match on, so a new work is created.
+    """
     tn, an = norm_text(title), norm_text(artist)
     if tn and an:
         row = con.execute("SELECT id FROM work WHERE title_norm=? AND artist_norm=?", (tn, an)).fetchone()
         if row is not None:
             return int(row["id"])
-    cur = con.execute("INSERT INTO work(key, title, artist, title_norm, artist_norm, genre) VALUES (?,?,?,?,?,?)",
-                      (key, title, artist, tn or None, an or None, genre))
+    cur = con.execute("INSERT INTO work(title, artist, title_norm, artist_norm, genre) VALUES (?,?,?,?,?)",
+                      (title, artist, tn or None, an or None, genre))
     return int(cur.lastrowid)
 
 
@@ -223,9 +226,9 @@ def _midi_role(ins: Any, melody_ins: Any) -> str:
     return "other"
 
 
-def parse_midi(path: Path, source: str, song_key: str, keep_roles: tuple[str, ...], min_notes: int,
+def parse_midi(path: Path, source: str, original_id: str, keep_roles: tuple[str, ...], min_notes: int,
                max_notes: int) -> Parsed:
-    """Tracks (+ notes for ``keep_roles``) and the legacy phrases of one MIDI file."""
+    """Tracks (+ notes for ``keep_roles``) and the phrases of one MIDI file."""
     import pretty_midi
 
     warnings.simplefilter("ignore")
@@ -249,16 +252,16 @@ def parse_midi(path: Path, source: str, song_key: str, keep_roles: tuple[str, ..
         tracks.append({"idx": idx, "name": ins.name, "program": int(ins.program), "role": role,
                        "is_drum": int(ins.is_drum), "n_notes": len(ins.notes), "notes": notes})
     if source == "pop909":
-        phrases = phrases_from_midi(path, min_notes, max_notes, song_id=song_key, source=source)
+        phrases = phrases_from_midi(path, min_notes, max_notes, song_id=original_id, source=source)
     else:
-        phrases = phrases_from_guitar_midi(path, min_notes, max_notes, song_id=song_key, source=source)
+        phrases = phrases_from_guitar_midi(path, min_notes, max_notes, song_id=original_id, source=source)
     tempos = pm.get_tempo_changes()[1]
     return {"tracks": tracks, "phrases": [p.to_dict() for p in phrases],
             "tempo": float(tempos[0]) if len(tempos) else None, "resolution": int(pm.resolution),
             "format": path.suffix.lower().lstrip("."), "meta": {"n_instruments": len(pm.instruments)}}
 
 
-def parse_dadagp(path: Path, source: str, song_key: str, min_notes: int, max_notes: int) -> Parsed:
+def parse_dadagp(path: Path, source: str, original_id: str, min_notes: int, max_notes: int) -> Parsed:
     """Guitar tracks of a DadaGP token file; the riff line (lowest note per onset) is stored."""
     with path.open(encoding="utf-8", errors="replace") as f:
         tracks_ev = dadagp_track_events(f)
@@ -270,17 +273,17 @@ def parse_dadagp(path: Path, source: str, song_key: str, min_notes: int, max_not
                 notes.append((k, round(s, 4), round(max(e - s, 0.0), 4), None, int(min(pitches)), None))
         tracks.append({"idx": idx, "name": name, "program": None, "role": "guitar", "is_drum": 0,
                        "n_notes": len(notes), "notes": notes})
-    phrases = phrases_from_dadagp(path, min_notes, max_notes, song_id=song_key, source=source)
+    phrases = phrases_from_dadagp(path, min_notes, max_notes, song_id=original_id, source=source)
     return {"tracks": tracks, "phrases": [p.to_dict() for p in phrases], "tempo": None, "resolution": 960,
             "format": "dadagp", "meta": {}}
 
 
 def _run(job: tuple) -> tuple[tuple, Parsed | None, str | None]:
-    kind, path, source, song_key, keep_roles, min_notes, max_notes = job
+    kind, path, source, original_id, keep_roles, min_notes, max_notes = job
     try:
         if kind == "midi":
-            return job, parse_midi(Path(path), source, song_key, keep_roles, min_notes, max_notes), None
-        return job, parse_dadagp(Path(path), source, song_key, min_notes, max_notes), None
+            return job, parse_midi(Path(path), source, original_id, keep_roles, min_notes, max_notes), None
+        return job, parse_dadagp(Path(path), source, original_id, min_notes, max_notes), None
     except Exception as e:  # corrupt files happen
         return job, None, f"{type(e).__name__}: {e}"
 
@@ -294,33 +297,41 @@ def _midi_files(root: Path) -> list[Path]:
     return sorted(p for p in root.rglob("*") if p.suffix.lower() in (".mid", ".midi"))
 
 
-def lakh_song_key(path: Path, root: Path) -> tuple[str, str, str]:
-    """(work key 'Artist/Title', artist, title) with Lakh's '.1' version suffix removed."""
+def lakh_artist_title(path: Path, root: Path) -> tuple[str | None, str]:
+    """Lakh names files ``Artist/Title.mid`` with ``.1``, ``.2`` suffixes for further
+    transcriptions of the same song; returns (artist, title) without the suffix."""
     title = re.sub(r"\.\d+$", "", path.stem)
-    artist = path.parent.name if path.parent != root else ""
-    return (f"{artist}/{title}" if artist else title), artist, title
+    artist = path.parent.name if path.parent != root else None
+    return artist, title
+
+
+def dadagp_artist_title(path: Path) -> tuple[str | None, str]:
+    """DadaGP token files are named ``Artist - Title.<ext>.txt`` in the common layout."""
+    stem = path.name.split(".")[0]
+    artist, sep, title = stem.partition(" - ")
+    return (artist.strip(), title.strip()) if sep else (None, stem)
 
 
 def jobs_for(pop909_dir: Path | None, guitar_dir: Path | None, dadagp_dir: Path | None,
              min_notes: int, max_notes: int, limit: int | None = None) -> list[tuple]:
-    """(kind, path, source, work key, keep_roles, min, max, artist, title, original_id)."""
+    """(kind, path, source, original_id, keep_roles, min, max, artist, title)."""
     jobs: list[tuple] = []
     if pop909_dir:
         files = [f for f in _midi_files(pop909_dir) if "versions" not in f.parts]
         for f in files[:limit] if limit else files:
-            key = f.parent.name if f.parent != pop909_dir else f.stem
-            jobs.append(("midi", str(f), "pop909", key, ("melody",), min_notes, max_notes, None, None, key))
+            oid = f.parent.name if f.parent != pop909_dir else f.stem
+            jobs.append(("midi", str(f), "pop909", oid, ("melody",), min_notes, max_notes, None, None))
     if guitar_dir:
         files = _midi_files(guitar_dir)
         for f in files[:limit] if limit else files:
-            key, artist, title = lakh_song_key(f, guitar_dir)
-            jobs.append(("midi", str(f), "lakh_guitar", key, ("guitar",), min_notes, max_notes, artist, title,
-                         str(f.relative_to(guitar_dir))))
+            artist, title = lakh_artist_title(f, guitar_dir)
+            jobs.append(("midi", str(f), "lakh_guitar", str(f.relative_to(guitar_dir)), ("guitar",),
+                         min_notes, max_notes, artist, title))
     if dadagp_dir:
         files = sorted(dadagp_dir.rglob("*.txt"))
         for f in files[:limit] if limit else files:
-            key = f.name.split(".")[0]
-            jobs.append(("dadagp", str(f), "dadagp", key, ("guitar",), min_notes, max_notes, None, None, f.name))
+            artist, title = dadagp_artist_title(f)
+            jobs.append(("dadagp", str(f), "dadagp", f.name, ("guitar",), min_notes, max_notes, artist, title))
     return jobs
 
 
@@ -339,7 +350,7 @@ def ingest(con: sqlite3.Connection, jobs: list[tuple], workers: int = 1, min_not
         "dadagp": extractor_id(con, "phrases_from_dadagp", "1", {"min_notes": min_notes, "max_notes": max_notes}),
     }
     work_jobs = [j[:7] for j in jobs]
-    extra = {j[1]: j[7:] for j in jobs}  # path -> (artist, title, original_id)
+    names = {j[1]: j[7:] for j in jobs}  # path -> (artist, title)
     done = set(r["path"] for r in con.execute("SELECT path FROM rendition"))
     todo = [j for j in work_jobs if j[1] not in done]
     log(f"{len(jobs)} files, {len(todo)} not yet ingested")
@@ -353,14 +364,14 @@ def ingest(con: sqlite3.Connection, jobs: list[tuple], workers: int = 1, min_not
                 yield _run(j)
 
     for job, parsed, err in tqdm(results(), total=len(todo), desc="ingest"):
-        kind, path, source, key, _, _, _ = job
-        artist, title, original_id = extra[path]
+        kind, path, source, original_id, _, _, _ = job
+        artist, title = names[path]
         if parsed is None:
             counts["failed"] += 1
             log(f"  skip {path}: {err}")
             continue
         sid = source_id(con, source)
-        wid = get_or_create_work(con, key, title, artist)
+        wid = get_or_create_work(con, title, artist)
         cur = con.execute(
             "INSERT INTO rendition(work_id, source_id, original_id, path, content_hash, format, tempo, resolution, meta_json)"
             " VALUES (?,?,?,?,?,?,?,?,?)",
@@ -399,32 +410,35 @@ def ingest(con: sqlite3.Connection, jobs: list[tuple], workers: int = 1, min_not
 # --------------------------------------------------------------------------- #
 
 
-def assign_splits(con: sqlite3.Connection, val_frac: float = 0.1, test_frac: float = 0.1, seed: int = 0,
-                  base_ids: dict[str, list[str]] | None = None) -> dict[str, int]:
-    """Song-level split over works. Works named in ``base_ids`` keep their split;
-    works already in the table keep theirs; only new works are drawn."""
-    fixed = {k: name for name, keys in (base_ids or {}).items() for k in keys}
-    existing = {r["key"]: r["name"] for r in con.execute(
-        "SELECT w.key, s.name FROM split s JOIN work w ON w.id = s.work_id")}
-    rows = con.execute("SELECT id, key FROM work WHERE id IN (SELECT DISTINCT rendition.work_id FROM rendition)").fetchall()
-    new = [r for r in rows if r["key"] not in fixed and r["key"] not in existing]
-    # reuse split_by_song's logic on dummy phrases so the rule is identical to the JSONL pipeline
-    dummies = [Phrase(r["key"], [60] * 5, [0, 1, 2, 3, 4], [1] * 5, "db") for r in new]
-    drawn = {p.song_id: name for name, ps in split_by_song(dummies, val_frac, test_frac, seed).items() for p in ps}
+def assign_splits(con: sqlite3.Connection, val_frac: float = 0.1, test_frac: float = 0.1,
+                  seed: int = 0) -> dict[str, int]:
+    """Song-level split over works: a seeded random draw over work ids.
+
+    Works already in the table keep their split, so re-running after a new
+    ingest only draws the new works; evaluation sets stay stable.
+    """
+    existing = {int(r["work_id"]): r["name"] for r in con.execute("SELECT work_id, name FROM split")}
+    ids = [int(r["id"]) for r in con.execute(
+        "SELECT id FROM work WHERE id IN (SELECT DISTINCT work_id FROM rendition) ORDER BY id")]
+    new = [i for i in ids if i not in existing]
+    rng = np.random.default_rng([seed, len(existing)])
+    order = [new[i] for i in rng.permutation(len(new))]
+    n_test, n_val = int(round(len(order) * test_frac)), int(round(len(order) * val_frac))
+    drawn = {wid: "test" for wid in order[:n_test]}
+    drawn.update({wid: "val" for wid in order[n_test:n_test + n_val]})
+    drawn.update({wid: "train" for wid in order[n_test + n_val:]})
     counts: dict[str, int] = defaultdict(int)
-    for r in rows:
-        name = existing.get(r["key"]) or fixed.get(r["key"]) or drawn.get(r["key"])
-        if name is None:
-            continue
-        con.execute("INSERT OR REPLACE INTO split(work_id, name, seed) VALUES (?,?,?)", (r["id"], name, seed))
+    for wid in ids:
+        name = existing.get(wid) or drawn[wid]
+        con.execute("INSERT OR REPLACE INTO split(work_id, name, seed) VALUES (?,?,?)", (wid, name, seed))
         counts[name] += 1
     con.commit()
     return dict(counts)
 
 
 def load_db_phrases(con: sqlite3.Connection, sources: Iterable[str] | None = None) -> list[Phrase]:
-    q = ("SELECT w.key AS song_id, s.name AS source, p.pitches_json, p.onsets_json, p.durations_json "
-         "FROM phrase p JOIN rendition r ON r.id = p.rendition_id JOIN work w ON w.id = r.work_id "
+    q = ("SELECT r.work_id, r.id AS rendition_id, s.name AS source, p.pitches_json, p.onsets_json, p.durations_json "
+         "FROM phrase p JOIN rendition r ON r.id = p.rendition_id "
          "JOIN source s ON s.id = r.source_id")
     args: tuple = ()
     if sources:
@@ -432,27 +446,45 @@ def load_db_phrases(con: sqlite3.Connection, sources: Iterable[str] | None = Non
         q += " WHERE s.name IN (%s)" % ",".join("?" * len(names))
         args = tuple(names)
     q += " ORDER BY r.id, p.idx"
-    return [Phrase(r["song_id"], json.loads(r["pitches_json"]), json.loads(r["onsets_json"]),
-                   json.loads(r["durations_json"]), r["source"]) for r in con.execute(q, args)]
+    return [Phrase(str(r["work_id"]), json.loads(r["pitches_json"]), json.loads(r["onsets_json"]),
+                   json.loads(r["durations_json"]), r["source"], rendition_id=int(r["rendition_id"]))
+            for r in con.execute(q, args)]
+
+
+def cap_per_song(phrases: list[Phrase], max_per_song: int | None, seed: int = 0) -> list[Phrase]:
+    """Keep at most ``max_per_song`` phrases per work (a seeded random subset, in
+    time order), so a song with many renditions or guitar tracks cannot
+    outweigh one with a single melody track."""
+    if not max_per_song:
+        return phrases
+    by_song: dict[str, list[int]] = defaultdict(list)
+    for i, p in enumerate(phrases):
+        by_song[p.song_id].append(i)
+    keep: set[int] = set()
+    for sid, idx in by_song.items():
+        rng = np.random.default_rng([seed, int(sid) if sid.isdigit() else abs(hash(sid)) % (2 ** 31)])
+        keep.update(idx if len(idx) <= max_per_song else sorted(rng.choice(idx, max_per_song, replace=False).tolist()))
+    return [p for i, p in enumerate(phrases) if i in keep]
 
 
 def export(con: sqlite3.Connection, out: Path, sources: Iterable[str] | None = None,
-           max_per_song: int | None = None, seed: int = 0) -> tuple[int, dict[str, int]]:
-    """Write phrases as JSONL plus splits.json next to it, like ml.prepare_dataset did.
+           max_per_song: int | None = None, cap_exempt: Iterable[str] = ("pop909",),
+           seed: int = 0) -> tuple[int, dict[str, int]]:
+    """Write phrases as JSONL (``song_id`` = work id) plus ``splits.json`` next to it.
 
-    ``max_per_song`` caps non-POP909 phrases per work with the same random rule.
+    ``max_per_song`` caps phrases per work for every source except those in
+    ``cap_exempt`` (melody sources have one track per song and need no cap).
     """
-    from ml.prepare_dataset import cap_per_song
-
+    exempt = set(cap_exempt or ())
     phrases = load_db_phrases(con, sources)
-    guitar = cap_per_song([p for p in phrases if p.source != "pop909"], max_per_song, seed)
-    phrases = [p for p in phrases if p.source == "pop909"] + guitar
+    capped = cap_per_song([p for p in phrases if p.source not in exempt], max_per_song, seed)
+    phrases = [p for p in phrases if p.source in exempt] + capped
     save_phrases(phrases, out)
     splits = defaultdict(list)
-    for r in con.execute("SELECT w.key, s.name FROM split s JOIN work w ON w.id = s.work_id"):
-        splits[r["name"]].append(r["key"])
-    keys = {p.song_id for p in phrases}
-    ids = {name: sorted(k for k in v if k in keys) for name, v in splits.items()}
+    for r in con.execute("SELECT work_id, name FROM split"):
+        splits[r["name"]].append(str(r["work_id"]))
+    present = {p.song_id for p in phrases}
+    ids = {name: sorted((k for k in v if k in present), key=int) for name, v in splits.items()}
     Path(out).with_name("splits.json").write_text(json.dumps(ids, indent=1))
     return len(phrases), {k: len(v) for k, v in ids.items()}
 
@@ -499,11 +531,11 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--val-frac", type=float, default=0.1)
     p.add_argument("--test-frac", type=float, default=0.1)
     p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--base-splits", type=Path, default=None)
     p = sub.add_parser("export")
     p.add_argument("--out", type=Path, default=Path("data/processed/phrases.jsonl"))
     p.add_argument("--sources", nargs="*", default=None)
     p.add_argument("--max-per-song", type=int, default=None)
+    p.add_argument("--cap-exempt", nargs="*", default=["pop909"], help="sources the cap does not apply to")
     p.add_argument("--seed", type=int, default=0)
     sub.add_parser("stats")
     p = sub.add_parser("sql")
@@ -518,10 +550,9 @@ def main(argv: list[str] | None = None) -> None:
         jobs = jobs_for(args.pop909_dir, args.guitar_midi_dir, args.dadagp_dir, args.min_notes, args.max_notes, args.limit)
         print(ingest(con, jobs, args.workers, args.min_notes, args.max_notes))
     elif args.cmd == "split":
-        base = json.loads(args.base_splits.read_text()) if args.base_splits else None
-        print(assign_splits(con, args.val_frac, args.test_frac, args.seed, base))
+        print(assign_splits(con, args.val_frac, args.test_frac, args.seed))
     elif args.cmd == "export":
-        n, sp = export(con, args.out, args.sources, args.max_per_song, args.seed)
+        n, sp = export(con, args.out, args.sources, args.max_per_song, args.cap_exempt, args.seed)
         print(f"wrote {n} phrases to {args.out}; splits {sp}")
     elif args.cmd == "stats":
         print(stats(con))

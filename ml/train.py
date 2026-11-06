@@ -143,14 +143,15 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--device", default=None)
     ap.add_argument("--no-genre", action="store_true", help="train without the genre embedding")
-    ap.add_argument("--no-rhythm", action="store_true", help="train without the rhythm (gap class) head")
+    ap.add_argument("--rhythm", action="store_true",
+                    help="add the rhythm (gap class) head; off by default, it ties the rule-based quantiser")
     ap.add_argument("--genre-dropout", type=float, default=0.2,
                     help="fraction of training sketches shown with genre 'unknown'")
     ap.add_argument("--source", default=None,
                     help="train and validate only on phrases from this source (per-genre model)")
     args = ap.parse_args(argv)
     n_genres = 0 if args.no_genre else len(GENRES)
-    n_rhythm = 0 if args.no_rhythm else len(RHYTHM_CLASSES)
+    n_rhythm = len(RHYTHM_CLASSES) if args.rhythm else 0
 
     if args.smoke:
         phrases = synthetic_phrases(256, seed=args.seed)

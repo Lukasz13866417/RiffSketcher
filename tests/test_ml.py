@@ -305,26 +305,20 @@ def test_phrases_from_guitar_midi_picks_guitar_tracks(tmp_path):
         assert all(0.4 < d <= 0.5 for d in p.durations_beats)
 
 
-def test_prepare_dataset_helpers(tmp_path):
-    from ml.prepare_dataset import cap_per_song, lakh_song_id, split_keeping
-
-    root = tmp_path / "clean_midi"
-    assert lakh_song_id(root / "Metallica" / "One.3.mid", root) == "Metallica/One"
-    assert lakh_song_id(root / "Metallica" / "One.mid", root) == "Metallica/One"
-    assert lakh_song_id(root / "loose.mid", root) == "loose"
-
-    phrases = [Phrase(f"s{i % 3}", [60, 62, 64, 65, 67], [0, 1, 2, 3, 4], [1] * 5, "x") for i in range(30)]
-    capped = cap_per_song(phrases, 4, seed=1)
-    assert len(capped) == 12 and all(sum(p.song_id == s for p in capped) == 4 for s in ("s0", "s1", "s2"))
-    assert cap_per_song(phrases, None) is phrases
-
-    # songs named in the base split keep their split; new songs are drawn at random
-    base = {"train": ["s0"], "val": [], "test": ["s1"]}
-    new = phrases + [Phrase(f"n{i}", [60, 62, 64, 65, 67], [0, 1, 2, 3, 4], [1] * 5, "y") for i in range(20)]
-    splits = split_keeping(new, base, 0.2, 0.2, seed=0)
-    assert {p.song_id for p in splits["test"]} >= {"s1"} and "s0" in {p.song_id for p in splits["train"]}
-    assert "s0" not in {p.song_id for p in splits["test"]} | {p.song_id for p in splits["val"]}
-    assert sum(len(v) for v in splits.values()) == len(new)
+def test_cap_per_song_and_name_parsing(tmp_path):
+    from ml.datasets import Phrase
+    from ml.db import cap_per_song, dadagp_artist_title, lakh_artist_title
+    root = tmp_path
+    assert lakh_artist_title(root / "Metallica" / "One.3.mid", root) == ("Metallica", "One")
+    assert lakh_artist_title(root / "Metallica" / "One.mid", root) == ("Metallica", "One")
+    assert lakh_artist_title(root / "loose.mid", root) == (None, "loose")
+    assert dadagp_artist_title(Path("Band - Song.gp5.tokens.txt")) == ("Band", "Song")
+    assert dadagp_artist_title(Path("nameless.txt")) == (None, "nameless")
+    phrases = [Phrase(str(s), [60, 62, 64, 65, 67], [0, 1, 2, 3, 4], [1] * 5, "x") for s in (1, 2, 3) for _ in range(10)]
+    capped = cap_per_song(phrases, 4, seed=0)
+    assert len(capped) == 12 and all(sum(p.song_id == str(s) for p in capped) == 4 for s in (1, 2, 3))
+    assert [p.song_id for p in cap_per_song(phrases, 4, seed=0)] == [p.song_id for p in capped]  # deterministic
+    assert cap_per_song(phrases, None) == phrases
 
 
 # -- splits ---------------------------------------------------------------- #

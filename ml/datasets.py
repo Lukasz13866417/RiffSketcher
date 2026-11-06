@@ -85,11 +85,12 @@ def genre_id(name: str | None) -> int:
 class Phrase:
     """A short monophonic melody; onsets/durations in beats, first onset at 0."""
 
-    song_id: str
+    song_id: str  # the work id in the song database (as a string)
     pitches: list[int]
     onsets_beats: list[float]
     durations_beats: list[float]
     source: str = "unknown"
+    rendition_id: int | None = None  # which file of the work the phrase was cut from
 
     def __len__(self) -> int:
         return len(self.pitches)
@@ -106,7 +107,8 @@ class Phrase:
         return cls(song_id=str(d["song_id"]), pitches=[int(p) for p in d["pitches"]],
                    onsets_beats=[float(x) for x in d["onsets_beats"]],
                    durations_beats=[float(x) for x in d["durations_beats"]],
-                   source=str(d.get("source", "unknown")))
+                   source=str(d.get("source", "unknown")),
+                   rendition_id=None if d.get("rendition_id") is None else int(d["rendition_id"]))
 
 
 def save_phrases(phrases: Iterable[Phrase], path: str | Path) -> None:

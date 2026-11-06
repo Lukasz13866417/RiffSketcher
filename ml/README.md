@@ -12,21 +12,24 @@ with a synthetic fallback; a GPU is used automatically when available.
 | `sketch_simulator.py` | `SketchSimulator` / `SimConfig` (`easy`/`medium`/`hard`): jitter, dropped/doubled taps, tempo drift, noisy compressed contour, missing heights, imperfect gesture tags |
 | `baseline.py` | `ContourBaseline` (round drawn heights, optional scale snap) and `DeterministicBaseline` (wraps `core.inference`) |
 | `model.py` | `SketchTransformer` (encoder over sketch tokens, autoregressive interval decoder), `predict`, `candidates`, `riffs_from_sketch` |
-| `train.py`, `evaluate.py`, `prepare_dataset.py` | CLIs (`evaluate` compares several checkpoints and reports per data source) |
+| `db.py` | the song database: ingest raw folders, split by work, export training phrases (see "Song database") |
+| `train.py`, `evaluate.py` | CLIs (`evaluate` compares several checkpoints and reports per data source) |
+| `prepare_dataset.py` | synthetic phrases for smoke tests only |
 | `../experiments/chug_probe.py` | the 16-note chug-riff probe from the decoding experiments, run against any checkpoint |
 
 ## Data: POP909
 
 ```bash
 mkdir -p data/raw && git clone --depth 1 https://github.com/music-x-lab/POP909-Dataset data/raw/pop909
-uv run python -m ml.prepare_dataset --midi-dir data/raw/pop909/POP909 --out data/processed/pop909.jsonl
+uv run python -m ml.db ingest --pop909-dir data/raw/pop909/POP909
+uv run python -m ml.db split && uv run python -m ml.db export --out data/processed/pop909.jsonl --sources pop909
 ```
 
-`prepare_dataset` takes the `MELODY` track of each song, makes it
-monophonic, converts times to beats through the file's tempo map (many
-POP909 songs have tempo changes) and writes `pop909.jsonl` plus
-`splits.json`. The split is **by song** (train/val/test = 80/10/10 of song
-ids) so no phrase of a test song is ever seen in training.
+Ingest takes the `MELODY` track of each song, makes it monophonic, converts
+times to beats through the file's tempo map (many POP909 songs have tempo
+changes) and stores the phrases; export writes `pop909.jsonl` plus
+`splits.json`. The split is **by work** (train/val/test = 80/10/10 of
+songs) so no phrase of a test song is ever seen in training.
 
 Phrase splitting: the track is cut at rests longer than 2 beats, but pop
 melodies rarely rest that long (1.3% of note transitions in POP909), so the
@@ -68,10 +71,9 @@ research-only and keep `data/raw/` out of git):
 mkdir -p data/raw/lakh_clean && cd data/raw/lakh_clean
 curl -L -o clean_midi.tar.gz http://hog.ee.columbia.edu/craffel/lmd/clean_midi.tar.gz
 tar -xzf clean_midi.tar.gz && rm clean_midi.tar.gz && cd -
-cp data/processed/splits.json data/processed/pop909_splits.json   # keep the POP909 song split
-uv run python -m ml.prepare_dataset --midi-dir data/raw/pop909/POP909 \
-    --guitar-midi-dir data/raw/lakh_clean/clean_midi --max-per-song 12 \
-    --base-splits data/processed/pop909_splits.json --out data/processed/mixed.jsonl
+uv run python -m ml.db ingest --guitar-midi-dir data/raw/lakh_clean/clean_midi   # incremental: POP909 stays
+uv run python -m ml.db split            # only the new works are drawn; earlier assignments stay
+uv run python -m ml.db export --out data/processed/mixed.jsonl --max-per-song 12
 ```
 
 `phrases_from_guitar_midi` takes every track whose General MIDI program is
@@ -85,13 +87,14 @@ simultaneous notes are strummed chords, not riff notes, and end the phrase
 splitting as the melody loader, phrases with an interval beyond ±24 semitones
 dropped, exact repeats within a song dropped (riffs repeat, and doubled
 guitar tracks copy each other). `Title.1.mid`, `Title.2.mid` versions of the
-same song share a song id so they never straddle a split.
+same song are renditions of one work, so they never straddle a split.
 
-`--max-per-song 12` keeps a random 12 phrases per guitar song (Lakh songs
-have several guitar tracks and would otherwise outweigh POP909 twenty to
-one); `--base-splits` keeps every POP909 song in the split it already had, so
-the earlier POP909 model is never evaluated on songs it trained on. Result:
-`data/processed/mixed.jsonl`, 119,956 phrases (89,279 `lakh_guitar` from
+`--max-per-song 12` keeps a random 12 phrases per guitar work (Lakh songs
+have several guitar tracks and transcriptions and would otherwise outweigh
+POP909 twenty to one); splits already assigned stay put when new works are
+ingested, so an earlier model is never evaluated on songs it trained on.
+The first mixed file (built before the database existed, on which the result
+tables below were measured) had 119,956 phrases (89,279 `lakh_guitar` from
 7,970 songs, 30,677 `pop909` from 909 songs; 279 unreadable MIDI files
 skipped), 95,779 / 12,040 / 12,137 train / val / test phrases over 7,103 /
 888 / 888 songs. The guitar phrases are a different distribution: interval
@@ -188,7 +191,7 @@ Teacher-forced validation accuracy 0.762 (POP909-only run: 0.730), still
 creeping up at epoch 20. Evaluated on the mixed **test split** (12,137
 sketches from 888 unseen songs, medium noise, `k = 5`); `pop909` is the
 POP909-only model (`runs/pop909/best.pt`, evaluated on the same POP909 test
-songs as before thanks to `--base-splits`), `mixed` is `runs/mixed/best.pt`.
+songs as before, since split assignments are kept when sources are added), `mixed` is `runs/mixed/best.pt`.
 The deterministic rows come from a separate run (`runs/eval_mixed_baselines.log`,
 ~40 min, with the same seed) because the search engine dominates evaluation time:
 
@@ -267,8 +270,8 @@ files. Tables:
 | table | one row per | notes |
 | --- | --- | --- |
 | `source` | dataset | licence and provenance text |
-| `work` | composition | `key` is the legacy `song_id`; normalised artist and title for matching across sources |
-| `rendition` | file of one source | path, content hash, tempo, resolution; several per work (Lakh versions) |
+| `work` | composition | `id` is the song id; normalised artist and title match renditions across sources |
+| `rendition` | file of one source | `id` is the rendition id; `original_id` is the source's own identifier; path, content hash, tempo, resolution; several per work (Lakh versions) |
 | `track` | instrument track | role: melody / guitar / bass / drums / other; notes stored only for kept roles |
 | `note` | note event | onset and duration in beats, seconds, pitch, velocity, string, fret, palm mute, bend, slide, hammer, vibrato, dead, tie |
 | `extractor` | name + version + params | every derived row points at one |
@@ -279,14 +282,17 @@ files. Tables:
 
 Ingest parses files in worker processes (`pretty_midi` for MIDI, the DadaGP
 token reader for tabs), stores all tracks but only the notes of melody
-(POP909) and guitar (Lakh, DadaGP) tracks, and runs the existing phrase
-extractors so the stored phrases are exactly the ones the JSONL pipeline
-produced. Files already present are skipped, so ingest is incremental.
+(POP909) and guitar (Lakh, DadaGP) tracks, and runs the phrase extractors
+(`phrases_from_midi`, `phrases_from_guitar_midi`, `phrases_from_dadagp`).
+Files already present are skipped, so ingest is incremental. Exported
+phrases carry `song_id` (the work id) and `rendition_id`; `--max-per-song`
+caps phrases per work for riff sources (`--cap-exempt pop909` by default,
+since a melody source has one track per song).
 
 ```bash
 uv run python -m ml.db ingest --pop909-dir data/raw/pop909/POP909 --guitar-midi-dir data/raw/lakh_clean/clean_midi
-uv run python -m ml.db split --base-splits data/processed/splits.json   # keeps the earlier song assignments
-uv run python -m ml.db export --out data/processed/mixed.jsonl --max-per-song 40
+uv run python -m ml.db split --seed 0          # seeded draw over work ids; re-runs only assign new works
+uv run python -m ml.db export --out data/processed/mixed.jsonl --max-per-song 12
 uv run python -m ml.db stats
 uv run python -m ml.db sql "select role, count(*) from track group by role"
 uv run python -m ml.tropes --db data/riffs.db --out data/tropes.json
@@ -297,50 +303,51 @@ columns the moment any source fills them (DadaGP, scraped tabs, an audio
 technique classifier), and a new output head reads them through the same
 phrase query; palm mute as a model input is the same column.
 
-First full ingest: 909 POP909 + 16,977 Lakh renditions (279 unreadable MIDI
-files skipped) into 11,090 works, 173,201 tracks, 22.0M notes (melody and
-guitar tracks only) and 568,613 phrases; 1.7 GB. 3,385 works have more than
-one rendition. Matching works by normalised artist and title found something
-the JSONL pipeline missed: Lakh has case variants of the same title
-("Stairway to Heaven" / "Stairway To Heaven", "Y.M.C.A" / "Y.M.C.A.") that
-were separate song ids before, and **six songs sat on both sides of the old
-split** through such variants (e.g. "Sweet Child O' Mine" in train and test).
-Too few to move the reported numbers, but the database merges them, so
-`data/processed/mixed.jsonl` is now exported from it (`--max-per-song 12`,
-119,796 phrases; the previous file is kept as `mixed_v1.jsonl` with
-`splits_v1.json` because the results above were measured on it). The
-per-song cap draws from one random stream, so the two files share their
-phrase sets per song but not the sampled subsets; retrain before comparing
-new numbers with old ones.
+Full ingest of POP909 and Lakh guitar: 909 + 16,977 renditions (279
+unreadable MIDI files skipped) into 11,090 works, 173,201 tracks, 22.0M notes
+(melody and guitar tracks only) and 568,613 phrases; 1.7 GB; 3,385 works have
+more than one rendition. Matching by normalised artist and title merges
+Lakh's case variants of one title ("Stairway to Heaven" / "Stairway To
+Heaven", "Y.M.C.A" / "Y.M.C.A."); a path-based song id, as the first mixed
+file used, treated those as different songs and put six of them on both
+sides of its split (e.g. "Sweet Child O' Mine" in train and test): too few
+to move the result tables above, and impossible now that splits are per
+work. The served model (`runs/genre/best.pt`, genre token, no rhythm head)
+is trained on the database export: teacher-forced validation accuracy
+0.762; on 2,000 test sketches of the database split (medium noise, true
+genre label) interval accuracy 0.608, NLL 1.118, ECE 0.011, top-5
+reconstruction 0.362. Earlier checkpoints were trained on a different split
+and are not comparable on this test set.
 
 ### Trope catalogue (2026-11-06)
 
-`ml/tropes.py` counts recurring patterns in the real phrases, per genre, and
-writes `data/tropes.json` (113 KB, committed). Everything is a document
+`ml/tropes.py` counts recurring patterns in every phrase of the song database,
+per genre, and writes `data/tropes.json` (113 KB, committed). Everything is a document
 frequency (once per song), so a song that repeats one riff does not dominate.
 It holds, per genre and overall: interval unigrams; interval, rhythm and
 combined "figure" n-grams (2-5) with the share of songs containing each;
 named tropes from rule detectors with example phrases; the smallest scale
 family each phrase fits; and compressed contour words.
 
-Named tropes (share of songs), POP909 melodies vs Lakh guitar riff lines:
+Named tropes (share of songs), POP909 melodies vs Lakh guitar riff lines (all
+538k guitar phrases, not the per-song training sample):
 
 | trope | pop | rock |
 | --- | --- | --- |
-| chug run (3+ repeated notes) | 58% | 71% |
-| pedal tone | 76% | 52% |
-| repeated figure (exact interval period) | 10% | 53% |
-| tritone move | 5% | 25% |
-| octave leap | 43% | 55% |
-| gallop (eighth + two sixteenths, twice) | 20% | 11% |
-| pentatonic lick (4+ pitch classes, two minor-third hops) | 70% | 28% |
-| descending run | 54% | 27% |
-| ascending run | 35% | 19% |
-| ends on its lowest note | 92% | 79% |
+| chug run (3+ repeated notes) | 58% | 79% |
+| pedal tone | 76% | 69% |
+| repeated figure (exact interval period) | 17% | 66% |
+| tritone move | 5% | 44% |
+| octave leap | 43% | 69% |
+| gallop (eighth + two sixteenths, twice) | 20% | 22% |
+| pentatonic lick (4+ pitch classes, two minor-third hops) | 70% | 48% |
+| descending run | 54% | 44% |
+| ascending run | 35% | 35% |
+| ends on its lowest note | 92% | 89% |
 
 Interval unigrams: repeats are 22% of pop intervals and 33% of rock; whole
-steps are 38% of pop and 16% of rock. Top rock trigram `[0, 0, 0]` appears in
-71% of songs; top pop trigrams are `[-2, -2, 2]` and `[-2, 2, -2]` (62% / 61%).
+steps are 38% of pop and 15% of rock. Top rock trigram `[0, 0, 0]` appears in
+79% of songs; top pop trigrams are `[-2, -2, 2]` and `[-2, 2, -2]` (62% / 61%).
 Rhythm trigram `[0.5, 0.5, 0.5]` leads both.
 
 Used in the app via `core.motifs.label_tropes` (chips on every candidate, plus
@@ -355,8 +362,8 @@ uv run python -m ml.tropes --data data/processed/mixed.jsonl --out data/tropes.j
 
 Motivation: on fast riffs tap jitter (30-50 ms) is comparable to a sixteenth
 note, so the rule-based grid snap (`core.rhythm.quantise`) guesses. The model
-now has an optional **rhythm head** (`ModelConfig.n_rhythm`, on by default in
-`ml.train`, `--no-rhythm` to disable): one class per gap between consecutive
+now has an optional **rhythm head** (`ModelConfig.n_rhythm`, off by default,
+`ml.train --rhythm` turns it on): one class per gap between consecutive
 notes from `ml.datasets.RHYTHM_CLASSES` (sixteenth multiples plus triplets),
 trained from the simulator's true onsets in beats alongside the interval loss.
 `TransformerReconstructor` uses the predicted gaps for candidate timing when
@@ -406,7 +413,7 @@ Takeaways:
 Reproduce:
 
 ```bash
-uv run python -m ml.train --data data/processed/mixed.jsonl --epochs 20 --sim medium --genre-dropout 0.2 --out runs/rhythm
+uv run python -m ml.train --data data/processed/mixed.jsonl --epochs 20 --sim medium --genre-dropout 0.2 --rhythm --out runs/rhythm
 uv run python -m ml.evaluate --checkpoint runs/genre/best.pt runs/rhythm/best.pt --data data/processed/mixed.jsonl --split test --sim medium --no-deterministic --limit 2000
 ```
 
