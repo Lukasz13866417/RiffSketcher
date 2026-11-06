@@ -75,3 +75,20 @@ def test_untrained_genre_falls_back_to_unknown():
     # a trained label is passed through and changes the prediction
     sk_pop = make_sketch([0, 2, 4]); sk_pop.meta["genre"] = "pop"
     assert seqs(r.reconstruct(sk_pop, 3)) != seqs(r.reconstruct(sk_unknown, 3))
+
+
+def test_rhythm_head_drives_candidate_timing():
+    torch.manual_seed(0)
+    from ml.datasets import GENRES, RHYTHM_CLASSES
+    model = SketchTransformer(ModelConfig(d_model=32, n_layers=1, n_heads=2, n_genres=len(GENRES),
+                                          n_rhythm=len(RHYTHM_CLASSES))).eval()
+    r = TransformerReconstructor(model=model, device="cpu", meta={"genres_seen": ["unknown"]})
+    riffs = r.reconstruct(make_sketch([0, 2, 4, 5, 7]), 3)
+    assert riffs
+    for riff in riffs:
+        if riff.meta.get("method") == "transformer":
+            assert riff.meta.get("rhythm") == "model"
+            onsets = [n.onset for n in riff.notes]
+            assert onsets == sorted(onsets) and onsets[0] == 0.0
+            assert 40 <= riff.tempo <= 240
+            assert all(n.duration > 0 for n in riff.notes)

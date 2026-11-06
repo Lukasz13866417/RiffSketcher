@@ -258,6 +258,65 @@ uv run python -m ml.evaluate --checkpoint runs/pop909/best.pt runs/mixed/best.pt
 uv run python -m experiments.chug_probe runs/pop909/best.pt runs/mixed/best.pt
 ```
 
+### Rhythm head: learned timing vs the rule-based quantiser (2026-11-06)
+
+Motivation: on fast riffs tap jitter (30-50 ms) is comparable to a sixteenth
+note, so the rule-based grid snap (`core.rhythm.quantise`) guesses. The model
+now has an optional **rhythm head** (`ModelConfig.n_rhythm`, on by default in
+`ml.train`, `--no-rhythm` to disable): one class per gap between consecutive
+notes from `ml.datasets.RHYTHM_CLASSES` (sixteenth multiples plus triplets),
+trained from the simulator's true onsets in beats alongside the interval loss.
+`TransformerReconstructor` uses the predicted gaps for candidate timing when
+the checkpoint has the head (`riff.meta["rhythm"] == "model"`), with the tempo
+fitted by least squares to the tapped seconds; otherwise it quantises.
+
+Two designs were tried on the mixed data (20 epochs, medium noise):
+
+1. *Decoder-side*: the previous gap class fed back as a decoder input, gap
+   logits from the decoder state. Teacher-forced validation accuracy 0.851,
+   but free decoding 0.600 and interval accuracy down 2 points: the
+   teacher-forced number leaked the beat unit through the true previous gap,
+   and wrong gaps compounded.
+2. *Encoder-side* (kept): gap k from the encoder states of notes k and k+1,
+   non-autoregressive, a 2-layer MLP head. Interval accuracy 0.581 vs 0.590
+   for the same model without the head.
+
+Rhythm accuracy on 2,000 mixed test sketches (`runs/eval_rhythm.log` and a
+scratch analysis), where *tempo-inv* allows a global factor of 2 in the beat
+label (same grid, different tempo, harmless for playback), *fast gaps* are
+true gaps of at most 0.3 beats, and *whole riff* means every gap right:
+
+```
+                      exact   tempo-inv   fast gaps   whole riff
+medium  quantise      0.674     0.783       0.798       0.364
+medium  rhythm head   0.647     0.781       0.805       0.344
+hard    quantise      0.497     0.570       0.640       0.059
+hard    rhythm head   0.460     0.622       0.608       0.104
+```
+
+Takeaways:
+
+* On medium noise the learned head and the rule tie. On hard noise (45 ms
+  jitter, dropped and doubled taps) the head is better tempo-invariantly and
+  gets the whole riff right almost twice as often, but is slightly worse on
+  the fastest gaps, which were the motivation.
+* The head costs about a point of interval accuracy, so the API default stays
+  `runs/genre/best.pt`; set `RIFF_MODEL=runs/rhythm/best.pt` to serve the
+  rhythm-head checkpoint. The code path is tested and ready for a better run.
+* Absolute beat labels are inherently ambiguous from tempo-normalised inputs
+  (is the common gap a quarter or an eighth?), which caps both methods; the
+  tempo-invariant numbers are the ones to watch.
+* What would move this: real tapping data to replace the simulator's jitter
+  model (the hard preset is a guess), and joint beam search over gaps and
+  intervals instead of greedy gaps.
+
+Reproduce:
+
+```bash
+uv run python -m ml.train --data data/processed/mixed.jsonl --epochs 20 --sim medium --genre-dropout 0.2 --out runs/rhythm
+uv run python -m ml.evaluate --checkpoint runs/genre/best.pt runs/rhythm/best.pt --data data/processed/mixed.jsonl --split test --sim medium --no-deterministic --limit 2000
+```
+
 ### Genre conditioning: one model vs separate models (2026-11-05)
 
 Question: should each genre get its own model? Setup: the data source is the

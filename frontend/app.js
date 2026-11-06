@@ -500,6 +500,19 @@ async function suggestGestures() {
 }
 
 $('btn-suggest').onclick = () => suggestGestures().catch((e) => setStatus(e.message));
+async function fillGaps() {
+  if (!state.sketch.gestures.some((g) => g.kind === 'tapping_run')) {
+    setStatus('tag a region as "Tapping / fast run" first, then fill in the taps you missed'); return;
+  }
+  const r = await api('/api/fill-gaps', state.sketch);
+  if (!r.inserted) { setStatus('no gaps looked like missed taps in the tagged runs'); return; }
+  snapshot();
+  state.sketch = r.sketch; state.sketch.meta ||= {};
+  state.selection.clear(); state.candidates = []; state.selectedCandidate = -1;
+  renderAll(); updateRhythmInfo(); updateGraphPanel();
+  setStatus(`inserted ${r.inserted} placeholder note${r.inserted > 1 ? 's' : ''} (hollow points); delete any that are wrong, their pitch is left to the model`);
+}
+$('btn-fill-gaps').onclick = () => fillGaps().catch((e) => setStatus(e.message));
 $('btn-set-pitch').onclick = () => {
   const sel = [...state.selection].sort((a, b) => a - b);
   if (!sel.length) { setStatus('select a note first'); return; }

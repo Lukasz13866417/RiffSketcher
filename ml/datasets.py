@@ -53,6 +53,25 @@ SOURCE_GENRE: dict[str, str] = {
 }
 
 
+# Rhythm classes: the gap between consecutive notes in beats. Sixteenth-note
+# multiples plus the common triplet values; the model predicts one class per
+# gap next to the interval class, so timing is denoised with the pitch.
+RHYTHM_CLASSES: tuple[float, ...] = (
+    1 / 6, 1 / 3, 2 / 3,
+    0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 3.5, 4.0, 6.0, 8.0,
+)
+_RHYTHM_LOG = np.log(np.array(RHYTHM_CLASSES))
+
+
+def rhythm_class(beats: float) -> int:
+    """Nearest rhythm class (in log space, so 1/3 vs 0.25 is judged by ratio)."""
+    return int(np.argmin(np.abs(_RHYTHM_LOG - np.log(max(float(beats), 1e-3)))))
+
+
+def class_to_beats(c: int) -> float:
+    return float(RHYTHM_CLASSES[int(c)])
+
+
 def genre_of_source(source: str) -> str:
     return SOURCE_GENRE.get(source, "unknown")
 
@@ -604,7 +623,10 @@ def sketch_to_features(sketch: Sketch) -> dict[str, np.ndarray]:
     return {"cont": cont, "gest": gest}
 
 
-def example_to_tensors(sketch: Sketch, intervals: list[int] | None) -> dict[str, torch.Tensor]:
+def example_to_tensors(sketch: Sketch, intervals: list[int] | None,
+                       iois_beats: list[float] | None = None) -> dict[str, torch.Tensor]:
+    """Model inputs for one sketch; ``intervals`` and ``iois_beats`` (true gaps in
+    beats, one per interval) add the training targets when given."""
     f = sketch_to_features(sketch)
     n = len(f["cont"])
     item = {
@@ -615,6 +637,8 @@ def example_to_tensors(sketch: Sketch, intervals: list[int] | None) -> dict[str,
     item["genre"] = torch.tensor(genre_id(sketch.meta.get("genre")), dtype=torch.long)
     if intervals is not None:
         item["target"] = torch.tensor([interval_to_class(d) for d in intervals], dtype=torch.long)
+    if iois_beats is not None:
+        item["rhythm"] = torch.tensor([rhythm_class(b) for b in iois_beats], dtype=torch.long)
     return item
 
 
@@ -651,7 +675,8 @@ class PhraseDataset(Dataset):
             if rng.random() < self.genre_dropout:
                 genre = "unknown"
         res.sketch.meta["genre"] = genre
-        return example_to_tensors(res.sketch, res.intervals)
+        iois = [b - a for a, b in zip(res.onsets_beats, res.onsets_beats[1:])]
+        return example_to_tensors(res.sketch, res.intervals, iois)
 
 
 def collate(items: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
@@ -662,7 +687,9 @@ def collate(items: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
     gest = torch.zeros(B, n_max, items[0]["gest"].shape[1])
     mask = torch.zeros(B, n_max, dtype=torch.bool)
     has_target = "target" in items[0]
+    has_rhythm = "rhythm" in items[0]
     target = torch.full((B, max(n_max - 1, 1)), PAD_TARGET, dtype=torch.long)
+    rhythm = torch.full((B, max(n_max - 1, 1)), PAD_TARGET, dtype=torch.long)
     for b, it in enumerate(items):
         n = it["cont"].shape[0]
         cont[b, :n] = it["cont"]
@@ -670,8 +697,12 @@ def collate(items: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
         mask[b, :n] = True
         if has_target:
             target[b, :n - 1] = it["target"]
+        if has_rhythm:
+            rhythm[b, :n - 1] = it["rhythm"]
     batch = {"cont": cont, "gest": gest, "mask": mask,
              "genre": torch.stack([it.get("genre", torch.tensor(0)) for it in items])}
     if has_target:
         batch["target"] = target
+    if has_rhythm:
+        batch["rhythm"] = rhythm
     return batch

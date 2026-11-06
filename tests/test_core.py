@@ -183,3 +183,19 @@ def test_reconstruct_extreme_heights_do_not_crash():
     riffs = DeterministicReconstructor().reconstruct(sk, 2)
     assert riffs and len(riffs[0]) == 3
     assert all(36 <= p <= 84 for p in riffs[0].pitches)
+
+
+def test_fill_missed_taps_inserts_unknown_notes():
+    from core.rhythm import fill_missed_taps
+    # fast run at 0.2 s spacing with one missed tap (gap of 0.4) and one double miss (0.6)
+    ts = [0, 0.2, 0.4, 0.8, 1.0, 1.6, 1.8]
+    sk = Sketch([Observation(t, 1.0, 0.8) for t in ts], gestures=[GestureTag("tapping_run", 0, 6)],
+                constraints=[Constraint("pitch", 6, value=52)])
+    out, n = fill_missed_taps(sk)
+    assert n == 3 and len(out) == 10
+    assert sum(o.y is None for o in out.observations) == 3
+    assert out.onsets == sorted(out.onsets)
+    assert out.gestures[0].end == 9 and out.constraints[0].i == 9  # indices remapped
+    assert all(abs(b - a - 0.2) < 1e-6 for a, b in zip(out.onsets, out.onsets[1:]))
+    # nothing tagged: nothing happens
+    assert fill_missed_taps(Sketch([Observation(t, 0) for t in ts]))[1] == 0

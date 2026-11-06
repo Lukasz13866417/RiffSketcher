@@ -94,6 +94,7 @@ that drops to 77% / 86%. That is the baseline the Transformer has to beat (`ml/e
 | `POST /api/merge-passes` | `{passes: [[s...], ...]}` | merged onsets |
 | `POST /api/quantise` | `{onsets, tempo_hint}` | tempo, onsets in beats |
 | `POST /api/suggest-gestures` | sketch | rule-based gesture suggestions |
+| `POST /api/fill-gaps` | sketch | the sketch with placeholder notes inserted inside tapping-run regions |
 | `GET /api/engines` | – | available reconstruction engines and the default |
 | `POST /api/reconstruct` | `{sketch, n_candidates, engine}` | ranked candidate riffs with note names and violations; `engine` is `auto`, `model` or `deterministic` |
 | `POST /api/synthesize` | riff | `audio/wav` |
@@ -101,8 +102,11 @@ that drops to 77% / 86%. That is the baseline the Transformer has to beat (`ml/e
 ## Roadmap (from the plan)
 
 1. Interactive prototype: tapping, timeline, editable pitch graph — **done**
-2. Gesture system: region tags, inserted tropes, rule-based suggestions — **done (first version)**
-3. First playback: deterministic inference + synthesis — **done**
+2. Gesture system: region tags, inserted tropes, rule-based suggestions — **done (first version)**;
+   a "Tapping / fast run" tag plus *Fill in missed taps* inserts placeholder notes (unknown height)
+   where a gap in the run looks like two or more notes, and the model fills in their pitch
+3. First playback: deterministic inference + synthesis — **done**; a learned rhythm head exists
+   (`ml/README.md`, "Rhythm head") but ties the rule-based quantiser, so timing stays rule-based by default
 4. Data pipeline: MIDI extraction, sketch simulator, song-level splits — **done (`ml/`)**
 5. First trained model: 1.9M-parameter Transformer over interval classes — **done on POP909**, see `ml/README.md` Results
 6. Model integration: `ml/reconstructor.py` wraps the trained model behind the same `Reconstructor`

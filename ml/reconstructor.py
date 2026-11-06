@@ -114,13 +114,13 @@ class TransformerReconstructor:
         sigma[missing] = 1e3  # no information: effectively no guidance
         return y - y[0], sigma
 
-    def _guided_beam(self, sketch: Sketch, beam: int) -> list[tuple[list[int], float, float]]:
-        """Beam search over interval classes scored by model log-prob + contour fit.
+    def _guided_beam(self, sketch: Sketch, beam: int) -> list[tuple[list[int], float, float, list[int]]]:
+        """Beam search over interval classes scored by model log-prob (+ optional contour fit).
 
-        Returns ``(intervals, model_logp, total_score)`` per surviving beam.
+        With a rhythm head the gap classes come from the encoder-side head and are
+        the same for every beam. Returns ``(intervals, model_logp, total_score, rhythm_classes)``.
         """
         import torch
-        import torch.nn.functional as F
 
         from .model import BOS
 
@@ -129,14 +129,17 @@ class TransformerReconstructor:
         batch = self.model._batch_from_sketch(sketch)
         with torch.no_grad():
             memory, mask = self.model.encode(batch)
+            # gaps come from the encoder head once per sketch; every beam shares them
+            rcls = self.model._rhythm_classes(memory, 1, m)
+            rs = rcls[0, 0].tolist() if rcls is not None else []
             # (total, model_logp, intervals, relative pitch so far)
             beams: list[tuple[float, float, list[int], int]] = [(0.0, 0.0, [], 0)]
             for k in range(1, m + 1):
-                tokens = torch.tensor([[BOS] + [interval_to_class(d) for d in seq] for _, _, seq, _ in beams],
+                tokens = torch.tensor([[BOS] + [interval_to_class(d) for d in b[2]] for b in beams],
                                       dtype=torch.long, device=memory.device)
-                logits = self.model.decode(tokens, memory.expand(len(beams), -1, -1),
-                                           mask.expand(len(beams), -1))[:, -1]
-                lp = F.log_softmax(logits, dim=-1).cpu().numpy()
+                lp, _ = self.model.step_logprobs(tokens, memory.expand(len(beams), -1, -1),
+                                                 mask.expand(len(beams), -1))
+                lp = lp.cpu().numpy()
                 cand: list[tuple[float, float, list[int], int]] = []
                 for (tot, mlp, seq, rel), row in zip(beams, lp):
                     top = np.argsort(row)[::-1][: max(beam, 8)]
@@ -147,7 +150,7 @@ class TransformerReconstructor:
                         cand.append((tot + float(row[c]) + guide, mlp + float(row[c]), seq + [d], new_rel))
                 cand.sort(key=lambda x: -x[0])
                 beams = cand[:beam]
-        return [(seq, mlp, tot) for tot, mlp, seq, _ in beams]
+        return [(seq, mlp, tot, rs) for tot, mlp, seq, _ in beams]
 
     def _interval_candidates(self, sketch: Sketch, n: int) -> list[tuple[list[int], float]]:
         """Candidate interval sequences with their model log-probability, best first.
@@ -161,21 +164,24 @@ class TransformerReconstructor:
         if m <= 0:
             return [([], 0.0)]
         target, sigma = self._guide_terms(sketch)
-        out: dict[tuple[int, ...], tuple[float, float]] = {}  # seq -> (total, model_logp)
-        for seq, mlp, tot in self._guided_beam(sketch, max(2 * n, 8)):
-            out[tuple(seq)] = (tot, mlp)
+        out: dict[tuple[int, ...], tuple[float, float, list[int]]] = {}  # seq -> (total, model_logp, rhythm)
+        for seq, mlp, tot, rs in self._guided_beam(sketch, max(2 * n, 8)):
+            out[tuple(seq)] = (tot, mlp, rs)
         batch = self.model._batch_from_sketch(sketch)
         with torch.no_grad():
             cls, lp, _ = self.model.generate(batch, self.n_samples, 1.0, mode="sample")
+            rh = self.model._last_rhythm
         for j in range(cls.shape[1]):
             seq = tuple(class_to_interval(int(c)) for c in cls[0, j, :m])
             mlp = float(lp[0, j])
             rel = np.concatenate([[0], np.cumsum(seq)])
             tot = mlp - self.guide_weight * 0.5 * float(np.sum(((rel[1:] - target[1:]) / sigma[1:]) ** 2))
+            rs = rh[0, j, :m].tolist() if rh is not None else []
             if mlp > -1e8 and (seq not in out or tot > out[seq][0]):
-                out[seq] = (tot, mlp)
+                out[seq] = (tot, mlp, rs)
         ranked = sorted(out.items(), key=lambda kv: -kv[1][0])
-        return [(list(seq), mlp) for seq, (_, mlp) in ranked]
+        self._last_rhythms = {seq: rs for seq, (_, _, rs) in ranked}
+        return [(list(seq), mlp) for seq, (_, mlp, _) in ranked]
 
     def _anchor(self, intervals: list[int], sketch: Sketch, fixed: dict[int, int]) -> list[int]:
         rel = np.concatenate([[0], np.cumsum(intervals)]).astype(int)
@@ -199,9 +205,15 @@ class TransformerReconstructor:
         seen: set[tuple[int, ...]] = set()
         for intervals, score in self._interval_candidates(sketch, n):
             pitches = self._anchor(intervals, sketch, cs.fixed_pitch)
-            notes = [Note(p, o, d) for p, o, d in zip(pitches, rhythm.onsets_beats, rhythm.durations_beats)]
-            riff = Riff(notes, tempo=rhythm.tempo, key=guess_key(pitches), score=score,
-                        meta={"method": "transformer", "grid": rhythm.grid})
+            rs = getattr(self, "_last_rhythms", {}).get(tuple(intervals), [])
+            if self.model.has_rhythm and len(rs) == len(intervals) and intervals:
+                onsets, durations, tempo = self.model.rhythm_from_classes(rs, sketch.onsets)
+                meta = {"method": "transformer", "rhythm": "model"}
+            else:
+                onsets, durations, tempo = rhythm.onsets_beats, rhythm.durations_beats, rhythm.tempo
+                meta = {"method": "transformer", "rhythm": "quantised", "grid": rhythm.grid}
+            notes = [Note(p, o, d) for p, o, d in zip(pitches, onsets, durations)]
+            riff = Riff(notes, tempo=tempo, key=guess_key(pitches), score=score, meta=meta)
             if violations(riff, cs) or tuple(pitches) in seen:
                 continue
             seen.add(tuple(pitches))

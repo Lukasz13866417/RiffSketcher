@@ -23,7 +23,7 @@ from core.constraints import build_constraints, violations
 from core.inference import DeterministicReconstructor, InferenceConfig
 from core.motifs import GESTURE_LIBRARY, suggest_gestures
 from core.representation import Riff, Sketch, midi_to_name
-from core.rhythm import merge_passes, quantise
+from core.rhythm import fill_missed_taps, merge_passes, quantise
 from core.synthesis import riff_to_wav
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
@@ -134,6 +134,13 @@ def quantise_endpoint(body: QuantiseIn) -> dict[str, Any]:
     r = quantise(body.onsets, tempo_hint=body.tempo_hint)
     return {"tempo": r.tempo, "onsets_beats": r.onsets_beats,
             "durations_beats": r.durations_beats, "grid": r.grid, "error_s": r.error}
+
+
+@app.post("/api/fill-gaps")
+def fill_gaps(body: SketchIn) -> dict[str, Any]:
+    """Insert probable missed taps inside regions tagged as tapping / fast runs."""
+    sketch, n = fill_missed_taps(body.to_sketch())
+    return {"sketch": sketch.to_dict(), "inserted": n}
 
 
 @app.post("/api/suggest-gestures")

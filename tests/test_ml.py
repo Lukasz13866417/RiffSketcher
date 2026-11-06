@@ -542,3 +542,42 @@ def test_model_genre_embedding_and_legacy_config():
     assert legacy.genre_emb is None
     with torch.no_grad():
         assert legacy(batch).shape == (1, 4, 49)
+
+
+# -- rhythm head -------------------------------------------------------------- #
+
+def test_rhythm_classes_round_trip():
+    from ml.datasets import RHYTHM_CLASSES, class_to_beats, rhythm_class
+    for c, b in enumerate(RHYTHM_CLASSES):
+        assert rhythm_class(b) == c and class_to_beats(c) == b
+    assert rhythm_class(0.26) == rhythm_class(0.25)
+    assert rhythm_class(0.34) == rhythm_class(1 / 3)
+
+
+def test_dataset_has_rhythm_targets_and_model_trains_with_head():
+    import numpy as np
+    import torch
+    from ml.datasets import GENRES, RHYTHM_CLASSES, Phrase, PhraseDataset, collate
+    from ml.model import ModelConfig, SketchTransformer
+    from ml.sketch_simulator import SketchSimulator
+    phrases = [Phrase(f"s{i}", [60, 62, 64, 65, 67, 69], [0, 0.5, 1, 1.5, 2, 3], [0.5] * 6, "pop909") for i in range(8)]
+    ds = PhraseDataset(phrases, SketchSimulator(np.random.default_rng(0), "easy"), seed=0)
+    item = ds[0]
+    assert "rhythm" in item and item["rhythm"].shape[0] == item["target"].shape[0]
+    batch = collate([ds[i] for i in range(4)])
+    assert batch["rhythm"].shape == batch["target"].shape
+    model = SketchTransformer(ModelConfig(d_model=32, n_layers=1, n_heads=2, n_genres=len(GENRES),
+                                          n_rhythm=len(RHYTHM_CLASSES)))
+    iv, rh = model.forward_joint(batch)
+    assert rh is not None and rh.shape[:2] == iv.shape[:2] and rh.shape[2] == len(RHYTHM_CLASSES)
+    loss = model.loss(batch)
+    assert torch.isfinite(loss) and loss.item() > 0
+    model.eval()
+    with torch.no_grad():
+        cls, lp, _ = model.generate(batch, 3, mode="beam")
+        assert model._last_rhythm.shape == cls.shape
+        cls2, _, _ = model.generate(batch, 2, mode="sample")
+        assert model._last_rhythm.shape == cls2.shape
+    # a model without the head still runs on batches that carry rhythm targets
+    plain = SketchTransformer(ModelConfig(d_model=32, n_layers=1, n_heads=2))
+    assert plain.forward_joint(batch)[1] is None and torch.isfinite(plain.loss(batch))

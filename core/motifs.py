@@ -47,6 +47,8 @@ GESTURE_LIBRARY: dict[str, dict[str, Any]] = {
         "label": "Structure",
         "items": {
             "buildup": {"label": "Buildup", "scope": "region", "desc": "Rising tension, gets louder / higher"},
+            "tapping_run": {"label": "Tapping / fast run", "scope": "region",
+                            "desc": "Fast, even notes; taps you missed can be filled in"},
             "call": {"label": "Call", "scope": "region", "desc": "First half of a call-and-response"},
             "response": {"label": "Response", "scope": "region", "desc": "Answering phrase"},
             "ending": {"label": "Ending", "scope": "region", "desc": "Resolves / lands on the home note"},

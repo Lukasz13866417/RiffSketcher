@@ -39,10 +39,44 @@ Example = tuple[Sketch, list[int]]
 
 
 def make_examples(phrases: list[Phrase], simulator: SketchSimulator, seed: int = 0) -> list[Example]:
-    out: list[Example] = []
+    return [ex for ex, _ in make_examples_with_rhythm(phrases, simulator, seed)]
+
+
+def make_examples_with_rhythm(phrases: list[Phrase], simulator: SketchSimulator,
+                              seed: int = 0) -> list[tuple[Example, list[float]]]:
+    """Examples plus the true gap between consecutive notes in beats."""
+    out: list[tuple[Example, list[float]]] = []
     for i, p in enumerate(phrases):
         r = simulator.simulate(p, rng=np.random.default_rng([seed, i]))
-        out.append((r.sketch, r.intervals))
+        iois = [b - a for a, b in zip(r.onsets_beats, r.onsets_beats[1:])]
+        out.append(((r.sketch, r.intervals), iois))
+    return out
+
+
+def rhythm_accuracy(examples_with_rhythm: list[tuple[Example, list[float]]], model=None) -> dict[str, float]:
+    """Fraction of gaps whose predicted rhythm class matches the true one.
+
+    ``quantise`` is the rule-based grid snap (``core.rhythm.quantise``); ``model``
+    is the greedy gap prediction of a checkpoint with a rhythm head.
+    """
+    from core.rhythm import quantise
+    from ml.datasets import rhythm_class
+    q_hit, m_hit, n = 0, 0, 0
+    for (sketch, _), iois in examples_with_rhythm:
+        if not iois:
+            continue
+        truth = [rhythm_class(b) for b in iois]
+        q = quantise(sketch.onsets, tempo_hint=sketch.tempo_hint)
+        q_gaps = [rhythm_class(b - a) for a, b in zip(q.onsets_beats, q.onsets_beats[1:])]
+        q_hit += sum(int(a == b) for a, b in zip(q_gaps, truth))
+        if model is not None and getattr(model, "has_rhythm", False):
+            model.generate(model._batch_from_sketch(sketch), 1, mode="greedy")
+            pred = model._last_rhythm[0, 0, :len(truth)].tolist()
+            m_hit += sum(int(a == b) for a, b in zip(pred, truth))
+        n += len(truth)
+    out = {"quantise": q_hit / max(n, 1)}
+    if model is not None and getattr(model, "has_rhythm", False):
+        out["model"] = m_hit / max(n, 1)
     return out
 
 
@@ -140,7 +174,9 @@ def load_examples_from_args(args: argparse.Namespace) -> tuple[list[Example], li
     if getattr(args, "source", None):
         phrases = [p for p in phrases if p.source == args.source]
     sim = SketchSimulator(args.seed, args.sim)
-    examples = make_examples(phrases, sim, seed=args.seed)
+    with_rhythm = make_examples_with_rhythm(phrases, sim, seed=args.seed)
+    examples = [ex for ex, _ in with_rhythm]
+    args._with_rhythm = with_rhythm
     # genre label shown to conditioned models: the phrase's own (via its source), none, or a fixed one
     mode = getattr(args, "genre", "auto")
     for (sketch, _), p in zip(examples, phrases):
@@ -162,6 +198,7 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--no-deterministic", action="store_true", help="skip the (slower) deterministic engine")
     ap.add_argument("--source", default=None, help="only phrases from this source (e.g. pop909, lakh_guitar)")
+    ap.add_argument("--no-rhythm", action="store_true", help="skip the rhythm accuracy comparison")
     ap.add_argument("--genre", default="auto",
                     help="genre label given to conditioned models: auto (from the source), unknown, or a name")
     ap.add_argument("--device", default=None)
@@ -188,6 +225,14 @@ def main(argv: list[str] | None = None) -> None:
         print(f"  {pred.name}: done in {time.time() - t0:.1f}s")
     print()
     print(format_table({name: aggregate(sc, args.k) for name, sc in scores.items()}))
+    # rhythm: rule-based grid snap vs any checkpoint with a rhythm head
+    rh_models = [p for p in predictors if getattr(p, "has_rhythm", False)]
+    if not args.no_rhythm:
+        print("\nrhythm (gap class) accuracy:")
+        base = rhythm_accuracy(args._with_rhythm, None)
+        print(f"  quantise (rule-based)   {base['quantise']:.3f}")
+        for p in rh_models:
+            print(f"  {p.name:22s}  {rhythm_accuracy(args._with_rhythm, p)['model']:.3f}")
     for source in sorted(set(sources)) if len(set(sources)) > 1 else []:
         sel = [i for i, s in enumerate(sources) if s == source]
         print(f"\nsource = {source}")

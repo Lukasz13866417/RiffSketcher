@@ -122,3 +122,58 @@ def merge_passes(passes: list[list[float]], tolerance_s: float = 0.08) -> list[f
 
 def beats_to_seconds(beats: float, tempo: float) -> float:
     return beats * 60.0 / tempo
+
+
+def fill_missed_taps(sketch, kinds: tuple[str, ...] = ("tapping_run",), tolerance: float = 0.3):
+    """Insert notes the user probably missed inside fast-run regions.
+
+    For each gesture region of a kind in ``kinds`` the base spacing is the
+    smallest inter-onset gap in the region. Any gap that is close to an
+    integer multiple ``k >= 2`` of it (within ``tolerance`` of the multiple) is
+    split into ``k`` even gaps by inserting ``k - 1`` observations with unknown
+    height and low confidence, so the pitch model fills them in. Returns a new
+    sorted sketch and the number of inserted notes; gesture and constraint
+    indices are remapped.
+    """
+    from .representation import Observation, Sketch, GestureTag, Constraint
+
+    sketch = sketch.sorted()
+    obs = sketch.observations
+    n = len(obs)
+    # (position after original index i, time) for every insertion
+    inserts: list[tuple[int, float]] = []
+    for g in sketch.gestures:
+        if g.kind not in kinds:
+            continue
+        idx = [i for i in g.indices() if 0 <= i < n]
+        if len(idx) < 3:
+            continue
+        gaps = [obs[i + 1].t - obs[i].t for i in idx[:-1]]
+        base = min(x for x in gaps if x > 1e-3) if any(x > 1e-3 for x in gaps) else None
+        if base is None:
+            continue
+        for i, gap in zip(idx[:-1], gaps):
+            k = int(round(gap / base))
+            if k >= 2 and abs(gap / base - k) <= tolerance:
+                for j in range(1, k):
+                    inserts.append((i, obs[i].t + gap * j / k))
+    if not inserts:
+        return sketch, 0
+    # build the new observation list and the old->new index map
+    new_obs: list[Observation] = []
+    remap: dict[int, int] = {}
+    by_after: dict[int, list[float]] = {}
+    for i, t in inserts:
+        by_after.setdefault(i, []).append(t)
+    for i, o in enumerate(obs):
+        remap[i] = len(new_obs)
+        new_obs.append(o)
+        for t in sorted(by_after.get(i, [])):
+            new_obs.append(Observation(t, None, 0.1))
+    gestures = [GestureTag(g.kind, remap[g.start], remap[g.end], g.confidence, dict(g.params))
+                for g in sketch.gestures]
+    cons = [Constraint(c.kind, remap[c.i], None if c.j is None else remap[c.j], c.value)
+            for c in sketch.constraints]
+    out = Sketch(new_obs, gestures, cons, sketch.tempo_hint, dict(sketch.meta))
+    out.meta["inserted"] = len(inserts)
+    return out, len(inserts)
