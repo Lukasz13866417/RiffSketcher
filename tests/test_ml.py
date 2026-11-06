@@ -11,7 +11,7 @@ import torch
 
 from core.representation import N_INTERVAL_CLASSES, Riff, Sketch
 from ml.baseline import ContourBaseline, DeterministicBaseline, topk_sequences
-from ml.datasets import (GESTURE_KINDS, PAD_TARGET, Phrase, PhraseDataset, collate, load_phrases,
+from ml.datasets import (N_CONTINUOUS_FEATURES, GESTURE_KINDS, PAD_TARGET, Phrase, PhraseDataset, collate, load_phrases,
                          phrases_from_dadagp, phrases_from_guitar_midi, riff_line_phrases, unique_phrases,
                          phrases_from_midi, save_phrases, sketch_to_features, split_by_song,
                          split_segment, synthetic_phrases)
@@ -339,13 +339,13 @@ def test_features_and_collate_shapes(phrases):
     items = [ds[i] for i in range(6)]
     for it, p in zip(items, phrases):
         n = it["cont"].shape[0]
-        assert it["cont"].shape == (n, 6)
+        assert it["cont"].shape == (n, N_CONTINUOUS_FEATURES)
         assert it["gest"].shape == (n, len(GESTURE_KINDS))
         assert it["target"].shape == (n - 1,)
         assert int(it["target"].min()) >= 0 and int(it["target"].max()) < N_INTERVAL_CLASSES
     batch = collate(items)
     n_max = max(it["cont"].shape[0] for it in items)
-    assert batch["cont"].shape == (6, n_max, 6)
+    assert batch["cont"].shape == (6, n_max, N_CONTINUOUS_FEATURES)
     assert batch["gest"].shape == (6, n_max, len(GESTURE_KINDS))
     assert batch["mask"].shape == (6, n_max) and batch["mask"].dtype == torch.bool
     assert batch["target"].shape == (6, n_max - 1)
@@ -360,7 +360,7 @@ def test_features_handle_missing_heights():
     sk = Sketch.from_dict({"observations": [{"t": 0.0, "y": 0.0}, {"t": 0.5, "y": None, "confidence": 0.1},
                                             {"t": 1.0, "y": 3.0}]})
     f = sketch_to_features(sk)
-    assert f["cont"].shape == (3, 6)
+    assert f["cont"].shape == (3, N_CONTINUOUS_FEATURES)
     assert f["cont"][1, 5] == 1.0 and f["cont"][0, 5] == 0.0
     assert np.isfinite(f["cont"]).all()
 
@@ -619,3 +619,47 @@ def test_mine_and_catalogue_roundtrip(tmp_path):
     out = tmp_path / "cat.json"
     out.write_text(json.dumps(cat))
     assert "== all" in summary(json.loads(out.read_text()))
+
+
+# -- facts and quantised gaps as inputs --------------------------------------- #
+
+def test_features_carry_facts_and_quantised_gaps():
+    from core.representation import Constraint, Observation, Sketch
+    from ml.datasets import N_CONTINUOUS_FEATURES, sketch_to_features
+    sk = Sketch([Observation(i * 0.5, y, 0.8) for i, y in enumerate([0, 2, 4, 4, 0])],
+                constraints=[Constraint("pitch", 1, value=42), Constraint("pitch", 3, value=48),
+                             Constraint("direction", 2, value=0), Constraint("same", 0, 4)])
+    f = sketch_to_features(sk)["cont"]
+    assert f.shape == (5, N_CONTINUOUS_FEATURES) == (5, 14)
+    assert f[0, 7] == 0 and all(f[1:, 7] == 1) and len(set(f[1:, 6].round(6))) == 1  # even taps -> one snapped gap
+    assert f[1, 8] == 1 and f[3, 8] == 1 and f[1, 9] == 0 and abs(f[3, 9] - 0.5) < 1e-6  # pins relative to the first pin
+    assert f[3, 10] == 1 and f[3, 11] == 0 and f[2, 10] == 0  # direction fact on step 2 -> note 3
+    assert f[4, 12] == 1 and abs(f[4, 13] - 0.25) < 1e-6  # same as 4 notes back
+
+
+def test_simulator_generates_facts_and_old_models_still_run():
+    import numpy as np
+    import torch
+    from dataclasses import replace
+    from ml.datasets import Phrase, collate, example_to_tensors
+    from ml.model import ModelConfig, SketchTransformer
+    from ml.sketch_simulator import SketchSimulator, get_config
+    phrase = Phrase("s", [40, 40, 43, 40, 46, 45, 43, 40, 40, 43], [i * 0.5 for i in range(10)], [0.5] * 10, "x")
+    cfg = replace(get_config("medium"), facts_prob=1.0, pin_prob=0.5, direction_prob=0.5, same_prob=1.0,
+                  drop_prob=0.0, double_prob=0.0)
+    res = SketchSimulator(np.random.default_rng(1), cfg).simulate(phrase)
+    kinds = {c.kind for c in res.sketch.constraints}
+    assert {"pitch", "direction", "same"} <= kinds
+    for c in res.sketch.constraints:  # facts are true statements about the true pitches
+        if c.kind == "pitch":
+            assert res.pitches[c.i] == c.value
+        elif c.kind == "direction":
+            assert np.sign(res.pitches[c.i + 1] - res.pitches[c.i]) == c.value
+        else:
+            assert res.pitches[c.i] == res.pitches[c.j]
+    assert SketchSimulator(np.random.default_rng(1), replace(cfg, facts_prob=0.0)).simulate(phrase).sketch.constraints == []
+    batch = collate([example_to_tensors(res.sketch, res.intervals)])
+    old = SketchTransformer(ModelConfig(d_model=32, n_layers=1, n_heads=2, n_cont=6)).eval()
+    new = SketchTransformer(ModelConfig(d_model=32, n_layers=1, n_heads=2)).eval()
+    with torch.no_grad():
+        assert old(batch).shape == (1, 9, 49) and new(batch).shape == (1, 9, 49)

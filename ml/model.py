@@ -101,6 +101,7 @@ class SketchTransformer(nn.Module):
     def encode(self, batch: dict[str, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         """Returns (memory (B, n, d), mask (B, n) True = real note)."""
         cont, gest, mask = batch["cont"], batch["gest"], batch["mask"]
+        cont = cont[..., :self.cfg.n_cont]  # older checkpoints know a prefix of the feature columns
         B, n, _ = cont.shape
         x = self.in_proj(torch.cat([cont, gest], dim=-1))
         pos = torch.arange(n, device=cont.device).clamp(max=self.cfg.max_len - 1)

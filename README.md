@@ -23,8 +23,10 @@ step pills). Keys: `R` start recording, `Space`/letters tap, `Enter` stop, drag 
 one, hold `P` and drag to paint heights. The graph toolbar zooms the time and pitch axes (pitch zoom
 centres on the selection) and `Fit` frames the drawn heights.
 
-If `runs/genre/best.pt` exists (or `RIFF_MODEL` points at a checkpoint) the API loads the trained
-Transformer and makes it the default engine; otherwise it uses the deterministic search. Step 4 has an
+If `runs/genre_facts/best.pt` exists (or `RIFF_MODEL` points at a checkpoint) the API loads the trained
+Transformer and makes it the default engine; otherwise it uses the deterministic search. A second
+checkpoint (`RIFF_RHYTHM_MODEL`, default `runs/genre_facts_rh/best.pt`) supplies note timing from its
+rhythm head, which beats the rule-based grid snap; without it timing falls back to the quantiser. Step 4 has an
 engine switch and, for genre-conditioned checkpoints, a genre dropdown listing the genres that
 checkpoint was trained on (any / pop / rock today). Train a model with the commands in `ml/README.md`.
 
@@ -130,14 +132,15 @@ play it.
 2. Gesture system: region tags, inserted tropes, rule-based suggestions — **done (first version)**;
    a "Tapping / fast run" tag plus *Fill in missed taps* inserts placeholder notes (unknown height)
    where a gap in the run looks like two or more notes, and the model fills in their pitch
-3. First playback: deterministic inference + synthesis — **done**; a learned rhythm head exists
-   (`ml/README.md`, "Rhythm head") but ties the rule-based quantiser, so timing stays rule-based by default
+3. First playback: deterministic inference + synthesis — **done**; timing now comes from a learned
+   rhythm head that takes the rule-based grid snap as input and beats it (`ml/README.md`)
 4. Data pipeline: MIDI extraction, sketch simulator, song-level splits — **done (`ml/`)**
 5. First trained model: 1.9M-parameter Transformer over interval classes — **done on POP909**, see `ml/README.md` Results
 6. Model integration: `ml/reconstructor.py` wraps the trained model behind the same `Reconstructor`
-   protocol (beam + sampled candidates, anchored to pinned pitches, hard-constraint filtering with the
-   search engine as fallback) — **done**; a constrained decoder that honours facts during generation
-   instead of filtering afterwards is the next improvement
+   protocol with **constrained decoding**: your facts (pinned pitches, "next is higher", "same as note
+   i") are masks on the decoder's distribution at every step, the sequence is anchored to the first
+   pinned pitch before decoding, and the model also receives the facts and the rule-based grid snap as
+   inputs, so it conditions on them rather than being filtered afterwards — **done**
 7. Active feedback: choose the most informative silent/audible question
 8. Guitar specialisation: muting, slides, bends, motifs
 

@@ -31,7 +31,7 @@ GESTURE_KINDS: tuple[str, ...] = (
     "ascending_run", "descending_run", "repeated_note", "repeated_figure",
     "pedal_tone", "arpeggio", "big_leap",
 )
-N_CONTINUOUS_FEATURES = 6  # ioi, log ioi, y, dy, confidence, missing-flag
+N_CONTINUOUS_FEATURES = 14  # see sketch_to_features; the first 6 are the original ones
 FEATURE_VERSION = 1
 PAD_TARGET = -100  # ignore_index for cross-entropy
 
@@ -589,9 +589,25 @@ def apply_split_ids(phrases: list[Phrase], ids: dict[str, list[str]]) -> dict[st
 def sketch_to_features(sketch: Sketch) -> dict[str, np.ndarray]:
     """Per-note model inputs from a sketch (tempo- and register-invariant).
 
-    Returns ``cont`` (n, 6): normalised IOI (in units of the median IOI, i.e.
-    roughly beats), log IOI, centred height / 12, height difference / 12,
-    confidence, missing flag; and ``gest`` (n, K) gesture multi-hot.
+    Returns ``cont`` (n, 14) and ``gest`` (n, K) gesture multi-hot. The
+    continuous columns, in order (checkpoints trained on fewer columns use a
+    prefix, see ``SketchTransformer.encode``):
+
+    0  normalised IOI (units of the median IOI, i.e. roughly beats)
+    1  log IOI
+    2  centred height / 12
+    3  height difference / 12
+    4  confidence
+    5  missing-height flag
+    6  quantised gap from the previous note, log2 beats (the rule-based grid snap:
+       the rhythm head learns where the rule errs rather than the beat unit)
+    7  quantised-gap flag (0 for the first note)
+    8  pinned flag (a "pitch" fact on this note)
+    9  pinned pitch relative to the first pinned note / 12
+    10 incoming-interval direction known (a "direction" fact on the previous step)
+    11 that direction (-1, 0, +1)
+    12 "same as an earlier note" flag
+    13 how many notes back that earlier note is / 16
     """
     sketch = sketch.sorted()
     n = len(sketch)
@@ -613,7 +629,38 @@ def sketch_to_features(sketch: Sketch) -> dict[str, np.ndarray]:
         if known[i] and known[i - 1]:
             dy[i] = y[i] - y[i - 1]
     conf = np.array([o.confidence for o in sketch.observations], dtype=float)
-    cont = np.stack([ioi, log_ioi, y / 12.0, dy / 12.0, conf, missing], axis=1).astype(np.float32)
+
+    # the rule-based grid snap as an input: log2 of the snapped gap from the previous note
+    from core.rhythm import quantise
+    qgap = np.zeros(n)
+    qflag = np.zeros(n)
+    if n > 1:
+        q = quantise(list(t), tempo_hint=sketch.tempo_hint)
+        for i in range(1, n):
+            g = q.onsets_beats[i] - q.onsets_beats[i - 1]
+            qgap[i] = np.log2(max(g, 1 / 16))
+            qflag[i] = 1.0
+
+    # facts
+    pin_flag, pin_rel = np.zeros(n), np.zeros(n)
+    dir_known, dir_sign = np.zeros(n), np.zeros(n)
+    same_flag, same_back = np.zeros(n), np.zeros(n)
+    pins = {c.i: c.value for c in sketch.constraints if c.kind == "pitch" and c.value is not None and 0 <= c.i < n}
+    if pins:
+        anchor = pins[min(pins)]
+        for i, v in pins.items():
+            pin_flag[i] = 1.0
+            pin_rel[i] = (v - anchor) / 12.0
+    for c in sketch.constraints:
+        if c.kind == "direction" and c.value is not None and 0 <= c.i + 1 < n:
+            dir_known[c.i + 1] = 1.0
+            dir_sign[c.i + 1] = float(np.sign(c.value))
+        elif c.kind == "same" and c.j is not None and 0 <= c.i < n and 0 <= c.j < n:
+            a, b = sorted((c.i, c.j))
+            same_flag[b] = 1.0
+            same_back[b] = (b - a) / 16.0
+    cont = np.stack([ioi, log_ioi, y / 12.0, dy / 12.0, conf, missing, qgap, qflag,
+                     pin_flag, pin_rel, dir_known, dir_sign, same_flag, same_back], axis=1).astype(np.float32)
 
     gest = np.zeros((n, len(GESTURE_KINDS)), dtype=np.float32)
     for g in sketch.gestures:

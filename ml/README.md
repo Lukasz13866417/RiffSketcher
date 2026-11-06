@@ -334,6 +334,77 @@ genre label) interval accuracy 0.602, NLL 1.134, ECE 0.014, top-5
 reconstruction 0.342. Earlier checkpoints were trained on a different split
 and are not comparable on this test set.
 
+### Constrained decoding and facts as inputs (2026-11-06)
+
+Two things used to happen *after* the model: timing came from the rule-based
+quantiser, and user facts were checked by dropping candidates that broke
+them, with the deterministic engine filling the gap. Both now happen in or
+before the model.
+
+**Facts inside decoding.** `TransformerReconstructor._decode` runs the beam
+search and the diversity samples itself. At every step the interval classes
+that would break a fact are masked out and the remaining probabilities
+renormalise: a direction fact keeps one sign, an exact-interval fact or a
+"same as note i" fact keeps one class, and a pinned pitch keeps the one
+class that lands on it, which is possible because the absolute anchor is
+fixed *before* decoding from the first pinned note and the drawn offset to
+it (`_pre_anchor`). A candidate therefore cannot violate a satisfiable fact;
+only mutually contradictory facts leave the mask empty, in which case that
+step is decoded unmasked and the old filter plus fallback still apply. Scores
+shown in the UI are the model's log-probabilities under the facts.
+
+**Facts and the grid snap as inputs.** `sketch_to_features` grew from 6 to
+14 continuous columns per note (documented in its docstring): the
+quantiser's snapped gap from the previous note (log2 beats), pinned flag and
+pinned pitch relative to the first pin, the known direction of the incoming
+interval, and "same as an earlier note" with the distance back. The
+simulator (`SimConfig.facts_prob`, `pin_prob`, `direction_prob`,
+`same_prob`) generates true facts from the phrase so the model learns what a
+pin implies for its neighbours and where the quantiser errs. Checkpoints
+trained on the 6-column features still load: the encoder slices the prefix
+it was trained on (`ModelConfig.n_cont`).
+
+Measured on 2,000 test sketches (medium noise, half of them carrying
+simulated facts; `runs/eval_facts_on.log`, `runs/eval_facts_off.log`; the
+evaluate script decodes without masks, so these numbers isolate the input
+conditioning):
+
+```
+model                              intervals, facts shown   facts hidden   gap accuracy
+genre        (6 inputs, no facts)         0.602                0.598        quantiser 0.669
+genre_facts  (14 inputs)                  0.612                0.596        quantiser 0.669
+genre_facts_rh (14 inputs + rhythm head)  0.589                0.582        model     0.774
+```
+
+Takeaways:
+
+* Facts as inputs give +1 point when facts are present and cost nothing
+  when they are not. The masks add more on top: on the 560 test sketches
+  that carry facts, top-1 interval accuracy is 0.584 with an unmasked beam
+  and 0.609 with the constrained beam, and the fallback engine is needed for
+  9 of them (facts whose implications span several steps; a first version
+  that derived note 0's pitch from the drawn offset to the first pin scored
+  0.544 and fell back 73 times, which is why pins are enforced relative to
+  the earliest pin, pins propagate through "same" chains, and the mask looks
+  one step ahead). Decoding costs about 80 ms per sketch on the GPU.
+* The rhythm head with the quantiser's gap as input beats the rule by ten
+  points (0.774 vs 0.669), where without that input it only tied. Timing is
+  now the model's. But sharing the encoder with the rhythm loss costs two
+  points of interval accuracy, so the API serves **two checkpoints**:
+  `runs/genre_facts/best.pt` for pitches (`RIFF_MODEL`) and
+  `runs/genre_facts_rh/best.pt` for gaps (`RIFF_RHYTHM_MODEL`); each is
+  used where it is best, and `GET /api/engines` reports both.
+* A joint model that matches both numbers would need a smaller rhythm loss
+  weight or separate encoder layers; not tried yet.
+
+Reproduce:
+
+```bash
+uv run python -m ml.train --data data/processed/mixed.jsonl --epochs 20 --sim medium --genre-dropout 0.2 --out runs/genre_facts
+uv run python -m ml.train --data data/processed/mixed.jsonl --epochs 20 --sim medium --genre-dropout 0.2 --rhythm --out runs/genre_facts_rh
+uv run python -m ml.evaluate --checkpoint runs/genre/best.pt runs/genre_facts/best.pt runs/genre_facts_rh/best.pt --data data/processed/mixed.jsonl --split test --sim medium --no-deterministic --limit 2000
+```
+
 ### Trope catalogue (2026-11-06)
 
 `ml/tropes.py` counts recurring patterns in every phrase of the song database,
@@ -415,9 +486,11 @@ Takeaways:
   jitter, dropped and doubled taps) the head is better tempo-invariantly and
   gets the whole riff right almost twice as often, but is slightly worse on
   the fastest gaps, which were the motivation.
-* The head costs about a point of interval accuracy, so the API default stays
-  `runs/genre/best.pt`; set `RIFF_MODEL=runs/rhythm/best.pt` to serve the
-  rhythm-head checkpoint. The code path is tested and ready for a better run.
+* The head costs about a point of interval accuracy, so at this point the
+  served default kept rule-based timing. Superseded: with the quantiser's
+  gap as an input the head beats the rule by ten points, see "Constrained
+  decoding and facts as inputs" below, and timing is now served from a
+  second checkpoint.
 * Absolute beat labels are inherently ambiguous from tempo-normalised inputs
   (is the common gap a quarter or an eighth?), which caps both methods; the
   tempo-invariant numbers are the ones to watch.

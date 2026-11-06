@@ -173,7 +173,12 @@ def load_examples_from_args(args: argparse.Namespace) -> tuple[list[Example], li
             phrases = phrases[:args.limit]
     if getattr(args, "source", None):
         phrases = [p for p in phrases if p.source == args.source]
-    sim = SketchSimulator(args.seed, args.sim)
+    from dataclasses import replace
+    from ml.sketch_simulator import get_config
+    cfg = get_config(args.sim)
+    if getattr(args, "no_facts", False):
+        cfg = replace(cfg, facts_prob=0.0)
+    sim = SketchSimulator(args.seed, cfg)
     with_rhythm = make_examples_with_rhythm(phrases, sim, seed=args.seed)
     examples = [ex for ex, _ in with_rhythm]
     args._with_rhythm = with_rhythm
@@ -199,6 +204,7 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--no-deterministic", action="store_true", help="skip the (slower) deterministic engine")
     ap.add_argument("--source", default=None, help="only phrases from this source (e.g. pop909, lakh_guitar)")
     ap.add_argument("--no-rhythm", action="store_true", help="skip the rhythm accuracy comparison")
+    ap.add_argument("--no-facts", action="store_true", help="simulate sketches without user facts")
     ap.add_argument("--genre", default="auto",
                     help="genre label given to conditioned models: auto (from the source), unknown, or a name")
     ap.add_argument("--device", default=None)

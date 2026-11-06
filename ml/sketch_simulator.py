@@ -20,7 +20,7 @@ from dataclasses import dataclass, field, replace
 
 import numpy as np
 
-from core.representation import GestureTag, Observation, Sketch
+from core.representation import Constraint, GestureTag, Observation, Sketch
 from ml.datasets import Phrase
 
 
@@ -42,6 +42,12 @@ class SimConfig:
     tag_confidence: float = 0.8
     tempo_hint_prob: float = 0.5
     min_notes: int = 3
+    # facts the user asserts (pinned pitch, interval direction, two notes equal): generated from
+    # the true pitches so the model learns to condition on them; see SketchSimulator._facts
+    facts_prob: float = 0.5  # share of sketches that carry any facts
+    pin_prob: float = 0.15  # per note, given facts
+    direction_prob: float = 0.15  # per interval, given facts
+    same_prob: float = 0.3  # per exact-repeat pair (within 8 notes), given facts
 
 
 PRESETS: dict[str, SimConfig] = {
@@ -176,6 +182,27 @@ class SketchSimulator:
         conf[missing] = np.clip(rng.uniform(0.0, 0.2, size=int(missing.sum())), 0.0, 1.0)
         return y, missing, conf, comp
 
+    def _facts(self, pitches: list[int], rng: np.random.Generator) -> list[Constraint]:
+        """Hard facts about the true pitches, as a user would assert them."""
+        cfg = self.cfg
+        n = len(pitches)
+        if n < 2 or rng.random() >= cfg.facts_prob:
+            return []
+        out: list[Constraint] = []
+        for i in range(n):
+            if rng.random() < cfg.pin_prob:
+                out.append(Constraint("pitch", i, value=float(pitches[i])))
+        for i in range(n - 1):
+            if rng.random() < cfg.direction_prob:
+                d = pitches[i + 1] - pitches[i]
+                out.append(Constraint("direction", i, value=float(np.sign(d))))
+        for i in range(n):
+            for j in range(i + 2, min(n, i + 9)):
+                if pitches[i] == pitches[j] and rng.random() < cfg.same_prob:
+                    out.append(Constraint("same", i, j=j))
+                    break
+        return out
+
     def _gestures(self, pitches: list[int], rng: np.random.Generator) -> list[GestureTag]:
         cfg = self.cfg
         n = len(pitches)
@@ -206,8 +233,9 @@ class SketchSimulator:
         obs = [Observation(float(t[i]), None if missing[i] else float(y[i]), float(conf[i]))
                for i in range(len(events))]
         gestures = self._gestures(pitches, rng)
+        facts = self._facts(pitches, rng)
         tempo_hint = float(tempo * rng.uniform(0.95, 1.05)) if rng.random() < self.cfg.tempo_hint_prob else None
-        sketch = Sketch(obs, gestures, [], tempo_hint,
+        sketch = Sketch(obs, gestures, facts, tempo_hint,
                         meta={"song_id": phrase.song_id, "sim": self.cfg.name,
                               "compression": comp, "tempo": tempo})
         return SimResult(sketch, pitches, [float(b) for b in beats], src, phrase,
