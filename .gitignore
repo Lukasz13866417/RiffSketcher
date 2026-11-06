@@ -10,3 +10,6 @@ runs/
 .pytest_cache/
 experiments/notebooks/.ipynb_checkpoints/
 *.egg-info/
+data/*.db
+data/*.db-wal
+data/*.db-shm

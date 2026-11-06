@@ -258,6 +258,61 @@ uv run python -m ml.evaluate --checkpoint runs/pop909/best.pt runs/mixed/best.pt
 uv run python -m experiments.chug_probe runs/pop909/best.pt runs/mixed/best.pt
 ```
 
+### Song database (2026-11-06)
+
+`ml/db.py` builds `data/riffs.db`, a SQLite file that holds everything we know
+about every song, so new sources and extractions add rows instead of new
+files. Tables:
+
+| table | one row per | notes |
+| --- | --- | --- |
+| `source` | dataset | licence and provenance text |
+| `work` | composition | `key` is the legacy `song_id`; normalised artist and title for matching across sources |
+| `rendition` | file of one source | path, content hash, tempo, resolution; several per work (Lakh versions) |
+| `track` | instrument track | role: melody / guitar / bass / drums / other; notes stored only for kept roles |
+| `note` | note event | onset and duration in beats, seconds, pitch, velocity, string, fret, palm mute, bend, slide, hammer, vibrato, dead, tie |
+| `extractor` | name + version + params | every derived row points at one |
+| `phrase` | training phrase | pitches / onsets / durations as JSON, the extractor that cut it |
+| `split` | work | train / val / test, kept across runs and seedable |
+| `work_feature`, `rendition_feature`, `note_feature` | key/value | any extractor output at the right granularity |
+| `frame_feature` | time-indexed value | signals not aligned to notes (audio curves) |
+
+Ingest parses files in worker processes (`pretty_midi` for MIDI, the DadaGP
+token reader for tabs), stores all tracks but only the notes of melody
+(POP909) and guitar (Lakh, DadaGP) tracks, and runs the existing phrase
+extractors so the stored phrases are exactly the ones the JSONL pipeline
+produced. Files already present are skipped, so ingest is incremental.
+
+```bash
+uv run python -m ml.db ingest --pop909-dir data/raw/pop909/POP909 --guitar-midi-dir data/raw/lakh_clean/clean_midi
+uv run python -m ml.db split --base-splits data/processed/splits.json   # keeps the earlier song assignments
+uv run python -m ml.db export --out data/processed/mixed.jsonl --max-per-song 40
+uv run python -m ml.db stats
+uv run python -m ml.db sql "select role, count(*) from track group by role"
+uv run python -m ml.tropes --db data/riffs.db --out data/tropes.json
+```
+
+Why it matters for the model: transitions and articulation become per-note
+columns the moment any source fills them (DadaGP, scraped tabs, an audio
+technique classifier), and a new output head reads them through the same
+phrase query; palm mute as a model input is the same column.
+
+First full ingest: 909 POP909 + 16,977 Lakh renditions (279 unreadable MIDI
+files skipped) into 11,090 works, 173,201 tracks, 22.0M notes (melody and
+guitar tracks only) and 568,613 phrases; 1.7 GB. 3,385 works have more than
+one rendition. Matching works by normalised artist and title found something
+the JSONL pipeline missed: Lakh has case variants of the same title
+("Stairway to Heaven" / "Stairway To Heaven", "Y.M.C.A" / "Y.M.C.A.") that
+were separate song ids before, and **six songs sat on both sides of the old
+split** through such variants (e.g. "Sweet Child O' Mine" in train and test).
+Too few to move the reported numbers, but the database merges them, so
+`data/processed/mixed.jsonl` is now exported from it (`--max-per-song 12`,
+119,796 phrases; the previous file is kept as `mixed_v1.jsonl` with
+`splits_v1.json` because the results above were measured on it). The
+per-song cap draws from one random stream, so the two files share their
+phrase sets per song but not the sampled subsets; retrain before comparing
+new numbers with old ones.
+
 ### Trope catalogue (2026-11-06)
 
 `ml/tropes.py` counts recurring patterns in the real phrases, per genre, and

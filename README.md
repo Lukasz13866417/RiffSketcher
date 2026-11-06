@@ -46,10 +46,12 @@ core/       music logic, usable without the web app
   constraints.py      gestures/facts -> hard and soft constraints, violation checks
   inference.py        deterministic reconstruction (Viterbi over scale tones), Reconstructor protocol
   synthesis.py        numpy pluck synth -> WAV (palm mute, bend, slide, vibrato, staccato)
-ml/         data pipeline, sketch simulator, baselines, small Transformer, train/evaluate (see ml/README.md)
+ml/         data pipeline, song database, sketch simulator, baselines, small Transformer, train/evaluate (see ml/README.md)
 tests/      pytest for core, api and ml
 experiments/notebooks/
-data/raw/, data/processed/   datasets (git-ignored)
+data/riffs.db                the song database (git-ignored; built by `uv run python -m ml.db ingest`)
+data/tropes.json             the mined trope catalogue (committed)
+data/raw/, data/processed/   datasets and exported training files (git-ignored)
 ```
 
 ## The sketch format
@@ -99,6 +101,17 @@ that drops to 77% / 86%. That is the baseline the Transformer has to beat (`ml/e
 | `GET /api/engines` | – | available reconstruction engines and the default |
 | `POST /api/reconstruct` | `{sketch, n_candidates, engine}` | ranked candidate riffs with note names, violations, and the tropes each candidate uses with a familiarity score; `engine` is `auto`, `model` or `deterministic` |
 | `POST /api/synthesize` | riff | `audio/wav` |
+
+## Song database
+
+Everything known about every song lives in one SQLite file, `data/riffs.db` (`ml/db.py`). A *work*
+is the composition; a *rendition* is one file of it from one source (several Lakh MIDI versions of a
+song are renditions of one work); tracks and per-note rows hang off renditions, with typed columns
+for string, fret and articulation that tabs and audio extraction fill in. Every derived row names its
+*extractor* (name, version, parameters), so extractions can be re-run and replaced. Splits are per
+work, so a song never straddles train and test through two files. Training files are exported from
+it (`uv run python -m ml.db export`) in the same JSONL format as before, so the rest of `ml/` is
+unchanged. See `ml/README.md`, "Song database".
 
 ## Trope catalogue
 

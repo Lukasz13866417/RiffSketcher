@@ -275,12 +275,17 @@ def summary(cat: dict[str, Any]) -> str:
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--data", default="data/processed/mixed.jsonl")
+    ap.add_argument("--db", default=None, help="read phrases from the song database instead of --data")
     ap.add_argument("--out", default="data/tropes.json")
     ap.add_argument("--top", type=int, default=40, help="patterns kept per n-gram length and genre")
     ap.add_argument("--min-songs", type=int, default=3)
     ap.add_argument("--ngram-max", type=int, default=5)
     args = ap.parse_args(argv)
-    phrases = load_phrases(args.data)
+    if args.db:
+        from ml.db import connect, load_db_phrases
+        phrases = load_db_phrases(connect(args.db))
+    else:
+        phrases = load_phrases(args.data)
     cat = to_catalogue(mine(phrases, args.ngram_max), args.top, args.min_songs)
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(cat, indent=0))
