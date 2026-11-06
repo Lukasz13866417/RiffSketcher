@@ -1,4 +1,4 @@
-"""The song database: schema, ingest from MIDI, work matching, splits, export, features."""
+"""The song database: schema, ingest from MIDI, song matching, splits, export, features."""
 
 import json
 
@@ -41,8 +41,8 @@ def raw(tmp_path):
     write_midi(pop / "001" / "versions" / "001-v2.mid", guitar=False)  # must be skipped
     lakh = tmp_path / "lakh"
     write_midi(lakh / "Band" / "Song.mid", melody=False)
-    write_midi(lakh / "Band" / "Song.1.mid", melody=False, tempo=100)  # second transcription, same work
-    write_midi(lakh / "Band" / "song.mid", melody=False)  # case variant of the title: same work
+    write_midi(lakh / "Band" / "Song.1.mid", melody=False, tempo=100)  # second transcription, same song
+    write_midi(lakh / "Band" / "song.mid", melody=False)  # case variant of the title: same song
     write_midi(lakh / "Other" / "Tune.mid", melody=False)
     return pop, lakh
 
@@ -51,19 +51,19 @@ def ingest_all(con, pop, lakh):
     return db.ingest(con, db.jobs_for(pop, lakh, None, 5, 16), workers=1, log=lambda *a: None)
 
 
-def test_ingest_ids_works_renditions_tracks_notes_phrases(tmp_path, raw):
+def test_ingest_ids_songs_renditions_tracks_notes_phrases(tmp_path, raw):
     pop, lakh = raw
     con = db.connect(tmp_path / "t.db")
     db.init(con)
     counts = ingest_all(con, pop, lakh)
     assert counts["renditions"] == 6 and counts.get("failed", 0) == 0
-    works = con.execute("SELECT id, title, artist FROM work ORDER BY id").fetchall()
-    assert [w["id"] for w in works] == [1, 2, 3, 4]  # integer song ids
-    by_name = {(w["artist"], w["title"]): w["id"] for w in works}
-    assert (None, None) in dict.fromkeys(by_name) or any(w["title"] is None for w in works)  # POP909 has no names
-    song = con.execute("SELECT id FROM work WHERE artist_norm='band' AND title_norm='song'").fetchone()["id"]
-    rends = con.execute("SELECT id, original_id FROM rendition WHERE work_id=? ORDER BY id", (song,)).fetchall()
-    assert len(rends) == 3  # Song.mid, Song.1.mid and song.mid all joined one work
+    songs = con.execute("SELECT id, title, artist FROM song ORDER BY id").fetchall()
+    assert [w["id"] for w in songs] == [1, 2, 3, 4]  # integer song ids
+    by_name = {(w["artist"], w["title"]): w["id"] for w in songs}
+    assert (None, None) in dict.fromkeys(by_name) or any(w["title"] is None for w in songs)  # POP909 has no names
+    song = con.execute("SELECT id FROM song WHERE artist_norm='band' AND title_norm='song'").fetchone()["id"]
+    rends = con.execute("SELECT id, original_id FROM rendition WHERE song_id=? ORDER BY id", (song,)).fetchall()
+    assert len(rends) == 3  # Song.mid, Song.1.mid and song.mid all joined one song
     assert {r["original_id"] for r in rends} == {"Band/Song.mid", "Band/Song.1.mid", "Band/song.mid"}
     pop_rend = con.execute("SELECT original_id FROM rendition r JOIN source s ON s.id=r.source_id WHERE s.name='pop909' ORDER BY r.id").fetchall()
     assert [r["original_id"] for r in pop_rend] == ["001", "002"]
@@ -84,9 +84,9 @@ def test_split_export_and_features(tmp_path, raw):
     ingest_all(con, pop, lakh)
     counts = db.assign_splits(con, 0.25, 0.25, seed=0)
     assert sum(counts.values()) == 4 and counts["test"] == 1 and counts["val"] == 1
-    first = {r["work_id"]: r["name"] for r in con.execute("SELECT work_id, name FROM split")}
+    first = {r["song_id"]: r["name"] for r in con.execute("SELECT song_id, name FROM split")}
     db.assign_splits(con, 0.25, 0.25, seed=5)  # re-running keeps every existing assignment
-    assert {r["work_id"]: r["name"] for r in con.execute("SELECT work_id, name FROM split")} == first
+    assert {r["song_id"]: r["name"] for r in con.execute("SELECT song_id, name FROM split")} == first
     out = tmp_path / "phrases.jsonl"
     n, sp = db.export(con, out, max_per_song=None)
     phrases = load_phrases(out)
@@ -95,7 +95,7 @@ def test_split_export_and_features(tmp_path, raw):
     assert all(p.song_id.isdigit() and p.rendition_id is not None for p in phrases)
     ids = json.loads((tmp_path / "splits.json").read_text())
     assert sum(len(v) for v in ids.values()) == 4 and all(k.isdigit() for v in ids.values() for k in v)
-    # the cap applies per work across renditions, and not to exempt sources
+    # the cap applies per song across renditions, and not to exempt sources
     n2, _ = db.export(con, out, max_per_song=1)
     capped = load_phrases(out)
     assert max(sum(p.song_id == s for p in capped if p.source == "lakh_guitar") for s in {p.song_id for p in capped}) == 1
@@ -103,14 +103,62 @@ def test_split_export_and_features(tmp_path, raw):
     # feature tables with extractor provenance
     ex = db.extractor_id(con, "test_extractor", "0.1", {"k": 1})
     assert db.extractor_id(con, "test_extractor", "0.1", {"k": 1}) == ex
-    con.execute("INSERT INTO work_feature(work_id, extractor_id, key, value_num) VALUES (?,?,?,?)", (1, ex, "chug_runs", 3))
+    con.execute("INSERT INTO song_feature(song_id, extractor_id, key, value_num) VALUES (?,?,?,?)", (1, ex, "chug_runs", 3))
     nid = con.execute("SELECT id FROM note LIMIT 1").fetchone()["id"]
     con.execute("INSERT INTO note_feature(note_id, extractor_id, key, value_num) VALUES (?,?,?,?)", (nid, ex, "palm_mute_p", 0.9))
     con.commit()
     assert con.execute("SELECT value_num FROM note_feature WHERE note_id=?", (nid,)).fetchone()["value_num"] == 0.9
-    assert "works with more than one rendition: 1" in db.stats(con)
+    assert "songs with more than one rendition: 1" in db.stats(con)
 
 
 def test_norm_text():
     assert db.norm_text("  The Song! (Live) ") == "the song live"
     assert db.norm_text(None) == ""
+
+
+def test_artist_and_title_keys():
+    for a in ("Guns N' Roses", "Guns 'n Roses", "Guns & Roses", "Guns And Roses", "guns n roses", "The Guns N' Roses"):
+        assert db.artist_key(a) == "guns and roses", a
+    assert db.artist_key("The Beatles") == "beatles" and db.artist_key("Beatles") == "beatles"
+    assert db.artist_key("Motörhead") == "motorhead"
+    assert db.title_key("Sweet Child O' Mine (Live)") == db.title_key("Sweet Child O'Mine") == "sweet child o mine"
+    assert db.title_key("Enter Sandman - Remastered 2011") == "enter sandman"
+    assert db.title_key("Country Grammar (Hot ...)") == "country grammar"
+    assert db.title_key("(Live)") == "live"  # a title that is only a parenthetical keeps its text
+
+
+def test_fuzzy_matching_merges_spellings(tmp_path):
+    con = db.connect(tmp_path / "m.db")
+    db.init(con)
+    a = db.get_or_create_song(con, "Sweet Child O' Mine", "Guns N' Roses")
+    assert db.get_or_create_song(con, "Sweet Child O'Mine (Live)", "Guns And Roses") == a
+    assert db.get_or_create_song(con, "Sweet Child O Mine", "Guns 'n Roses") == a
+    assert db.get_or_create_song(con, "Sweet Child O' Mine", "Guns N Rose") == a  # typo: fuzzy backstop
+    assert db.get_or_create_song(con, "Sweet Child O' Mine", "Metallica") != a  # different artist, same title
+    assert db.get_or_create_song(con, "Paradise City", "Guns N' Roses") != a
+    assert db.get_or_create_song(con, "Paradise Citty", "Guns N' Roses") == db.get_or_create_song(con, "Paradise City", "Guns N' Roses")  # typo
+    assert db.get_or_create_song(con, None, None) != db.get_or_create_song(con, None, None)  # nameless: never matched
+    assert con.execute("SELECT COUNT(*) c FROM song").fetchone()["c"] == 5
+
+
+def test_dedupe_and_merge(tmp_path):
+    con = db.connect(tmp_path / "d.db")
+    db.init(con)
+    # insert with the raw (old-style) keys so dedupe has something to find
+    for i, (title, artist) in enumerate([("Song", "Guns N' Roses"), ("Song", "Guns And Roses"), ("Song (Live)", "Guns & Roses"), ("Other", "Band")]):
+        con.execute("INSERT INTO song(title, artist, title_norm, artist_norm) VALUES (?,?,?,?)",
+                    (title, artist, db.norm_text(title), db.norm_text(artist)))
+    sid = db.source_id(con, "pop909")
+    for i in range(1, 5):
+        con.execute("INSERT INTO rendition(song_id, source_id, original_id, path) VALUES (?,?,?,?)", (i, sid, f"o{i}", f"p{i}"))
+    con.execute("INSERT INTO split(song_id, name, seed) VALUES (2, 'test', 0)")
+    con.commit()
+    dry = db.dedupe_songs(con, dry_run=True, log=lambda *a: None)
+    assert len(dry) == 2 and con.execute("SELECT COUNT(*) c FROM song").fetchone()["c"] == 4
+    merges = db.dedupe_songs(con, log=lambda *a: None)
+    assert sorted((k, d) for k, d, _ in merges) == [(1, 2), (1, 3)]
+    assert con.execute("SELECT COUNT(*) c FROM song").fetchone()["c"] == 2
+    assert con.execute("SELECT COUNT(*) c FROM rendition WHERE song_id=1").fetchone()["c"] == 3
+    assert con.execute("SELECT name FROM split WHERE song_id=1").fetchone()["name"] == "test"  # moved from the dropped song
+    db.merge_songs(con, 1, 4); con.commit()
+    assert con.execute("SELECT COUNT(*) c FROM song").fetchone()["c"] == 1

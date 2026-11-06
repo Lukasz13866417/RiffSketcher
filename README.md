@@ -104,12 +104,12 @@ that drops to 77% / 86%. That is the baseline the Transformer has to beat (`ml/e
 
 ## Song database
 
-Everything known about every song lives in one SQLite file, `data/riffs.db` (`ml/db.py`). A *work*
+Everything known about every song lives in one SQLite file, `data/riffs.db` (`ml/db.py`). A *song* row
 is the composition; a *rendition* is one file of it from one source (several Lakh MIDI versions of a
-song are renditions of one work); tracks and per-note rows hang off renditions, with typed columns
+song are renditions of one song row); tracks and per-note rows hang off renditions, with typed columns
 for string, fret and articulation that tabs and audio extraction fill in. Every derived row names its
 *extractor* (name, version, parameters), so extractions can be re-run and replaced. Splits are per
-work, so a song never straddles train and test through two files. Training files are exported from
+song, so a song never straddles train and test through two files. Training files are exported from
 it (`uv run python -m ml.db export`) in the same JSONL format as before, so the rest of `ml/` is
 unchanged. See `ml/README.md`, "Song database".
 

@@ -85,12 +85,12 @@ def genre_id(name: str | None) -> int:
 class Phrase:
     """A short monophonic melody; onsets/durations in beats, first onset at 0."""
 
-    song_id: str  # the work id in the song database (as a string)
+    song_id: str  # the song id in the song database (as a string)
     pitches: list[int]
     onsets_beats: list[float]
     durations_beats: list[float]
     source: str = "unknown"
-    rendition_id: int | None = None  # which file of the work the phrase was cut from
+    rendition_id: int | None = None  # which file of the song the phrase was cut from
 
     def __len__(self) -> int:
         return len(self.pitches)

@@ -1,7 +1,7 @@
 """CLI: synthetic phrases for smoke tests and offline development.
 
 Real music goes through the song database (``ml.db``): ``ingest`` the raw
-folders, ``split`` by work and ``export`` the training JSONL. This script
+folders, ``split`` by song and ``export`` the training JSONL. This script
 only generates the MIDI-free synthetic phrases that the tests and
 ``ml.train --smoke`` use::
 

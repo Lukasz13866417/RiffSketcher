@@ -5400,7 +5400,7 @@
 "length_notes_median": 10.0
 },
 "all": {
-"songs": 8865,
+"songs": 8758,
 "phrases": 568613,
 "interval_unigram": {
 "-12": 0.0351,
@@ -5435,320 +5435,320 @@
 0,
 0
 ],
-"songs": 7793,
-"song_frac": 0.8791
+"songs": 7698,
+"song_frac": 0.879
 },
 {
 "pattern": [
 0,
 -2
 ],
-"songs": 6497,
-"song_frac": 0.7329
+"songs": 6421,
+"song_frac": 0.7332
 },
 {
 "pattern": [
 0,
 2
 ],
-"songs": 6346,
-"song_frac": 0.7158
+"songs": 6271,
+"song_frac": 0.716
 },
 {
 "pattern": [
 -2,
 0
 ],
-"songs": 6284,
-"song_frac": 0.7089
+"songs": 6216,
+"song_frac": 0.7098
 },
 {
 "pattern": [
 2,
 0
 ],
-"songs": 6248,
-"song_frac": 0.7048
+"songs": 6177,
+"song_frac": 0.7053
 },
 {
 "pattern": [
 2,
 -2
 ],
-"songs": 6066,
-"song_frac": 0.6843
+"songs": 6005,
+"song_frac": 0.6857
 },
 {
 "pattern": [
 -2,
 2
 ],
-"songs": 5990,
-"song_frac": 0.6757
+"songs": 5930,
+"song_frac": 0.6771
 },
 {
 "pattern": [
 -2,
 -2
 ],
-"songs": 5458,
-"song_frac": 0.6157
+"songs": 5405,
+"song_frac": 0.6172
 },
 {
 "pattern": [
 3,
 -3
 ],
-"songs": 5013,
-"song_frac": 0.5655
+"songs": 4963,
+"song_frac": 0.5667
 },
 {
 "pattern": [
 -3,
 3
 ],
-"songs": 4787,
-"song_frac": 0.54
+"songs": 4741,
+"song_frac": 0.5413
 },
 {
 "pattern": [
 2,
 2
 ],
-"songs": 4759,
-"song_frac": 0.5368
+"songs": 4711,
+"song_frac": 0.5379
 },
 {
 "pattern": [
 -1,
 -2
 ],
-"songs": 4733,
-"song_frac": 0.5339
+"songs": 4682,
+"song_frac": 0.5346
 },
 {
 "pattern": [
 -2,
 -3
 ],
-"songs": 4595,
+"songs": 4549,
+"song_frac": 0.5194
+},
+{
+"pattern": [
+0,
+-3
+],
+"songs": 4539,
 "song_frac": 0.5183
 },
 {
 "pattern": [
-0,
--3
-],
-"songs": 4588,
-"song_frac": 0.5175
-},
-{
-"pattern": [
 3,
 0
 ],
-"songs": 4531,
-"song_frac": 0.5111
+"songs": 4475,
+"song_frac": 0.511
 },
 {
 "pattern": [
 -3,
 0
 ],
-"songs": 4502,
-"song_frac": 0.5078
+"songs": 4455,
+"song_frac": 0.5087
 },
 {
 "pattern": [
 0,
 -1
 ],
-"songs": 4460,
-"song_frac": 0.5031
+"songs": 4415,
+"song_frac": 0.5041
 },
 {
 "pattern": [
 0,
 3
 ],
-"songs": 4445,
-"song_frac": 0.5014
+"songs": 4399,
+"song_frac": 0.5023
 },
 {
 "pattern": [
 0,
 5
 ],
-"songs": 4437,
-"song_frac": 0.5005
+"songs": 4389,
+"song_frac": 0.5011
 },
 {
 "pattern": [
 5,
 0
 ],
-"songs": 4429,
-"song_frac": 0.4996
+"songs": 4389,
+"song_frac": 0.5011
 },
 {
 "pattern": [
 -5,
 0
 ],
-"songs": 4415,
-"song_frac": 0.498
+"songs": 4370,
+"song_frac": 0.499
 },
 {
 "pattern": [
 -3,
 -2
 ],
-"songs": 4311,
-"song_frac": 0.4863
+"songs": 4265,
+"song_frac": 0.487
 },
 {
 "pattern": [
 5,
 -5
 ],
-"songs": 4281,
-"song_frac": 0.4829
+"songs": 4236,
+"song_frac": 0.4837
 },
 {
 "pattern": [
 2,
 3
 ],
-"songs": 4247,
-"song_frac": 0.4791
+"songs": 4207,
+"song_frac": 0.4804
 },
 {
 "pattern": [
 0,
 -5
 ],
-"songs": 4214,
-"song_frac": 0.4754
+"songs": 4174,
+"song_frac": 0.4766
 },
 {
 "pattern": [
 3,
 2
 ],
-"songs": 4195,
-"song_frac": 0.4732
+"songs": 4151,
+"song_frac": 0.474
 },
 {
 "pattern": [
 1,
 0
 ],
-"songs": 4056,
-"song_frac": 0.4575
+"songs": 4011,
+"song_frac": 0.458
 },
 {
 "pattern": [
 -2,
 -1
 ],
-"songs": 3981,
-"song_frac": 0.4491
-},
-{
-"pattern": [
-1,
--1
-],
-"songs": 3923,
-"song_frac": 0.4425
+"songs": 3946,
+"song_frac": 0.4506
 },
 {
 "pattern": [
 2,
 1
 ],
-"songs": 3917,
-"song_frac": 0.4418
+"songs": 3887,
+"song_frac": 0.4438
+},
+{
+"pattern": [
+1,
+-1
+],
+"songs": 3885,
+"song_frac": 0.4436
 },
 {
 "pattern": [
 -1,
 0
 ],
-"songs": 3835,
-"song_frac": 0.4326
+"songs": 3801,
+"song_frac": 0.434
 },
 {
 "pattern": [
 0,
 1
 ],
-"songs": 3803,
-"song_frac": 0.429
+"songs": 3776,
+"song_frac": 0.4311
 },
 {
 "pattern": [
 -5,
 5
 ],
-"songs": 3736,
-"song_frac": 0.4214
+"songs": 3704,
+"song_frac": 0.4229
 },
 {
 "pattern": [
 -7,
 0
 ],
-"songs": 3692,
-"song_frac": 0.4165
+"songs": 3651,
+"song_frac": 0.4169
 },
 {
 "pattern": [
 -1,
 1
 ],
-"songs": 3667,
-"song_frac": 0.4136
+"songs": 3635,
+"song_frac": 0.415
 },
 {
 "pattern": [
 0,
 7
 ],
-"songs": 3583,
-"song_frac": 0.4042
+"songs": 3548,
+"song_frac": 0.4051
 },
 {
 "pattern": [
 -4,
 0
 ],
-"songs": 3540,
-"song_frac": 0.3993
+"songs": 3510,
+"song_frac": 0.4008
 },
 {
 "pattern": [
 0,
 4
 ],
-"songs": 3456,
-"song_frac": 0.3898
+"songs": 3423,
+"song_frac": 0.3908
 },
 {
 "pattern": [
 4,
 -4
 ],
-"songs": 3446,
-"song_frac": 0.3887
+"songs": 3421,
+"song_frac": 0.3906
 },
 {
 "pattern": [
 1,
 2
 ],
-"songs": 3419,
-"song_frac": 0.3857
+"songs": 3390,
+"song_frac": 0.3871
 },
 {
 "pattern": [
@@ -5756,8 +5756,8 @@
 0,
 0
 ],
-"songs": 6845,
-"song_frac": 0.7721
+"songs": 6758,
+"song_frac": 0.7716
 },
 {
 "pattern": [
@@ -5765,8 +5765,8 @@
 0,
 -2
 ],
-"songs": 4743,
-"song_frac": 0.535
+"songs": 4696,
+"song_frac": 0.5362
 },
 {
 "pattern": [
@@ -5774,8 +5774,8 @@
 0,
 2
 ],
-"songs": 4493,
-"song_frac": 0.5068
+"songs": 4445,
+"song_frac": 0.5075
 },
 {
 "pattern": [
@@ -5783,8 +5783,8 @@
 0,
 0
 ],
-"songs": 4423,
-"song_frac": 0.4989
+"songs": 4372,
+"song_frac": 0.4992
 },
 {
 "pattern": [
@@ -5792,8 +5792,8 @@
 -2,
 0
 ],
-"songs": 4070,
-"song_frac": 0.4591
+"songs": 4026,
+"song_frac": 0.4597
 },
 {
 "pattern": [
@@ -5801,8 +5801,8 @@
 0,
 0
 ],
-"songs": 4045,
-"song_frac": 0.4563
+"songs": 3999,
+"song_frac": 0.4566
 },
 {
 "pattern": [
@@ -5810,8 +5810,8 @@
 2,
 0
 ],
-"songs": 3754,
-"song_frac": 0.4235
+"songs": 3724,
+"song_frac": 0.4252
 },
 {
 "pattern": [
@@ -5819,8 +5819,8 @@
 2,
 -2
 ],
-"songs": 3730,
-"song_frac": 0.4208
+"songs": 3696,
+"song_frac": 0.422
 },
 {
 "pattern": [
@@ -5828,8 +5828,8 @@
 -2,
 2
 ],
-"songs": 3190,
-"song_frac": 0.3598
+"songs": 3156,
+"song_frac": 0.3604
 },
 {
 "pattern": [
@@ -5837,8 +5837,8 @@
 -2,
 2
 ],
-"songs": 2966,
-"song_frac": 0.3346
+"songs": 2940,
+"song_frac": 0.3357
 },
 {
 "pattern": [
@@ -5846,8 +5846,8 @@
 0,
 -1
 ],
-"songs": 2886,
-"song_frac": 0.3255
+"songs": 2862,
+"song_frac": 0.3268
 },
 {
 "pattern": [
@@ -5855,8 +5855,8 @@
 -2,
 2
 ],
-"songs": 2851,
-"song_frac": 0.3216
+"songs": 2828,
+"song_frac": 0.3229
 },
 {
 "pattern": [
@@ -5864,8 +5864,8 @@
 0,
 -2
 ],
-"songs": 2726,
-"song_frac": 0.3075
+"songs": 2704,
+"song_frac": 0.3087
 },
 {
 "pattern": [
@@ -5873,8 +5873,8 @@
 0,
 5
 ],
-"songs": 2716,
-"song_frac": 0.3064
+"songs": 2690,
+"song_frac": 0.3071
 },
 {
 "pattern": [
@@ -5882,8 +5882,8 @@
 2,
 -2
 ],
-"songs": 2711,
-"song_frac": 0.3058
+"songs": 2687,
+"song_frac": 0.3068
 },
 {
 "pattern": [
@@ -5891,8 +5891,8 @@
 0,
 -3
 ],
-"songs": 2710,
-"song_frac": 0.3057
+"songs": 2681,
+"song_frac": 0.3061
 },
 {
 "pattern": [
@@ -5900,8 +5900,8 @@
 -2,
 -2
 ],
-"songs": 2688,
-"song_frac": 0.3032
+"songs": 2663,
+"song_frac": 0.3041
 },
 {
 "pattern": [
@@ -5909,8 +5909,8 @@
 -2,
 -2
 ],
-"songs": 2686,
-"song_frac": 0.303
+"songs": 2661,
+"song_frac": 0.3038
 },
 {
 "pattern": [
@@ -5918,8 +5918,8 @@
 0,
 3
 ],
-"songs": 2634,
-"song_frac": 0.2971
+"songs": 2612,
+"song_frac": 0.2982
 },
 {
 "pattern": [
@@ -5927,8 +5927,8 @@
 2,
 0
 ],
-"songs": 2624,
-"song_frac": 0.296
+"songs": 2599,
+"song_frac": 0.2968
 },
 {
 "pattern": [
@@ -5936,8 +5936,8 @@
 0,
 0
 ],
-"songs": 2585,
-"song_frac": 0.2916
+"songs": 2565,
+"song_frac": 0.2929
 },
 {
 "pattern": [
@@ -5945,8 +5945,8 @@
 0,
 0
 ],
-"songs": 2582,
-"song_frac": 0.2913
+"songs": 2557,
+"song_frac": 0.292
 },
 {
 "pattern": [
@@ -5954,8 +5954,8 @@
 0,
 0
 ],
-"songs": 2537,
-"song_frac": 0.2862
+"songs": 2512,
+"song_frac": 0.2868
 },
 {
 "pattern": [
@@ -5963,8 +5963,8 @@
 0,
 0
 ],
-"songs": 2524,
-"song_frac": 0.2847
+"songs": 2495,
+"song_frac": 0.2849
 },
 {
 "pattern": [
@@ -5972,8 +5972,8 @@
 0,
 0
 ],
-"songs": 2470,
-"song_frac": 0.2786
+"songs": 2452,
+"song_frac": 0.28
 },
 {
 "pattern": [
@@ -5981,8 +5981,8 @@
 -1,
 0
 ],
-"songs": 2444,
-"song_frac": 0.2757
+"songs": 2427,
+"song_frac": 0.2771
 },
 {
 "pattern": [
@@ -5990,8 +5990,8 @@
 3,
 -3
 ],
-"songs": 2438,
-"song_frac": 0.275
+"songs": 2412,
+"song_frac": 0.2754
 },
 {
 "pattern": [
@@ -5999,8 +5999,8 @@
 0,
 -5
 ],
-"songs": 2430,
-"song_frac": 0.2741
+"songs": 2406,
+"song_frac": 0.2747
 },
 {
 "pattern": [
@@ -6008,8 +6008,8 @@
 0,
 2
 ],
-"songs": 2396,
-"song_frac": 0.2703
+"songs": 2372,
+"song_frac": 0.2708
 },
 {
 "pattern": [
@@ -6017,8 +6017,8 @@
 0,
 1
 ],
-"songs": 2354,
-"song_frac": 0.2655
+"songs": 2338,
+"song_frac": 0.267
 },
 {
 "pattern": [
@@ -6026,8 +6026,8 @@
 -3,
 3
 ],
-"songs": 2325,
-"song_frac": 0.2623
+"songs": 2300,
+"song_frac": 0.2626
 },
 {
 "pattern": [
@@ -6035,8 +6035,8 @@
 -1,
 -2
 ],
-"songs": 2273,
-"song_frac": 0.2564
+"songs": 2256,
+"song_frac": 0.2576
 },
 {
 "pattern": [
@@ -6044,8 +6044,8 @@
 -2,
 0
 ],
-"songs": 2230,
-"song_frac": 0.2516
+"songs": 2211,
+"song_frac": 0.2525
 },
 {
 "pattern": [
@@ -6053,8 +6053,8 @@
 -2,
 -3
 ],
-"songs": 2198,
-"song_frac": 0.2479
+"songs": 2180,
+"song_frac": 0.2489
 },
 {
 "pattern": [
@@ -6062,8 +6062,8 @@
 0,
 0
 ],
-"songs": 2164,
-"song_frac": 0.2441
+"songs": 2147,
+"song_frac": 0.2451
 },
 {
 "pattern": [
@@ -6071,8 +6071,8 @@
 5,
 0
 ],
-"songs": 2145,
-"song_frac": 0.242
+"songs": 2129,
+"song_frac": 0.2431
 },
 {
 "pattern": [
@@ -6080,26 +6080,26 @@
 -3,
 3
 ],
-"songs": 2136,
+"songs": 2118,
+"song_frac": 0.2418
+},
+{
+"pattern": [
+-2,
+-2,
+-3
+],
+"songs": 2110,
 "song_frac": 0.2409
 },
 {
 "pattern": [
 -2,
--2,
--3
-],
-"songs": 2122,
-"song_frac": 0.2394
-},
-{
-"pattern": [
--2,
 -3,
 -2
 ],
-"songs": 2093,
-"song_frac": 0.2361
+"songs": 2079,
+"song_frac": 0.2374
 },
 {
 "pattern": [
@@ -6107,8 +6107,8 @@
 1,
 0
 ],
-"songs": 2091,
-"song_frac": 0.2359
+"songs": 2077,
+"song_frac": 0.2372
 },
 {
 "pattern": [
@@ -6117,8 +6117,8 @@
 0,
 0
 ],
-"songs": 5910,
-"song_frac": 0.6667
+"songs": 5837,
+"song_frac": 0.6665
 },
 {
 "pattern": [
@@ -6127,8 +6127,8 @@
 0,
 -2
 ],
-"songs": 3392,
-"song_frac": 0.3826
+"songs": 3354,
+"song_frac": 0.383
 },
 {
 "pattern": [
@@ -6137,8 +6137,8 @@
 0,
 2
 ],
-"songs": 3276,
-"song_frac": 0.3695
+"songs": 3246,
+"song_frac": 0.3706
 },
 {
 "pattern": [
@@ -6147,8 +6147,8 @@
 0,
 0
 ],
-"songs": 3124,
-"song_frac": 0.3524
+"songs": 3091,
+"song_frac": 0.3529
 },
 {
 "pattern": [
@@ -6157,8 +6157,8 @@
 0,
 0
 ],
-"songs": 2796,
-"song_frac": 0.3154
+"songs": 2764,
+"song_frac": 0.3156
 },
 {
 "pattern": [
@@ -6167,8 +6167,8 @@
 -2,
 0
 ],
-"songs": 2735,
-"song_frac": 0.3085
+"songs": 2710,
+"song_frac": 0.3094
 },
 {
 "pattern": [
@@ -6177,8 +6177,8 @@
 2,
 0
 ],
-"songs": 2635,
-"song_frac": 0.2972
+"songs": 2617,
+"song_frac": 0.2988
 },
 {
 "pattern": [
@@ -6187,8 +6187,8 @@
 0,
 0
 ],
-"songs": 2611,
-"song_frac": 0.2945
+"songs": 2595,
+"song_frac": 0.2963
 },
 {
 "pattern": [
@@ -6197,8 +6197,8 @@
 0,
 0
 ],
-"songs": 2544,
-"song_frac": 0.287
+"songs": 2519,
+"song_frac": 0.2876
 },
 {
 "pattern": [
@@ -6207,8 +6207,8 @@
 0,
 -1
 ],
-"songs": 1995,
-"song_frac": 0.225
+"songs": 1979,
+"song_frac": 0.226
 },
 {
 "pattern": [
@@ -6217,8 +6217,8 @@
 0,
 5
 ],
-"songs": 1887,
-"song_frac": 0.2129
+"songs": 1869,
+"song_frac": 0.2134
 },
 {
 "pattern": [
@@ -6227,8 +6227,8 @@
 -2,
 2
 ],
-"songs": 1872,
-"song_frac": 0.2112
+"songs": 1853,
+"song_frac": 0.2116
 },
 {
 "pattern": [
@@ -6237,8 +6237,8 @@
 2,
 -2
 ],
-"songs": 1784,
-"song_frac": 0.2012
+"songs": 1770,
+"song_frac": 0.2021
 },
 {
 "pattern": [
@@ -6247,8 +6247,8 @@
 0,
 0
 ],
-"songs": 1753,
-"song_frac": 0.1977
+"songs": 1738,
+"song_frac": 0.1984
 },
 {
 "pattern": [
@@ -6257,8 +6257,8 @@
 0,
 -3
 ],
-"songs": 1710,
-"song_frac": 0.1929
+"songs": 1694,
+"song_frac": 0.1934
 },
 {
 "pattern": [
@@ -6267,8 +6267,8 @@
 0,
 3
 ],
-"songs": 1703,
-"song_frac": 0.1921
+"songs": 1691,
+"song_frac": 0.1931
 },
 {
 "pattern": [
@@ -6277,8 +6277,8 @@
 0,
 0
 ],
-"songs": 1682,
-"song_frac": 0.1897
+"songs": 1668,
+"song_frac": 0.1905
 },
 {
 "pattern": [
@@ -6287,8 +6287,8 @@
 -1,
 0
 ],
-"songs": 1644,
-"song_frac": 0.1854
+"songs": 1634,
+"song_frac": 0.1866
 },
 {
 "pattern": [
@@ -6297,8 +6297,8 @@
 0,
 1
 ],
-"songs": 1641,
-"song_frac": 0.1851
+"songs": 1632,
+"song_frac": 0.1863
 },
 {
 "pattern": [
@@ -6307,8 +6307,8 @@
 0,
 0
 ],
-"songs": 1633,
-"song_frac": 0.1842
+"songs": 1620,
+"song_frac": 0.185
 },
 {
 "pattern": [
@@ -6317,8 +6317,8 @@
 0,
 -5
 ],
-"songs": 1614,
-"song_frac": 0.1821
+"songs": 1601,
+"song_frac": 0.1828
 },
 {
 "pattern": [
@@ -6327,8 +6327,8 @@
 0,
 0
 ],
-"songs": 1568,
-"song_frac": 0.1769
+"songs": 1559,
+"song_frac": 0.178
 },
 {
 "pattern": [
@@ -6337,8 +6337,8 @@
 -2,
 2
 ],
-"songs": 1505,
-"song_frac": 0.1698
+"songs": 1491,
+"song_frac": 0.1702
 },
 {
 "pattern": [
@@ -6347,8 +6347,8 @@
 0,
 0
 ],
-"songs": 1496,
-"song_frac": 0.1688
+"songs": 1486,
+"song_frac": 0.1697
 },
 {
 "pattern": [
@@ -6357,8 +6357,8 @@
 0,
 0
 ],
-"songs": 1493,
-"song_frac": 0.1684
+"songs": 1485,
+"song_frac": 0.1696
 },
 {
 "pattern": [
@@ -6367,8 +6367,8 @@
 0,
 0
 ],
-"songs": 1479,
-"song_frac": 0.1668
+"songs": 1464,
+"song_frac": 0.1672
 },
 {
 "pattern": [
@@ -6377,8 +6377,8 @@
 0,
 0
 ],
-"songs": 1426,
-"song_frac": 0.1609
+"songs": 1419,
+"song_frac": 0.162
 },
 {
 "pattern": [
@@ -6387,8 +6387,8 @@
 1,
 0
 ],
-"songs": 1406,
-"song_frac": 0.1586
+"songs": 1399,
+"song_frac": 0.1597
 },
 {
 "pattern": [
@@ -6397,8 +6397,8 @@
 0,
 7
 ],
-"songs": 1373,
-"song_frac": 0.1549
+"songs": 1364,
+"song_frac": 0.1557
 },
 {
 "pattern": [
@@ -6407,8 +6407,8 @@
 2,
 -2
 ],
-"songs": 1368,
-"song_frac": 0.1543
+"songs": 1357,
+"song_frac": 0.1549
 },
 {
 "pattern": [
@@ -6417,8 +6417,8 @@
 0,
 0
 ],
-"songs": 1366,
-"song_frac": 0.1541
+"songs": 1353,
+"song_frac": 0.1545
 },
 {
 "pattern": [
@@ -6427,8 +6427,8 @@
 -12,
 12
 ],
-"songs": 1343,
-"song_frac": 0.1515
+"songs": 1333,
+"song_frac": 0.1522
 },
 {
 "pattern": [
@@ -6437,8 +6437,8 @@
 5,
 0
 ],
-"songs": 1307,
-"song_frac": 0.1474
+"songs": 1299,
+"song_frac": 0.1483
 },
 {
 "pattern": [
@@ -6447,8 +6447,8 @@
 0,
 0
 ],
-"songs": 1278,
-"song_frac": 0.1442
+"songs": 1268,
+"song_frac": 0.1448
 },
 {
 "pattern": [
@@ -6457,18 +6457,8 @@
 12,
 -12
 ],
-"songs": 1270,
-"song_frac": 0.1433
-},
-{
-"pattern": [
-0,
--2,
-2,
--2
-],
-"songs": 1249,
-"song_frac": 0.1409
+"songs": 1259,
+"song_frac": 0.1438
 },
 {
 "pattern": [
@@ -6477,8 +6467,18 @@
 0,
 4
 ],
-"songs": 1249,
-"song_frac": 0.1409
+"songs": 1242,
+"song_frac": 0.1418
+},
+{
+"pattern": [
+0,
+-2,
+2,
+-2
+],
+"songs": 1236,
+"song_frac": 0.1411
 },
 {
 "pattern": [
@@ -6487,8 +6487,8 @@
 3,
 -3
 ],
-"songs": 1247,
-"song_frac": 0.1407
+"songs": 1236,
+"song_frac": 0.1411
 },
 {
 "pattern": [
@@ -6497,8 +6497,8 @@
 0,
 0
 ],
-"songs": 1233,
-"song_frac": 0.1391
+"songs": 1219,
+"song_frac": 0.1392
 },
 {
 "pattern": [
@@ -6507,8 +6507,8 @@
 0,
 -2
 ],
-"songs": 1224,
-"song_frac": 0.1381
+"songs": 1219,
+"song_frac": 0.1392
 },
 {
 "pattern": [
@@ -6518,8 +6518,8 @@
 0,
 0
 ],
-"songs": 5112,
-"song_frac": 0.5766
+"songs": 5057,
+"song_frac": 0.5774
 },
 {
 "pattern": [
@@ -6529,8 +6529,8 @@
 0,
 -2
 ],
-"songs": 2273,
-"song_frac": 0.2564
+"songs": 2256,
+"song_frac": 0.2576
 },
 {
 "pattern": [
@@ -6540,8 +6540,8 @@
 0,
 2
 ],
-"songs": 2209,
-"song_frac": 0.2492
+"songs": 2192,
+"song_frac": 0.2503
 },
 {
 "pattern": [
@@ -6551,8 +6551,8 @@
 0,
 0
 ],
-"songs": 2067,
-"song_frac": 0.2332
+"songs": 2048,
+"song_frac": 0.2338
 },
 {
 "pattern": [
@@ -6562,8 +6562,8 @@
 2,
 0
 ],
-"songs": 1968,
-"song_frac": 0.222
+"songs": 1957,
+"song_frac": 0.2235
 },
 {
 "pattern": [
@@ -6573,8 +6573,8 @@
 0,
 0
 ],
-"songs": 1943,
-"song_frac": 0.2192
+"songs": 1932,
+"song_frac": 0.2206
 },
 {
 "pattern": [
@@ -6584,41 +6584,30 @@
 0,
 0
 ],
-"songs": 1930,
+"songs": 1918,
+"song_frac": 0.219
+},
+{
+"pattern": [
+0,
+0,
+0,
+-2,
+0
+],
+"songs": 1907,
 "song_frac": 0.2177
 },
 {
 "pattern": [
 0,
 0,
-0,
--2,
-0
-],
-"songs": 1925,
-"song_frac": 0.2171
-},
-{
-"pattern": [
-0,
-0,
 -2,
 0,
 0
 ],
-"songs": 1838,
-"song_frac": 0.2073
-},
-{
-"pattern": [
-0,
--2,
-0,
-0,
-0
-],
-"songs": 1784,
-"song_frac": 0.2012
+"songs": 1826,
+"song_frac": 0.2085
 },
 {
 "pattern": [
@@ -6628,8 +6617,19 @@
 0,
 0
 ],
-"songs": 1783,
-"song_frac": 0.2011
+"songs": 1771,
+"song_frac": 0.2022
+},
+{
+"pattern": [
+0,
+-2,
+0,
+0,
+0
+],
+"songs": 1770,
+"song_frac": 0.2021
 },
 {
 "pattern": [
@@ -6639,8 +6639,8 @@
 0,
 5
 ],
-"songs": 1278,
-"song_frac": 0.1442
+"songs": 1268,
+"song_frac": 0.1448
 },
 {
 "pattern": [
@@ -6650,19 +6650,8 @@
 0,
 -1
 ],
-"songs": 1234,
-"song_frac": 0.1392
-},
-{
-"pattern": [
-0,
-0,
--1,
-0,
-0
-],
-"songs": 1141,
-"song_frac": 0.1287
+"songs": 1222,
+"song_frac": 0.1395
 },
 {
 "pattern": [
@@ -6672,8 +6661,19 @@
 -1,
 0
 ],
-"songs": 1139,
-"song_frac": 0.1285
+"songs": 1133,
+"song_frac": 0.1294
+},
+{
+"pattern": [
+0,
+0,
+-1,
+0,
+0
+],
+"songs": 1132,
+"song_frac": 0.1293
 },
 {
 "pattern": [
@@ -6683,8 +6683,8 @@
 2,
 -2
 ],
-"songs": 1103,
-"song_frac": 0.1244
+"songs": 1094,
+"song_frac": 0.1249
 },
 {
 "pattern": [
@@ -6694,8 +6694,8 @@
 0,
 0
 ],
-"songs": 1086,
-"song_frac": 0.1225
+"songs": 1076,
+"song_frac": 0.1229
 },
 {
 "pattern": [
@@ -6705,8 +6705,8 @@
 0,
 3
 ],
-"songs": 1054,
-"song_frac": 0.1189
+"songs": 1047,
+"song_frac": 0.1195
 },
 {
 "pattern": [
@@ -6716,8 +6716,8 @@
 0,
 0
 ],
-"songs": 1054,
-"song_frac": 0.1189
+"songs": 1043,
+"song_frac": 0.1191
 },
 {
 "pattern": [
@@ -6727,8 +6727,8 @@
 0,
 1
 ],
-"songs": 1046,
-"song_frac": 0.118
+"songs": 1041,
+"song_frac": 0.1189
 },
 {
 "pattern": [
@@ -6738,8 +6738,8 @@
 0,
 0
 ],
-"songs": 1036,
-"song_frac": 0.1169
+"songs": 1031,
+"song_frac": 0.1177
 },
 {
 "pattern": [
@@ -6749,8 +6749,8 @@
 0,
 0
 ],
-"songs": 1029,
-"song_frac": 0.1161
+"songs": 1022,
+"song_frac": 0.1167
 },
 {
 "pattern": [
@@ -6760,8 +6760,8 @@
 0,
 -3
 ],
-"songs": 1020,
-"song_frac": 0.1151
+"songs": 1013,
+"song_frac": 0.1157
 },
 {
 "pattern": [
@@ -6771,19 +6771,19 @@
 1,
 0
 ],
-"songs": 1009,
+"songs": 1004,
+"song_frac": 0.1146
+},
+{
+"pattern": [
+0,
+1,
+0,
+0,
+0
+],
+"songs": 997,
 "song_frac": 0.1138
-},
-{
-"pattern": [
-0,
-1,
-0,
-0,
-0
-],
-"songs": 999,
-"song_frac": 0.1127
 },
 {
 "pattern": [
@@ -6793,8 +6793,8 @@
 0,
 -5
 ],
-"songs": 986,
-"song_frac": 0.1112
+"songs": 980,
+"song_frac": 0.1119
 },
 {
 "pattern": [
@@ -6804,19 +6804,8 @@
 -2,
 2
 ],
-"songs": 969,
-"song_frac": 0.1093
-},
-{
-"pattern": [
-5,
-0,
-0,
-0,
-0
-],
-"songs": 958,
-"song_frac": 0.1081
+"songs": 962,
+"song_frac": 0.1098
 },
 {
 "pattern": [
@@ -6826,8 +6815,19 @@
 0,
 0
 ],
-"songs": 954,
-"song_frac": 0.1076
+"songs": 950,
+"song_frac": 0.1085
+},
+{
+"pattern": [
+5,
+0,
+0,
+0,
+0
+],
+"songs": 946,
+"song_frac": 0.108
 },
 {
 "pattern": [
@@ -6837,8 +6837,8 @@
 0,
 0
 ],
-"songs": 915,
-"song_frac": 0.1032
+"songs": 908,
+"song_frac": 0.1037
 },
 {
 "pattern": [
@@ -6848,7 +6848,18 @@
 -12,
 12
 ],
-"songs": 912,
+"songs": 906,
+"song_frac": 0.1034
+},
+{
+"pattern": [
+0,
+0,
+0,
+0,
+7
+],
+"songs": 901,
 "song_frac": 0.1029
 },
 {
@@ -6856,22 +6867,22 @@
 0,
 0,
 0,
-0,
-7
+5,
+0
 ],
-"songs": 908,
-"song_frac": 0.1024
+"songs": 882,
+"song_frac": 0.1007
 },
 {
 "pattern": [
 0,
 0,
-0,
 5,
+0,
 0
 ],
-"songs": 889,
-"song_frac": 0.1003
+"songs": 836,
+"song_frac": 0.0955
 },
 {
 "pattern": [
@@ -6881,19 +6892,8 @@
 0,
 0
 ],
-"songs": 843,
-"song_frac": 0.0951
-},
-{
-"pattern": [
-0,
-0,
-5,
-0,
-0
-],
-"songs": 841,
-"song_frac": 0.0949
+"songs": 835,
+"song_frac": 0.0953
 },
 {
 "pattern": [
@@ -6903,19 +6903,8 @@
 12,
 -12
 ],
-"songs": 833,
-"song_frac": 0.094
-},
-{
-"pattern": [
-0,
-5,
-0,
-0,
-0
-],
-"songs": 813,
-"song_frac": 0.0917
+"songs": 826,
+"song_frac": 0.0943
 },
 {
 "pattern": [
@@ -6925,8 +6914,19 @@
 0,
 4
 ],
-"songs": 811,
-"song_frac": 0.0915
+"songs": 808,
+"song_frac": 0.0923
+},
+{
+"pattern": [
+0,
+5,
+0,
+0,
+0
+],
+"songs": 807,
+"song_frac": 0.0921
 },
 {
 "pattern": [
@@ -6936,8 +6936,8 @@
 0,
 0
 ],
-"songs": 801,
-"song_frac": 0.0904
+"songs": 793,
+"song_frac": 0.0905
 },
 {
 "pattern": [
@@ -6947,8 +6947,8 @@
 -5,
 0
 ],
-"songs": 800,
-"song_frac": 0.0902
+"songs": 793,
+"song_frac": 0.0905
 }
 ],
 "rhythm_ngrams": [
@@ -6957,15 +6957,15 @@
 0.5,
 0.5
 ],
-"songs": 7641,
-"song_frac": 0.8619
+"songs": 7555,
+"song_frac": 0.8626
 },
 {
 "pattern": [
 0.5,
 1.0
 ],
-"songs": 6469,
+"songs": 6391,
 "song_frac": 0.7297
 },
 {
@@ -6973,135 +6973,135 @@
 1.0,
 0.5
 ],
-"songs": 6442,
-"song_frac": 0.7267
+"songs": 6369,
+"song_frac": 0.7272
 },
 {
 "pattern": [
 1.0,
 1.0
 ],
-"songs": 5945,
-"song_frac": 0.6706
+"songs": 5867,
+"song_frac": 0.6699
 },
 {
 "pattern": [
 0.25,
 0.25
 ],
-"songs": 5539,
-"song_frac": 0.6248
+"songs": 5489,
+"song_frac": 0.6267
 },
 {
 "pattern": [
 0.25,
 0.5
 ],
-"songs": 5244,
-"song_frac": 0.5915
+"songs": 5191,
+"song_frac": 0.5927
 },
 {
 "pattern": [
 0.5,
 0.25
 ],
-"songs": 5121,
-"song_frac": 0.5777
+"songs": 5071,
+"song_frac": 0.579
 },
 {
 "pattern": [
 0.5,
 1.5
 ],
-"songs": 4363,
-"song_frac": 0.4922
+"songs": 4317,
+"song_frac": 0.4929
 },
 {
 "pattern": [
 1.5,
 0.5
 ],
-"songs": 4359,
-"song_frac": 0.4917
+"songs": 4317,
+"song_frac": 0.4929
 },
 {
 "pattern": [
 0.1667,
 0.1667
 ],
-"songs": 3714,
-"song_frac": 0.419
+"songs": 3674,
+"song_frac": 0.4195
 },
 {
 "pattern": [
 0.75,
 0.25
 ],
-"songs": 3353,
-"song_frac": 0.3782
+"songs": 3323,
+"song_frac": 0.3794
 },
 {
 "pattern": [
 0.5,
 0.75
 ],
-"songs": 3288,
-"song_frac": 0.3709
+"songs": 3259,
+"song_frac": 0.3721
 },
 {
 "pattern": [
 0.25,
 0.75
 ],
-"songs": 3175,
-"song_frac": 0.3582
+"songs": 3149,
+"song_frac": 0.3596
 },
 {
 "pattern": [
 0.75,
 0.5
 ],
-"songs": 3099,
-"song_frac": 0.3496
+"songs": 3076,
+"song_frac": 0.3512
 },
 {
 "pattern": [
 0.5,
 2.0
 ],
-"songs": 3003,
-"song_frac": 0.3387
+"songs": 2974,
+"song_frac": 0.3396
 },
 {
 "pattern": [
 1.0,
 1.5
 ],
-"songs": 2986,
-"song_frac": 0.3368
+"songs": 2948,
+"song_frac": 0.3366
 },
 {
 "pattern": [
 2.0,
 0.5
 ],
-"songs": 2972,
-"song_frac": 0.3353
+"songs": 2941,
+"song_frac": 0.3358
 },
 {
 "pattern": [
 0.5,
 0.1667
 ],
-"songs": 2968,
-"song_frac": 0.3348
+"songs": 2933,
+"song_frac": 0.3349
 },
 {
 "pattern": [
 1.5,
 1.0
 ],
-"songs": 2906,
+"songs": 2871,
 "song_frac": 0.3278
 },
 {
@@ -7109,168 +7109,168 @@
 0.1667,
 0.5
 ],
-"songs": 2853,
-"song_frac": 0.3218
+"songs": 2820,
+"song_frac": 0.322
 },
 {
 "pattern": [
 1.0,
 0.25
 ],
-"songs": 2684,
-"song_frac": 0.3028
+"songs": 2661,
+"song_frac": 0.3038
 },
 {
 "pattern": [
 0.25,
 1.0
 ],
-"songs": 2611,
-"song_frac": 0.2945
+"songs": 2588,
+"song_frac": 0.2955
 },
 {
 "pattern": [
 2.0,
 1.0
 ],
-"songs": 2609,
-"song_frac": 0.2943
+"songs": 2583,
+"song_frac": 0.2949
 },
 {
 "pattern": [
 1.0,
 2.0
 ],
-"songs": 2536,
-"song_frac": 0.2861
+"songs": 2508,
+"song_frac": 0.2864
 },
 {
 "pattern": [
 0.75,
 0.75
 ],
-"songs": 2366,
-"song_frac": 0.2669
+"songs": 2349,
+"song_frac": 0.2682
 },
 {
 "pattern": [
 2.0,
 2.0
 ],
-"songs": 2355,
-"song_frac": 0.2657
+"songs": 2336,
+"song_frac": 0.2667
 },
 {
 "pattern": [
 0.25,
 0.1667
 ],
-"songs": 2337,
-"song_frac": 0.2636
+"songs": 2314,
+"song_frac": 0.2642
 },
 {
 "pattern": [
 0.1667,
 0.25
 ],
-"songs": 2312,
-"song_frac": 0.2608
-},
-{
-"pattern": [
-0.3333,
-0.5
-],
-"songs": 2212,
-"song_frac": 0.2495
+"songs": 2290,
+"song_frac": 0.2615
 },
 {
 "pattern": [
 2.5,
 0.5
 ],
-"songs": 2209,
-"song_frac": 0.2492
+"songs": 2192,
+"song_frac": 0.2503
+},
+{
+"pattern": [
+0.3333,
+0.5
+],
+"songs": 2188,
+"song_frac": 0.2498
 },
 {
 "pattern": [
 0.5,
 0.3333
 ],
-"songs": 2142,
-"song_frac": 0.2416
+"songs": 2115,
+"song_frac": 0.2415
 },
 {
 "pattern": [
 1.0,
 0.1667
 ],
-"songs": 2136,
-"song_frac": 0.2409
+"songs": 2109,
+"song_frac": 0.2408
 },
 {
 "pattern": [
 0.3333,
 0.1667
 ],
-"songs": 2114,
-"song_frac": 0.2385
+"songs": 2091,
+"song_frac": 0.2388
 },
 {
 "pattern": [
 0.1667,
 1.0
 ],
-"songs": 2102,
-"song_frac": 0.2371
+"songs": 2079,
+"song_frac": 0.2374
 },
 {
 "pattern": [
 0.5,
 2.5
 ],
-"songs": 2049,
-"song_frac": 0.2311
+"songs": 2039,
+"song_frac": 0.2328
 },
 {
 "pattern": [
 0.1667,
 0.3333
 ],
-"songs": 2002,
-"song_frac": 0.2258
+"songs": 1981,
+"song_frac": 0.2262
 },
 {
 "pattern": [
 0.25,
 0.3333
 ],
-"songs": 1971,
-"song_frac": 0.2223
+"songs": 1951,
+"song_frac": 0.2228
 },
 {
 "pattern": [
 1.0,
 0.75
 ],
-"songs": 1964,
-"song_frac": 0.2215
+"songs": 1947,
+"song_frac": 0.2223
 },
 {
 "pattern": [
 0.3333,
 0.3333
 ],
-"songs": 1952,
-"song_frac": 0.2202
+"songs": 1939,
+"song_frac": 0.2214
 },
 {
 "pattern": [
 1.5,
 1.5
 ],
-"songs": 1753,
-"song_frac": 0.1977
+"songs": 1738,
+"song_frac": 0.1984
 },
 {
 "pattern": [
@@ -7278,8 +7278,8 @@
 0.5,
 0.5
 ],
-"songs": 6863,
-"song_frac": 0.7742
+"songs": 6784,
+"song_frac": 0.7746
 },
 {
 "pattern": [
@@ -7287,8 +7287,8 @@
 0.5,
 1.0
 ],
-"songs": 5385,
-"song_frac": 0.6074
+"songs": 5325,
+"song_frac": 0.608
 },
 {
 "pattern": [
@@ -7296,8 +7296,8 @@
 0.5,
 0.5
 ],
-"songs": 5214,
-"song_frac": 0.5882
+"songs": 5153,
+"song_frac": 0.5884
 },
 {
 "pattern": [
@@ -7305,8 +7305,8 @@
 1.0,
 0.5
 ],
-"songs": 4909,
-"song_frac": 0.5538
+"songs": 4853,
+"song_frac": 0.5541
 },
 {
 "pattern": [
@@ -7314,8 +7314,8 @@
 0.25,
 0.5
 ],
-"songs": 4470,
-"song_frac": 0.5042
+"songs": 4427,
+"song_frac": 0.5055
 },
 {
 "pattern": [
@@ -7323,8 +7323,8 @@
 0.25,
 0.25
 ],
-"songs": 4267,
-"song_frac": 0.4813
+"songs": 4229,
+"song_frac": 0.4829
 },
 {
 "pattern": [
@@ -7332,8 +7332,8 @@
 0.25,
 0.25
 ],
-"songs": 4140,
-"song_frac": 0.467
+"songs": 4105,
+"song_frac": 0.4687
 },
 {
 "pattern": [
@@ -7341,8 +7341,8 @@
 0.5,
 0.5
 ],
-"songs": 4121,
-"song_frac": 0.4649
+"songs": 4081,
+"song_frac": 0.466
 },
 {
 "pattern": [
@@ -7350,8 +7350,8 @@
 1.0,
 1.0
 ],
-"songs": 4052,
-"song_frac": 0.4571
+"songs": 3993,
+"song_frac": 0.4559
 },
 {
 "pattern": [
@@ -7359,8 +7359,8 @@
 0.5,
 0.25
 ],
-"songs": 3964,
-"song_frac": 0.4472
+"songs": 3930,
+"song_frac": 0.4487
 },
 {
 "pattern": [
@@ -7368,8 +7368,8 @@
 1.0,
 1.0
 ],
-"songs": 3934,
-"song_frac": 0.4438
+"songs": 3883,
+"song_frac": 0.4434
 },
 {
 "pattern": [
@@ -7377,8 +7377,8 @@
 1.0,
 0.5
 ],
-"songs": 3836,
-"song_frac": 0.4327
+"songs": 3791,
+"song_frac": 0.4329
 },
 {
 "pattern": [
@@ -7386,8 +7386,8 @@
 0.5,
 0.25
 ],
-"songs": 3294,
-"song_frac": 0.3716
+"songs": 3267,
+"song_frac": 0.373
 },
 {
 "pattern": [
@@ -7395,8 +7395,8 @@
 0.5,
 1.0
 ],
-"songs": 3111,
-"song_frac": 0.3509
+"songs": 3076,
+"song_frac": 0.3512
 },
 {
 "pattern": [
@@ -7404,8 +7404,8 @@
 0.5,
 1.5
 ],
-"songs": 3007,
-"song_frac": 0.3392
+"songs": 2982,
+"song_frac": 0.3405
 },
 {
 "pattern": [
@@ -7413,8 +7413,8 @@
 1.5,
 0.5
 ],
-"songs": 2885,
-"song_frac": 0.3254
+"songs": 2857,
+"song_frac": 0.3262
 },
 {
 "pattern": [
@@ -7422,8 +7422,8 @@
 0.5,
 0.5
 ],
-"songs": 2863,
-"song_frac": 0.323
+"songs": 2839,
+"song_frac": 0.3242
 },
 {
 "pattern": [
@@ -7431,8 +7431,8 @@
 0.1667,
 0.1667
 ],
-"songs": 2780,
-"song_frac": 0.3136
+"songs": 2749,
+"song_frac": 0.3139
 },
 {
 "pattern": [
@@ -7440,8 +7440,8 @@
 0.25,
 0.5
 ],
-"songs": 2544,
-"song_frac": 0.287
+"songs": 2521,
+"song_frac": 0.2879
 },
 {
 "pattern": [
@@ -7449,8 +7449,8 @@
 0.5,
 0.5
 ],
-"songs": 2031,
-"song_frac": 0.2291
+"songs": 2009,
+"song_frac": 0.2294
 },
 {
 "pattern": [
@@ -7458,8 +7458,8 @@
 0.5,
 0.75
 ],
-"songs": 2005,
-"song_frac": 0.2262
+"songs": 1988,
+"song_frac": 0.227
 },
 {
 "pattern": [
@@ -7467,8 +7467,8 @@
 0.5,
 0.1667
 ],
-"songs": 1934,
-"song_frac": 0.2182
+"songs": 1919,
+"song_frac": 0.2191
 },
 {
 "pattern": [
@@ -7476,8 +7476,8 @@
 0.5,
 2.0
 ],
-"songs": 1927,
-"song_frac": 0.2174
+"songs": 1907,
+"song_frac": 0.2177
 },
 {
 "pattern": [
@@ -7485,8 +7485,8 @@
 0.25,
 0.25
 ],
-"songs": 1919,
-"song_frac": 0.2165
+"songs": 1901,
+"song_frac": 0.2171
 },
 {
 "pattern": [
@@ -7494,8 +7494,17 @@
 0.75,
 0.25
 ],
-"songs": 1809,
-"song_frac": 0.2041
+"songs": 1798,
+"song_frac": 0.2053
+},
+{
+"pattern": [
+0.25,
+0.25,
+0.75
+],
+"songs": 1778,
+"song_frac": 0.203
 },
 {
 "pattern": [
@@ -7503,17 +7512,8 @@
 0.5,
 0.5
 ],
-"songs": 1790,
-"song_frac": 0.2019
-},
-{
-"pattern": [
-0.25,
-0.25,
-0.75
-],
-"songs": 1787,
-"song_frac": 0.2016
+"songs": 1774,
+"song_frac": 0.2026
 },
 {
 "pattern": [
@@ -7521,8 +7521,8 @@
 0.25,
 1.0
 ],
-"songs": 1776,
-"song_frac": 0.2003
+"songs": 1762,
+"song_frac": 0.2012
 },
 {
 "pattern": [
@@ -7530,8 +7530,8 @@
 0.25,
 0.25
 ],
-"songs": 1739,
-"song_frac": 0.1962
+"songs": 1729,
+"song_frac": 0.1974
 },
 {
 "pattern": [
@@ -7539,8 +7539,8 @@
 0.25,
 0.5
 ],
-"songs": 1725,
-"song_frac": 0.1946
+"songs": 1711,
+"song_frac": 0.1954
 },
 {
 "pattern": [
@@ -7548,8 +7548,8 @@
 0.25,
 0.75
 ],
-"songs": 1704,
-"song_frac": 0.1922
+"songs": 1692,
+"song_frac": 0.1932
 },
 {
 "pattern": [
@@ -7557,8 +7557,17 @@
 0.5,
 0.5
 ],
-"songs": 1629,
-"song_frac": 0.1838
+"songs": 1617,
+"song_frac": 0.1846
+},
+{
+"pattern": [
+0.5,
+0.75,
+0.25
+],
+"songs": 1604,
+"song_frac": 0.1831
 },
 {
 "pattern": [
@@ -7566,17 +7575,8 @@
 1.5,
 0.5
 ],
-"songs": 1619,
-"song_frac": 0.1826
-},
-{
-"pattern": [
-0.5,
-0.75,
-0.25
-],
-"songs": 1617,
-"song_frac": 0.1824
+"songs": 1601,
+"song_frac": 0.1828
 },
 {
 "pattern": [
@@ -7584,8 +7584,8 @@
 0.5,
 1.0
 ],
-"songs": 1588,
-"song_frac": 0.1791
+"songs": 1574,
+"song_frac": 0.1797
 },
 {
 "pattern": [
@@ -7593,8 +7593,8 @@
 0.1667,
 0.1667
 ],
-"songs": 1583,
-"song_frac": 0.1786
+"songs": 1570,
+"song_frac": 0.1793
 },
 {
 "pattern": [
@@ -7602,8 +7602,8 @@
 1.0,
 0.5
 ],
-"songs": 1557,
-"song_frac": 0.1756
+"songs": 1540,
+"song_frac": 0.1758
 },
 {
 "pattern": [
@@ -7611,8 +7611,8 @@
 1.0,
 1.5
 ],
-"songs": 1549,
-"song_frac": 0.1747
+"songs": 1534,
+"song_frac": 0.1752
 },
 {
 "pattern": [
@@ -7620,227 +7620,227 @@
 1.0,
 1.0
 ],
-"songs": 1537,
-"song_frac": 0.1734
+"songs": 1524,
+"song_frac": 0.174
+},
+{
+"pattern": [
+2.5,
+0.5,
+0.5
+],
+"songs": 1502,
+"song_frac": 0.1715
+},
+{
+"pattern": [
+0.5,
+0.5,
+0.5,
+0.5
+],
+"songs": 5936,
+"song_frac": 0.6778
+},
+{
+"pattern": [
+0.5,
+0.5,
+0.5,
+1.0
+],
+"songs": 4371,
+"song_frac": 0.4991
 },
 {
 "pattern": [
 1.0,
+0.5,
+0.5,
+0.5
+],
+"songs": 4161,
+"song_frac": 0.4751
+},
+{
+"pattern": [
+0.5,
+0.5,
+1.0,
+0.5
+],
+"songs": 4038,
+"song_frac": 0.4611
+},
+{
+"pattern": [
+0.5,
+1.0,
+0.5,
+0.5
+],
+"songs": 3957,
+"song_frac": 0.4518
+},
+{
+"pattern": [
+0.25,
+0.25,
+0.25,
+0.25
+],
+"songs": 3606,
+"song_frac": 0.4117
+},
+{
+"pattern": [
+0.25,
+0.25,
+0.5,
+0.5
+],
+"songs": 3215,
+"song_frac": 0.3671
+},
+{
+"pattern": [
+0.25,
+0.5,
+0.5,
+0.5
+],
+"songs": 3021,
+"song_frac": 0.3449
+},
+{
+"pattern": [
+0.5,
+0.5,
+0.25,
+0.25
+],
+"songs": 2938,
+"song_frac": 0.3355
+},
+{
+"pattern": [
+0.5,
+0.5,
+0.5,
+0.25
+],
+"songs": 2930,
+"song_frac": 0.3346
+},
+{
+"pattern": [
+0.25,
+0.25,
+0.25,
+0.5
+],
+"songs": 2914,
+"song_frac": 0.3327
+},
+{
+"pattern": [
+0.5,
+0.5,
+1.0,
+1.0
+],
+"songs": 2835,
+"song_frac": 0.3237
+},
+{
+"pattern": [
+1.0,
+1.0,
+1.0,
+1.0
+],
+"songs": 2822,
+"song_frac": 0.3222
+},
+{
+"pattern": [
+0.5,
+0.25,
+0.25,
+0.5
+],
+"songs": 2806,
+"song_frac": 0.3204
+},
+{
+"pattern": [
+1.0,
+1.0,
+0.5,
+0.5
+],
+"songs": 2734,
+"song_frac": 0.3122
+},
+{
+"pattern": [
+0.5,
+0.25,
+0.25,
+0.25
+],
+"songs": 2723,
+"song_frac": 0.3109
+},
+{
+"pattern": [
+0.25,
+0.25,
+0.5,
+0.25
+],
+"songs": 2624,
+"song_frac": 0.2996
+},
+{
+"pattern": [
+1.0,
+0.5,
+0.5,
+1.0
+],
+"songs": 2503,
+"song_frac": 0.2858
+},
+{
+"pattern": [
+0.25,
+0.5,
+0.25,
+0.25
+],
+"songs": 2494,
+"song_frac": 0.2848
+},
+{
+"pattern": [
+1.0,
+1.0,
+1.0,
+0.5
+],
+"songs": 2179,
+"song_frac": 0.2488
+},
+{
+"pattern": [
+0.5,
+0.5,
 0.5,
 1.5
 ],
-"songs": 1513,
-"song_frac": 0.1707
-},
-{
-"pattern": [
-0.5,
-0.5,
-0.5,
-0.5
-],
-"songs": 6002,
-"song_frac": 0.677
-},
-{
-"pattern": [
-0.5,
-0.5,
-0.5,
-1.0
-],
-"songs": 4415,
-"song_frac": 0.498
-},
-{
-"pattern": [
-1.0,
-0.5,
-0.5,
-0.5
-],
-"songs": 4209,
-"song_frac": 0.4748
-},
-{
-"pattern": [
-0.5,
-0.5,
-1.0,
-0.5
-],
-"songs": 4080,
-"song_frac": 0.4602
-},
-{
-"pattern": [
-0.5,
-1.0,
-0.5,
-0.5
-],
-"songs": 4001,
-"song_frac": 0.4513
-},
-{
-"pattern": [
-0.25,
-0.25,
-0.25,
-0.25
-],
-"songs": 3635,
-"song_frac": 0.41
-},
-{
-"pattern": [
-0.25,
-0.25,
-0.5,
-0.5
-],
-"songs": 3242,
-"song_frac": 0.3657
-},
-{
-"pattern": [
-0.25,
-0.5,
-0.5,
-0.5
-],
-"songs": 3049,
-"song_frac": 0.3439
-},
-{
-"pattern": [
-0.5,
-0.5,
-0.25,
-0.25
-],
-"songs": 2960,
-"song_frac": 0.3339
-},
-{
-"pattern": [
-0.5,
-0.5,
-0.5,
-0.25
-],
-"songs": 2955,
-"song_frac": 0.3333
-},
-{
-"pattern": [
-0.25,
-0.25,
-0.25,
-0.5
-],
-"songs": 2933,
-"song_frac": 0.3309
-},
-{
-"pattern": [
-0.5,
-0.5,
-1.0,
-1.0
-],
-"songs": 2869,
-"song_frac": 0.3236
-},
-{
-"pattern": [
-1.0,
-1.0,
-1.0,
-1.0
-],
-"songs": 2854,
-"song_frac": 0.3219
-},
-{
-"pattern": [
-0.5,
-0.25,
-0.25,
-0.5
-],
-"songs": 2832,
-"song_frac": 0.3195
-},
-{
-"pattern": [
-1.0,
-1.0,
-0.5,
-0.5
-],
-"songs": 2762,
-"song_frac": 0.3116
-},
-{
-"pattern": [
-0.5,
-0.25,
-0.25,
-0.25
-],
-"songs": 2744,
-"song_frac": 0.3095
-},
-{
-"pattern": [
-0.25,
-0.25,
-0.5,
-0.25
-],
-"songs": 2644,
-"song_frac": 0.2983
-},
-{
-"pattern": [
-1.0,
-0.5,
-0.5,
-1.0
-],
-"songs": 2528,
-"song_frac": 0.2852
-},
-{
-"pattern": [
-0.25,
-0.5,
-0.25,
-0.25
-],
-"songs": 2513,
-"song_frac": 0.2835
-},
-{
-"pattern": [
-1.0,
-1.0,
-1.0,
-0.5
-],
-"songs": 2205,
-"song_frac": 0.2487
-},
-{
-"pattern": [
-0.5,
-0.5,
-0.5,
-1.5
-],
-"songs": 2188,
-"song_frac": 0.2468
+"songs": 2169,
+"song_frac": 0.2477
 },
 {
 "pattern": [
@@ -7849,8 +7849,8 @@
 1.0,
 1.0
 ],
-"songs": 2188,
-"song_frac": 0.2468
+"songs": 2160,
+"song_frac": 0.2466
 },
 {
 "pattern": [
@@ -7859,8 +7859,8 @@
 1.0,
 0.5
 ],
-"songs": 2167,
-"song_frac": 0.2444
+"songs": 2142,
+"song_frac": 0.2446
 },
 {
 "pattern": [
@@ -7869,8 +7869,8 @@
 0.5,
 1.0
 ],
-"songs": 2158,
-"song_frac": 0.2434
+"songs": 2134,
+"song_frac": 0.2437
 },
 {
 "pattern": [
@@ -7879,8 +7879,8 @@
 0.5,
 0.5
 ],
-"songs": 2091,
-"song_frac": 0.2359
+"songs": 2076,
+"song_frac": 0.237
 },
 {
 "pattern": [
@@ -7889,8 +7889,8 @@
 1.0,
 0.5
 ],
-"songs": 2063,
-"song_frac": 0.2327
+"songs": 2042,
+"song_frac": 0.2332
 },
 {
 "pattern": [
@@ -7899,18 +7899,8 @@
 0.1667,
 0.1667
 ],
-"songs": 1900,
-"song_frac": 0.2143
-},
-{
-"pattern": [
-0.5,
-0.5,
-1.5,
-0.5
-],
-"songs": 1820,
-"song_frac": 0.2053
+"songs": 1882,
+"song_frac": 0.2149
 },
 {
 "pattern": [
@@ -7919,8 +7909,18 @@
 0.5,
 0.25
 ],
-"songs": 1815,
-"song_frac": 0.2047
+"songs": 1807,
+"song_frac": 0.2063
+},
+{
+"pattern": [
+0.5,
+0.5,
+1.5,
+0.5
+],
+"songs": 1804,
+"song_frac": 0.206
 },
 {
 "pattern": [
@@ -7929,8 +7929,8 @@
 0.25,
 0.5
 ],
-"songs": 1813,
-"song_frac": 0.2045
+"songs": 1800,
+"song_frac": 0.2055
 },
 {
 "pattern": [
@@ -7939,8 +7939,8 @@
 0.5,
 0.25
 ],
-"songs": 1769,
-"song_frac": 0.1995
+"songs": 1754,
+"song_frac": 0.2003
 },
 {
 "pattern": [
@@ -7949,8 +7949,8 @@
 0.5,
 0.5
 ],
-"songs": 1715,
-"song_frac": 0.1935
+"songs": 1702,
+"song_frac": 0.1943
 },
 {
 "pattern": [
@@ -7959,7 +7959,17 @@
 0.5,
 0.5
 ],
-"songs": 1400,
+"songs": 1393,
+"song_frac": 0.1591
+},
+{
+"pattern": [
+0.5,
+0.5,
+0.25,
+0.5
+],
+"songs": 1383,
 "song_frac": 0.1579
 },
 {
@@ -7969,18 +7979,8 @@
 0.5,
 0.5
 ],
-"songs": 1395,
-"song_frac": 0.1574
-},
-{
-"pattern": [
-0.5,
-0.5,
-0.25,
-0.5
-],
-"songs": 1392,
-"song_frac": 0.157
+"songs": 1383,
+"song_frac": 0.1579
 },
 {
 "pattern": [
@@ -7989,8 +7989,8 @@
 1.0,
 1.0
 ],
-"songs": 1389,
-"song_frac": 0.1567
+"songs": 1374,
+"song_frac": 0.1569
 },
 {
 "pattern": [
@@ -7999,8 +7999,8 @@
 0.5,
 0.1667
 ],
-"songs": 1374,
-"song_frac": 0.155
+"songs": 1363,
+"song_frac": 0.1556
 },
 {
 "pattern": [
@@ -8009,8 +8009,8 @@
 0.5,
 1.0
 ],
-"songs": 1362,
-"song_frac": 0.1536
+"songs": 1352,
+"song_frac": 0.1544
 },
 {
 "pattern": [
@@ -8019,8 +8019,8 @@
 0.5,
 2.0
 ],
-"songs": 1270,
-"song_frac": 0.1433
+"songs": 1259,
+"song_frac": 0.1438
 },
 {
 "pattern": [
@@ -8029,8 +8029,8 @@
 0.25,
 0.75
 ],
-"songs": 1248,
-"song_frac": 0.1408
+"songs": 1240,
+"song_frac": 0.1416
 },
 {
 "pattern": [
@@ -8040,8 +8040,8 @@
 0.5,
 0.5
 ],
-"songs": 5264,
-"song_frac": 0.5938
+"songs": 5204,
+"song_frac": 0.5942
 },
 {
 "pattern": [
@@ -8051,8 +8051,8 @@
 0.5,
 1.0
 ],
-"songs": 3568,
-"song_frac": 0.4025
+"songs": 3535,
+"song_frac": 0.4036
 },
 {
 "pattern": [
@@ -8062,8 +8062,8 @@
 0.5,
 0.5
 ],
-"songs": 3389,
-"song_frac": 0.3823
+"songs": 3350,
+"song_frac": 0.3825
 },
 {
 "pattern": [
@@ -8073,8 +8073,8 @@
 0.5,
 0.5
 ],
-"songs": 3278,
-"song_frac": 0.3698
+"songs": 3245,
+"song_frac": 0.3705
 },
 {
 "pattern": [
@@ -8084,8 +8084,8 @@
 1.0,
 0.5
 ],
-"songs": 3193,
-"song_frac": 0.3602
+"songs": 3164,
+"song_frac": 0.3613
 },
 {
 "pattern": [
@@ -8095,8 +8095,8 @@
 0.5,
 0.5
 ],
-"songs": 3038,
-"song_frac": 0.3427
+"songs": 3010,
+"song_frac": 0.3437
 },
 {
 "pattern": [
@@ -8106,8 +8106,8 @@
 0.25,
 0.25
 ],
-"songs": 2949,
-"song_frac": 0.3327
+"songs": 2927,
+"song_frac": 0.3342
 },
 {
 "pattern": [
@@ -8117,8 +8117,8 @@
 0.25,
 0.5
 ],
-"songs": 2383,
-"song_frac": 0.2688
+"songs": 2367,
+"song_frac": 0.2703
 },
 {
 "pattern": [
@@ -8128,8 +8128,8 @@
 0.25,
 0.25
 ],
-"songs": 2255,
-"song_frac": 0.2544
+"songs": 2240,
+"song_frac": 0.2558
 },
 {
 "pattern": [
@@ -8139,8 +8139,8 @@
 0.5,
 0.5
 ],
-"songs": 2211,
-"song_frac": 0.2494
+"songs": 2196,
+"song_frac": 0.2507
 },
 {
 "pattern": [
@@ -8150,8 +8150,8 @@
 0.25,
 0.25
 ],
-"songs": 2058,
-"song_frac": 0.2321
+"songs": 2041,
+"song_frac": 0.233
 },
 {
 "pattern": [
@@ -8161,8 +8161,8 @@
 0.25,
 0.25
 ],
-"songs": 2020,
-"song_frac": 0.2279
+"songs": 2006,
+"song_frac": 0.229
 },
 {
 "pattern": [
@@ -8172,8 +8172,8 @@
 0.5,
 0.5
 ],
-"songs": 2007,
-"song_frac": 0.2264
+"songs": 1990,
+"song_frac": 0.2272
 },
 {
 "pattern": [
@@ -8183,8 +8183,8 @@
 1.0,
 1.0
 ],
-"songs": 2007,
-"song_frac": 0.2264
+"songs": 1988,
+"song_frac": 0.227
 },
 {
 "pattern": [
@@ -8194,8 +8194,8 @@
 0.5,
 0.25
 ],
-"songs": 1991,
-"song_frac": 0.2246
+"songs": 1976,
+"song_frac": 0.2256
 },
 {
 "pattern": [
@@ -8205,8 +8205,8 @@
 1.0,
 1.0
 ],
-"songs": 1981,
-"song_frac": 0.2235
+"songs": 1959,
+"song_frac": 0.2237
 },
 {
 "pattern": [
@@ -8216,8 +8216,8 @@
 0.5,
 0.5
 ],
-"songs": 1949,
-"song_frac": 0.2199
+"songs": 1928,
+"song_frac": 0.2201
 },
 {
 "pattern": [
@@ -8227,8 +8227,8 @@
 0.5,
 0.25
 ],
-"songs": 1785,
-"song_frac": 0.2014
+"songs": 1773,
+"song_frac": 0.2024
 },
 {
 "pattern": [
@@ -8238,8 +8238,8 @@
 0.25,
 0.25
 ],
-"songs": 1710,
-"song_frac": 0.1929
+"songs": 1697,
+"song_frac": 0.1938
 },
 {
 "pattern": [
@@ -8249,8 +8249,8 @@
 0.5,
 0.5
 ],
-"songs": 1693,
-"song_frac": 0.191
+"songs": 1682,
+"song_frac": 0.1921
 },
 {
 "pattern": [
@@ -8259,31 +8259,31 @@
 0.5,
 0.5,
 1.0
-],
-"songs": 1691,
-"song_frac": 0.1908
-},
-{
-"pattern": [
-1.0,
-0.5,
-0.5,
-1.0,
-0.5
-],
-"songs": 1680,
-"song_frac": 0.1895
-},
-{
-"pattern": [
-0.5,
-0.25,
-0.25,
-0.5,
-0.5
 ],
 "songs": 1676,
-"song_frac": 0.1891
+"song_frac": 0.1914
+},
+{
+"pattern": [
+0.5,
+0.25,
+0.25,
+0.5,
+0.5
+],
+"songs": 1664,
+"song_frac": 0.19
+},
+{
+"pattern": [
+1.0,
+0.5,
+0.5,
+1.0,
+0.5
+],
+"songs": 1662,
+"song_frac": 0.1898
 },
 {
 "pattern": [
@@ -8293,8 +8293,8 @@
 0.25,
 0.5
 ],
-"songs": 1625,
-"song_frac": 0.1833
+"songs": 1610,
+"song_frac": 0.1838
 },
 {
 "pattern": [
@@ -8304,19 +8304,8 @@
 0.25,
 0.25
 ],
-"songs": 1547,
-"song_frac": 0.1745
-},
-{
-"pattern": [
-0.5,
-0.5,
-1.0,
-1.0,
-0.5
-],
-"songs": 1483,
-"song_frac": 0.1673
+"songs": 1539,
+"song_frac": 0.1757
 },
 {
 "pattern": [
@@ -8326,8 +8315,19 @@
 0.5,
 1.5
 ],
-"songs": 1482,
-"song_frac": 0.1672
+"songs": 1468,
+"song_frac": 0.1676
+},
+{
+"pattern": [
+0.5,
+0.5,
+1.0,
+1.0,
+0.5
+],
+"songs": 1465,
+"song_frac": 0.1673
 },
 {
 "pattern": [
@@ -8336,20 +8336,20 @@
 1.0,
 0.5,
 0.5
-],
-"songs": 1474,
-"song_frac": 0.1663
-},
-{
-"pattern": [
-0.5,
-0.5,
-1.0,
-1.0,
-1.0
 ],
 "songs": 1461,
-"song_frac": 0.1648
+"song_frac": 0.1668
+},
+{
+"pattern": [
+0.5,
+0.5,
+1.0,
+1.0,
+1.0
+],
+"songs": 1440,
+"song_frac": 0.1644
 },
 {
 "pattern": [
@@ -8359,8 +8359,8 @@
 0.5,
 0.5
 ],
-"songs": 1447,
-"song_frac": 0.1632
+"songs": 1430,
+"song_frac": 0.1633
 },
 {
 "pattern": [
@@ -8370,8 +8370,8 @@
 0.5,
 1.0
 ],
-"songs": 1433,
-"song_frac": 0.1616
+"songs": 1418,
+"song_frac": 0.1619
 },
 {
 "pattern": [
@@ -8381,8 +8381,8 @@
 0.5,
 1.0
 ],
-"songs": 1416,
-"song_frac": 0.1597
+"songs": 1403,
+"song_frac": 0.1602
 },
 {
 "pattern": [
@@ -8392,8 +8392,8 @@
 0.25,
 0.5
 ],
-"songs": 1396,
-"song_frac": 0.1575
+"songs": 1384,
+"song_frac": 0.158
 },
 {
 "pattern": [
@@ -8403,8 +8403,8 @@
 0.5,
 0.5
 ],
-"songs": 1379,
-"song_frac": 0.1556
+"songs": 1365,
+"song_frac": 0.1559
 },
 {
 "pattern": [
@@ -8414,19 +8414,8 @@
 0.5,
 0.5
 ],
-"songs": 1368,
-"song_frac": 0.1543
-},
-{
-"pattern": [
-0.5,
-0.25,
-0.25,
-0.5,
-0.25
-],
-"songs": 1357,
-"song_frac": 0.1531
+"songs": 1363,
+"song_frac": 0.1556
 },
 {
 "pattern": [
@@ -8436,19 +8425,30 @@
 0.1667,
 0.1667
 ],
-"songs": 1356,
-"song_frac": 0.153
+"songs": 1344,
+"song_frac": 0.1535
 },
 {
 "pattern": [
 0.5,
-1.0,
+0.25,
+0.25,
 0.5,
-1.0,
-0.5
+0.25
 ],
 "songs": 1343,
-"song_frac": 0.1515
+"song_frac": 0.1533
+},
+{
+"pattern": [
+0.5,
+1.0,
+0.5,
+1.0,
+0.5
+],
+"songs": 1334,
+"song_frac": 0.1523
 },
 {
 "pattern": [
@@ -8458,8 +8458,8 @@
 1.5,
 0.5
 ],
-"songs": 1247,
-"song_frac": 0.1407
+"songs": 1238,
+"song_frac": 0.1414
 },
 {
 "pattern": [
@@ -8469,8 +8469,8 @@
 0.5,
 0.5
 ],
-"songs": 1208,
-"song_frac": 0.1363
+"songs": 1201,
+"song_frac": 0.1371
 }
 ],
 "figures": [
@@ -8483,8 +8483,8 @@
 0.5,
 0.5
 ],
-"songs": 4924,
-"song_frac": 0.5554
+"songs": 4868,
+"song_frac": 0.5558
 },
 {
 "intervals": [
@@ -8495,8 +8495,8 @@
 0.25,
 0.25
 ],
-"songs": 3002,
-"song_frac": 0.3386
+"songs": 2977,
+"song_frac": 0.3399
 },
 {
 "intervals": [
@@ -8507,8 +8507,8 @@
 1.0,
 1.0
 ],
-"songs": 2988,
-"song_frac": 0.3371
+"songs": 2944,
+"song_frac": 0.3361
 },
 {
 "intervals": [
@@ -8519,8 +8519,8 @@
 0.5,
 0.5
 ],
-"songs": 2939,
-"song_frac": 0.3315
+"songs": 2909,
+"song_frac": 0.3322
 },
 {
 "intervals": [
@@ -8531,8 +8531,8 @@
 1.0,
 0.5
 ],
-"songs": 2910,
-"song_frac": 0.3283
+"songs": 2874,
+"song_frac": 0.3282
 },
 {
 "intervals": [
@@ -8543,8 +8543,8 @@
 0.5,
 0.5
 ],
-"songs": 2809,
-"song_frac": 0.3169
+"songs": 2784,
+"song_frac": 0.3179
 },
 {
 "intervals": [
@@ -8555,8 +8555,8 @@
 0.5,
 0.5
 ],
-"songs": 2802,
-"song_frac": 0.3161
+"songs": 2774,
+"song_frac": 0.3167
 },
 {
 "intervals": [
@@ -8567,8 +8567,8 @@
 0.5,
 1.0
 ],
-"songs": 2709,
-"song_frac": 0.3056
+"songs": 2673,
+"song_frac": 0.3052
 },
 {
 "intervals": [
@@ -8579,8 +8579,8 @@
 0.5,
 0.5
 ],
-"songs": 2570,
-"song_frac": 0.2899
+"songs": 2546,
+"song_frac": 0.2907
 },
 {
 "intervals": [
@@ -8591,8 +8591,8 @@
 0.5,
 0.5
 ],
-"songs": 2527,
-"song_frac": 0.2851
+"songs": 2508,
+"song_frac": 0.2864
 },
 {
 "intervals": [
@@ -8603,8 +8603,8 @@
 0.5,
 0.25
 ],
-"songs": 2493,
-"song_frac": 0.2812
+"songs": 2473,
+"song_frac": 0.2824
 },
 {
 "intervals": [
@@ -8615,7 +8615,7 @@
 0.5,
 0.5
 ],
-"songs": 2470,
+"songs": 2440,
 "song_frac": 0.2786
 },
 {
@@ -8627,8 +8627,8 @@
 0.5,
 0.5
 ],
-"songs": 2437,
-"song_frac": 0.2749
+"songs": 2411,
+"song_frac": 0.2753
 },
 {
 "intervals": [
@@ -8639,8 +8639,8 @@
 0.25,
 0.5
 ],
-"songs": 2421,
-"song_frac": 0.2731
+"songs": 2402,
+"song_frac": 0.2743
 },
 {
 "intervals": [
@@ -8651,8 +8651,8 @@
 0.5,
 0.5
 ],
-"songs": 2216,
-"song_frac": 0.25
+"songs": 2197,
+"song_frac": 0.2509
 },
 {
 "intervals": [
@@ -8663,8 +8663,8 @@
 0.5,
 0.5
 ],
-"songs": 2059,
-"song_frac": 0.2323
+"songs": 2042,
+"song_frac": 0.2332
 },
 {
 "intervals": [
@@ -8675,8 +8675,8 @@
 0.5,
 0.5
 ],
-"songs": 2005,
-"song_frac": 0.2262
+"songs": 1987,
+"song_frac": 0.2269
 },
 {
 "intervals": [
@@ -8687,8 +8687,8 @@
 0.5,
 0.5
 ],
-"songs": 1988,
-"song_frac": 0.2243
+"songs": 1968,
+"song_frac": 0.2247
 },
 {
 "intervals": [
@@ -8699,8 +8699,8 @@
 0.25,
 0.25
 ],
-"songs": 1826,
-"song_frac": 0.206
+"songs": 1817,
+"song_frac": 0.2075
 },
 {
 "intervals": [
@@ -8711,8 +8711,8 @@
 0.25,
 0.25
 ],
-"songs": 1821,
-"song_frac": 0.2054
+"songs": 1808,
+"song_frac": 0.2064
 },
 {
 "intervals": [
@@ -8725,7 +8725,7 @@
 0.5,
 0.5
 ],
-"songs": 3342,
+"songs": 3302,
 "song_frac": 0.377
 },
 {
@@ -8739,8 +8739,8 @@
 0.25,
 0.25
 ],
-"songs": 1938,
-"song_frac": 0.2186
+"songs": 1928,
+"song_frac": 0.2201
 },
 {
 "intervals": [
@@ -8753,8 +8753,8 @@
 1.0,
 1.0
 ],
-"songs": 1672,
-"song_frac": 0.1886
+"songs": 1648,
+"song_frac": 0.1882
 },
 {
 "intervals": [
@@ -8767,8 +8767,8 @@
 0.5,
 0.5
 ],
-"songs": 1522,
-"song_frac": 0.1717
+"songs": 1508,
+"song_frac": 0.1722
 },
 {
 "intervals": [
@@ -8781,8 +8781,8 @@
 0.5,
 0.5
 ],
-"songs": 1475,
-"song_frac": 0.1664
+"songs": 1462,
+"song_frac": 0.1669
 },
 {
 "intervals": [
@@ -8795,8 +8795,8 @@
 0.25,
 0.25
 ],
-"songs": 1458,
-"song_frac": 0.1645
+"songs": 1449,
+"song_frac": 0.1654
 },
 {
 "intervals": [
@@ -8809,8 +8809,8 @@
 0.25,
 0.5
 ],
-"songs": 1450,
-"song_frac": 0.1636
+"songs": 1441,
+"song_frac": 0.1645
 },
 {
 "intervals": [
@@ -8823,8 +8823,8 @@
 0.5,
 0.5
 ],
-"songs": 1377,
-"song_frac": 0.1553
+"songs": 1365,
+"song_frac": 0.1559
 },
 {
 "intervals": [
@@ -8837,8 +8837,8 @@
 0.5,
 1.0
 ],
-"songs": 1277,
-"song_frac": 0.144
+"songs": 1266,
+"song_frac": 0.1446
 },
 {
 "intervals": [
@@ -8851,8 +8851,8 @@
 1.0,
 0.5
 ],
-"songs": 1248,
-"song_frac": 0.1408
+"songs": 1238,
+"song_frac": 0.1414
 },
 {
 "intervals": [
@@ -8865,8 +8865,8 @@
 0.5,
 0.25
 ],
-"songs": 1246,
-"song_frac": 0.1406
+"songs": 1237,
+"song_frac": 0.1412
 },
 {
 "intervals": [
@@ -8879,8 +8879,8 @@
 0.5,
 0.5
 ],
-"songs": 1064,
-"song_frac": 0.12
+"songs": 1054,
+"song_frac": 0.1203
 },
 {
 "intervals": [
@@ -8893,8 +8893,8 @@
 0.5,
 0.5
 ],
-"songs": 1058,
-"song_frac": 0.1193
+"songs": 1050,
+"song_frac": 0.1199
 },
 {
 "intervals": [
@@ -8907,8 +8907,8 @@
 0.5,
 0.5
 ],
-"songs": 1030,
-"song_frac": 0.1162
+"songs": 1026,
+"song_frac": 0.1172
 },
 {
 "intervals": [
@@ -8921,8 +8921,8 @@
 0.5,
 0.25
 ],
-"songs": 1028,
-"song_frac": 0.116
+"songs": 1022,
+"song_frac": 0.1167
 },
 {
 "intervals": [
@@ -8935,8 +8935,8 @@
 0.5,
 0.5
 ],
-"songs": 955,
-"song_frac": 0.1077
+"songs": 948,
+"song_frac": 0.1082
 },
 {
 "intervals": [
@@ -8949,8 +8949,8 @@
 1.0,
 0.5
 ],
-"songs": 939,
-"song_frac": 0.1059
+"songs": 927,
+"song_frac": 0.1058
 },
 {
 "intervals": [
@@ -8963,7 +8963,7 @@
 0.5,
 0.5
 ],
-"songs": 911,
+"songs": 900,
 "song_frac": 0.1028
 },
 {
@@ -8977,8 +8977,8 @@
 0.5,
 0.5
 ],
-"songs": 898,
-"song_frac": 0.1013
+"songs": 891,
+"song_frac": 0.1017
 },
 {
 "intervals": [
@@ -8991,7 +8991,7 @@
 0.5,
 0.5
 ],
-"songs": 835,
+"songs": 825,
 "song_frac": 0.0942
 },
 {
@@ -9007,8 +9007,8 @@
 0.5,
 0.5
 ],
-"songs": 2393,
-"song_frac": 0.2699
+"songs": 2362,
+"song_frac": 0.2697
 },
 {
 "intervals": [
@@ -9023,8 +9023,8 @@
 0.25,
 0.25
 ],
-"songs": 1425,
-"song_frac": 0.1607
+"songs": 1418,
+"song_frac": 0.1619
 },
 {
 "intervals": [
@@ -9039,8 +9039,8 @@
 1.0,
 1.0
 ],
-"songs": 966,
-"song_frac": 0.109
+"songs": 951,
+"song_frac": 0.1086
 },
 {
 "intervals": [
@@ -9055,8 +9055,8 @@
 0.5,
 0.5
 ],
-"songs": 878,
-"song_frac": 0.099
+"songs": 871,
+"song_frac": 0.0995
 },
 {
 "intervals": [
@@ -9071,8 +9071,8 @@
 0.5,
 0.5
 ],
-"songs": 849,
-"song_frac": 0.0958
+"songs": 840,
+"song_frac": 0.0959
 },
 {
 "intervals": [
@@ -9087,8 +9087,8 @@
 0.5,
 0.5
 ],
-"songs": 837,
-"song_frac": 0.0944
+"songs": 830,
+"song_frac": 0.0948
 },
 {
 "intervals": [
@@ -9103,8 +9103,8 @@
 0.5,
 0.25
 ],
-"songs": 756,
-"song_frac": 0.0853
+"songs": 750,
+"song_frac": 0.0856
 },
 {
 "intervals": [
@@ -9119,8 +9119,8 @@
 0.25,
 0.25
 ],
-"songs": 741,
-"song_frac": 0.0836
+"songs": 734,
+"song_frac": 0.0838
 },
 {
 "intervals": [
@@ -9135,8 +9135,8 @@
 0.25,
 0.25
 ],
-"songs": 731,
-"song_frac": 0.0825
+"songs": 728,
+"song_frac": 0.0831
 },
 {
 "intervals": [
@@ -9151,8 +9151,8 @@
 0.5,
 1.0
 ],
-"songs": 718,
-"song_frac": 0.081
+"songs": 712,
+"song_frac": 0.0813
 },
 {
 "intervals": [
@@ -9167,8 +9167,8 @@
 0.5,
 0.5
 ],
-"songs": 707,
-"song_frac": 0.0798
+"songs": 704,
+"song_frac": 0.0804
 },
 {
 "intervals": [
@@ -9183,8 +9183,24 @@
 1.0,
 0.5
 ],
-"songs": 684,
-"song_frac": 0.0772
+"songs": 680,
+"song_frac": 0.0776
+},
+{
+"intervals": [
+0,
+0,
+0,
+0
+],
+"gaps": [
+0.25,
+0.25,
+0.25,
+0.5
+],
+"songs": 669,
+"song_frac": 0.0764
 },
 {
 "intervals": [
@@ -9199,24 +9215,8 @@
 0.25,
 0.5
 ],
-"songs": 675,
-"song_frac": 0.0761
-},
-{
-"intervals": [
-0,
-0,
-0,
-0
-],
-"gaps": [
-0.25,
-0.25,
-0.25,
-0.5
-],
-"songs": 671,
-"song_frac": 0.0757
+"songs": 668,
+"song_frac": 0.0763
 },
 {
 "intervals": [
@@ -9231,8 +9231,8 @@
 0.5,
 0.5
 ],
-"songs": 659,
-"song_frac": 0.0743
+"songs": 654,
+"song_frac": 0.0747
 },
 {
 "intervals": [
@@ -9247,8 +9247,8 @@
 0.5,
 0.5
 ],
-"songs": 604,
-"song_frac": 0.0681
+"songs": 598,
+"song_frac": 0.0683
 },
 {
 "intervals": [
@@ -9263,8 +9263,24 @@
 0.5,
 0.5
 ],
-"songs": 585,
-"song_frac": 0.066
+"songs": 581,
+"song_frac": 0.0663
+},
+{
+"intervals": [
+0,
+2,
+0,
+0
+],
+"gaps": [
+0.5,
+0.5,
+0.5,
+0.5
+],
+"songs": 548,
+"song_frac": 0.0626
 },
 {
 "intervals": [
@@ -9279,40 +9295,24 @@
 0.5,
 0.5
 ],
-"songs": 549,
-"song_frac": 0.0619
+"songs": 546,
+"song_frac": 0.0623
 },
 {
 "intervals": [
 0,
-2,
+0,
 0,
 0
 ],
 "gaps": [
 0.5,
 0.5,
-0.5,
-0.5
+0.25,
+0.25
 ],
-"songs": 549,
-"song_frac": 0.0619
-},
-{
-"intervals": [
-0,
-0,
-0,
-5
-],
-"gaps": [
-0.5,
-0.5,
-0.5,
-0.5
-],
-"songs": 544,
-"song_frac": 0.0614
+"songs": 540,
+"song_frac": 0.0617
 },
 {
 "intervals": [
@@ -9329,8 +9329,8 @@
 0.5,
 0.5
 ],
-"songs": 1855,
-"song_frac": 0.2092
+"songs": 1830,
+"song_frac": 0.209
 },
 {
 "intervals": [
@@ -9347,8 +9347,8 @@
 0.25,
 0.25
 ],
-"songs": 951,
-"song_frac": 0.1073
+"songs": 949,
+"song_frac": 0.1084
 },
 {
 "intervals": [
@@ -9365,8 +9365,8 @@
 1.0,
 1.0
 ],
-"songs": 695,
-"song_frac": 0.0784
+"songs": 685,
+"song_frac": 0.0782
 },
 {
 "intervals": [
@@ -9383,8 +9383,26 @@
 0.5,
 0.5
 ],
-"songs": 578,
-"song_frac": 0.0652
+"songs": 573,
+"song_frac": 0.0654
+},
+{
+"intervals": [
+0,
+0,
+0,
+0,
+0
+],
+"gaps": [
+0.25,
+0.25,
+0.5,
+0.25,
+0.25
+],
+"songs": 509,
+"song_frac": 0.0581
 },
 {
 "intervals": [
@@ -9401,7 +9419,7 @@
 0.5,
 0.5
 ],
-"songs": 515,
+"songs": 509,
 "song_frac": 0.0581
 },
 {
@@ -9413,32 +9431,14 @@
 0
 ],
 "gaps": [
-0.25,
-0.25,
-0.5,
-0.25,
-0.25
-],
-"songs": 513,
-"song_frac": 0.0579
-},
-{
-"intervals": [
-0,
-0,
-0,
-0,
-0
-],
-"gaps": [
 0.5,
 0.25,
 0.25,
 0.25,
 0.25
 ],
-"songs": 501,
-"song_frac": 0.0565
+"songs": 498,
+"song_frac": 0.0569
 },
 {
 "intervals": [
@@ -9455,8 +9455,8 @@
 0.5,
 0.5
 ],
-"songs": 499,
-"song_frac": 0.0563
+"songs": 492,
+"song_frac": 0.0562
 },
 {
 "intervals": [
@@ -9473,8 +9473,8 @@
 0.5,
 0.5
 ],
-"songs": 443,
-"song_frac": 0.05
+"songs": 440,
+"song_frac": 0.0502
 },
 {
 "intervals": [
@@ -9491,8 +9491,8 @@
 0.25,
 0.5
 ],
-"songs": 427,
-"song_frac": 0.0482
+"songs": 425,
+"song_frac": 0.0485
 },
 {
 "intervals": [
@@ -9509,8 +9509,8 @@
 0.5,
 0.5
 ],
-"songs": 389,
-"song_frac": 0.0439
+"songs": 386,
+"song_frac": 0.0441
 },
 {
 "intervals": [
@@ -9527,26 +9527,8 @@
 0.5,
 1.0
 ],
-"songs": 383,
-"song_frac": 0.0432
-},
-{
-"intervals": [
-0,
-0,
-0,
--2,
-0
-],
-"gaps": [
-0.5,
-0.5,
-0.5,
-0.5,
-0.5
-],
-"songs": 381,
-"song_frac": 0.043
+"songs": 380,
+"song_frac": 0.0434
 },
 {
 "intervals": [
@@ -9563,8 +9545,8 @@
 0.5,
 0.5
 ],
-"songs": 380,
-"song_frac": 0.0429
+"songs": 379,
+"song_frac": 0.0433
 },
 {
 "intervals": [
@@ -9581,7 +9563,43 @@
 0.25,
 0.25
 ],
-"songs": 377,
+"songs": 376,
+"song_frac": 0.0429
+},
+{
+"intervals": [
+0,
+0,
+0,
+-2,
+0
+],
+"gaps": [
+0.5,
+0.5,
+0.5,
+0.5,
+0.5
+],
+"songs": 376,
+"song_frac": 0.0429
+},
+{
+"intervals": [
+0,
+2,
+0,
+0,
+0
+],
+"gaps": [
+0.5,
+0.5,
+0.5,
+0.5,
+0.5
+],
+"songs": 372,
 "song_frac": 0.0425
 },
 {
@@ -9599,26 +9617,8 @@
 1.0,
 0.5
 ],
-"songs": 374,
-"song_frac": 0.0422
-},
-{
-"intervals": [
-0,
-2,
-0,
-0,
-0
-],
-"gaps": [
-0.5,
-0.5,
-0.5,
-0.5,
-0.5
-],
-"songs": 373,
-"song_frac": 0.0421
+"songs": 372,
+"song_frac": 0.0425
 },
 {
 "intervals": [
@@ -9635,8 +9635,8 @@
 0.5,
 0.5
 ],
-"songs": 366,
-"song_frac": 0.0413
+"songs": 364,
+"song_frac": 0.0416
 },
 {
 "intervals": [
@@ -9653,8 +9653,8 @@
 0.5,
 0.5
 ],
-"songs": 363,
-"song_frac": 0.0409
+"songs": 359,
+"song_frac": 0.041
 },
 {
 "intervals": [
@@ -9671,16 +9671,16 @@
 0.5,
 0.25
 ],
-"songs": 362,
-"song_frac": 0.0408
+"songs": 358,
+"song_frac": 0.0409
 }
 ],
 "tropes": {
 "octave_leap": {
 "phrases": 199654,
 "phrase_frac": 0.3511,
-"songs": 5868,
-"song_frac": 0.6619,
+"songs": 5810,
+"song_frac": 0.6634,
 "examples": [
 {
 "song": "5",
@@ -9742,8 +9742,8 @@
 "chug_run": {
 "phrases": 184466,
 "phrase_frac": 0.3244,
-"songs": 6845,
-"song_frac": 0.7721,
+"songs": 6758,
+"song_frac": 0.7716,
 "examples": [
 {
 "song": "3",
@@ -9843,8 +9843,8 @@
 "ends_on_lowest_note": {
 "phrases": 107947,
 "phrase_frac": 0.1898,
-"songs": 7924,
-"song_frac": 0.8939,
+"songs": 7838,
+"song_frac": 0.895,
 "examples": [
 {
 "song": "1",
@@ -9906,8 +9906,8 @@
 "pedal_tone": {
 "phrases": 101953,
 "phrase_frac": 0.1793,
-"songs": 6170,
-"song_frac": 0.696,
+"songs": 6103,
+"song_frac": 0.6968,
 "examples": [
 {
 "song": "1",
@@ -10013,8 +10013,8 @@
 "repeated_figure": {
 "phrases": 33827,
 "phrase_frac": 0.0595,
-"songs": 5380,
-"song_frac": 0.6069,
+"songs": 5319,
+"song_frac": 0.6073,
 "examples": [
 {
 "song": "2",
@@ -10134,8 +10134,8 @@
 "tritone_move": {
 "phrases": 32457,
 "phrase_frac": 0.0571,
-"songs": 3512,
-"song_frac": 0.3962,
+"songs": 3486,
+"song_frac": 0.398,
 "examples": [
 {
 "song": "47",
@@ -10197,8 +10197,8 @@
 "pentatonic_lick": {
 "phrases": 29708,
 "phrase_frac": 0.0522,
-"songs": 4436,
-"song_frac": 0.5004,
+"songs": 4384,
+"song_frac": 0.5006,
 "examples": [
 {
 "song": "1",
@@ -10350,8 +10350,8 @@
 "descending_run": {
 "phrases": 27996,
 "phrase_frac": 0.0492,
-"songs": 3997,
-"song_frac": 0.4509,
+"songs": 3959,
+"song_frac": 0.452,
 "examples": [
 {
 "song": "1",
@@ -10433,8 +10433,8 @@
 "gallop": {
 "phrases": 24043,
 "phrase_frac": 0.0423,
-"songs": 1947,
-"song_frac": 0.2196,
+"songs": 1936,
+"song_frac": 0.2211,
 "examples": [
 {
 "song": "8",
@@ -10516,8 +10516,8 @@
 "ascending_run": {
 "phrases": 18136,
 "phrase_frac": 0.0319,
-"songs": 3111,
-"song_frac": 0.3509,
+"songs": 3091,
+"song_frac": 0.3529,
 "examples": [
 {
 "song": "2",
@@ -10778,7 +10778,7 @@
 "length_notes_median": 9.0
 },
 "rock": {
-"songs": 7956,
+"songs": 7849,
 "phrases": 537936,
 "interval_unigram": {
 "-12": 0.0371,
@@ -10813,23 +10813,23 @@
 0,
 0
 ],
-"songs": 6992,
-"song_frac": 0.8788
+"songs": 6897,
+"song_frac": 0.8787
 },
 {
 "pattern": [
 0,
 -2
 ],
-"songs": 5677,
-"song_frac": 0.7135
+"songs": 5601,
+"song_frac": 0.7136
 },
 {
 "pattern": [
 0,
 2
 ],
-"songs": 5567,
+"songs": 5492,
 "song_frac": 0.6997
 },
 {
@@ -10837,127 +10837,127 @@
 2,
 0
 ],
-"songs": 5507,
-"song_frac": 0.6922
+"songs": 5436,
+"song_frac": 0.6926
 },
 {
 "pattern": [
 -2,
 0
 ],
-"songs": 5502,
-"song_frac": 0.6916
+"songs": 5434,
+"song_frac": 0.6923
 },
 {
 "pattern": [
 2,
 -2
 ],
-"songs": 5212,
-"song_frac": 0.6551
+"songs": 5151,
+"song_frac": 0.6563
 },
 {
 "pattern": [
 -2,
 2
 ],
-"songs": 5116,
-"song_frac": 0.643
+"songs": 5056,
+"song_frac": 0.6442
 },
 {
 "pattern": [
 -2,
 -2
 ],
-"songs": 4602,
-"song_frac": 0.5784
+"songs": 4549,
+"song_frac": 0.5796
 },
 {
 "pattern": [
 3,
 -3
 ],
-"songs": 4482,
-"song_frac": 0.5633
+"songs": 4432,
+"song_frac": 0.5647
 },
 {
 "pattern": [
 -3,
 3
 ],
-"songs": 4190,
-"song_frac": 0.5266
+"songs": 4144,
+"song_frac": 0.528
 },
 {
 "pattern": [
 5,
 -5
 ],
-"songs": 4132,
-"song_frac": 0.5194
-},
-{
-"pattern": [
-0,
-5
-],
-"songs": 4125,
-"song_frac": 0.5185
+"songs": 4087,
+"song_frac": 0.5207
 },
 {
 "pattern": [
 -5,
 0
 ],
-"songs": 4125,
-"song_frac": 0.5185
+"songs": 4080,
+"song_frac": 0.5198
+},
+{
+"pattern": [
+0,
+5
+],
+"songs": 4077,
+"song_frac": 0.5194
 },
 {
 "pattern": [
 -1,
 -2
 ],
-"songs": 4109,
-"song_frac": 0.5165
+"songs": 4058,
+"song_frac": 0.517
 },
 {
 "pattern": [
 0,
 -1
 ],
-"songs": 4092,
-"song_frac": 0.5143
-},
-{
-"pattern": [
--3,
-0
-],
-"songs": 4037,
-"song_frac": 0.5074
+"songs": 4047,
+"song_frac": 0.5156
 },
 {
 "pattern": [
 5,
 0
 ],
-"songs": 4032,
-"song_frac": 0.5068
+"songs": 3992,
+"song_frac": 0.5086
 },
 {
 "pattern": [
-3,
+-3,
 0
 ],
-"songs": 4004,
-"song_frac": 0.5033
+"songs": 3990,
+"song_frac": 0.5083
 },
 {
 "pattern": [
 0,
 -3
 ],
-"songs": 4002,
+"songs": 3953,
+"song_frac": 0.5036
+},
+{
+"pattern": [
+3,
+0
+],
+"songs": 3948,
 "song_frac": 0.503
 },
 {
@@ -10965,168 +10965,168 @@
 0,
 3
 ],
-"songs": 3982,
-"song_frac": 0.5005
+"songs": 3936,
+"song_frac": 0.5015
 },
 {
 "pattern": [
 2,
 2
 ],
-"songs": 3968,
-"song_frac": 0.4987
+"songs": 3920,
+"song_frac": 0.4994
 },
 {
 "pattern": [
 -2,
 -3
 ],
-"songs": 3857,
-"song_frac": 0.4848
+"songs": 3811,
+"song_frac": 0.4855
 },
 {
 "pattern": [
 0,
 -5
 ],
-"songs": 3839,
-"song_frac": 0.4825
+"songs": 3799,
+"song_frac": 0.484
 },
 {
 "pattern": [
 1,
 0
 ],
-"songs": 3755,
-"song_frac": 0.472
+"songs": 3710,
+"song_frac": 0.4727
 },
 {
 "pattern": [
 -3,
 -2
 ],
-"songs": 3638,
-"song_frac": 0.4573
+"songs": 3592,
+"song_frac": 0.4576
 },
 {
 "pattern": [
 2,
 3
 ],
-"songs": 3608,
-"song_frac": 0.4535
-},
-{
-"pattern": [
-3,
-2
-],
-"songs": 3561,
-"song_frac": 0.4476
+"songs": 3568,
+"song_frac": 0.4546
 },
 {
 "pattern": [
 -1,
 0
 ],
-"songs": 3558,
-"song_frac": 0.4472
+"songs": 3524,
+"song_frac": 0.449
+},
+{
+"pattern": [
+3,
+2
+],
+"songs": 3517,
+"song_frac": 0.4481
 },
 {
 "pattern": [
 0,
 1
 ],
-"songs": 3531,
-"song_frac": 0.4438
+"songs": 3504,
+"song_frac": 0.4464
 },
 {
 "pattern": [
 -5,
 5
 ],
-"songs": 3526,
-"song_frac": 0.4432
+"songs": 3494,
+"song_frac": 0.4452
 },
 {
 "pattern": [
 -2,
 -1
 ],
-"songs": 3522,
-"song_frac": 0.4427
+"songs": 3487,
+"song_frac": 0.4443
 },
 {
 "pattern": [
 -7,
 0
 ],
-"songs": 3472,
-"song_frac": 0.4364
+"songs": 3431,
+"song_frac": 0.4371
 },
 {
 "pattern": [
 1,
 -1
 ],
-"songs": 3460,
-"song_frac": 0.4349
+"songs": 3422,
+"song_frac": 0.436
 },
 {
 "pattern": [
 2,
 1
 ],
-"songs": 3442,
-"song_frac": 0.4326
+"songs": 3412,
+"song_frac": 0.4347
 },
 {
 "pattern": [
 4,
 -4
 ],
-"songs": 3372,
-"song_frac": 0.4238
+"songs": 3347,
+"song_frac": 0.4264
 },
 {
 "pattern": [
 -4,
 0
 ],
-"songs": 3346,
-"song_frac": 0.4206
+"songs": 3316,
+"song_frac": 0.4225
 },
 {
 "pattern": [
 7,
 -7
 ],
-"songs": 3334,
-"song_frac": 0.4191
+"songs": 3304,
+"song_frac": 0.4209
 },
 {
 "pattern": [
 0,
 7
 ],
-"songs": 3294,
-"song_frac": 0.414
+"songs": 3259,
+"song_frac": 0.4152
 },
 {
 "pattern": [
 -12,
 12
 ],
-"songs": 3265,
-"song_frac": 0.4104
+"songs": 3240,
+"song_frac": 0.4128
 },
 {
 "pattern": [
 -1,
 1
 ],
-"songs": 3246,
-"song_frac": 0.408
+"songs": 3214,
+"song_frac": 0.4095
 },
 {
 "pattern": [
@@ -11134,8 +11134,8 @@
 0,
 0
 ],
-"songs": 6314,
-"song_frac": 0.7936
+"songs": 6227,
+"song_frac": 0.7933
 },
 {
 "pattern": [
@@ -11143,8 +11143,8 @@
 0,
 -2
 ],
-"songs": 4216,
-"song_frac": 0.5299
+"songs": 4169,
+"song_frac": 0.5312
 },
 {
 "pattern": [
@@ -11152,8 +11152,8 @@
 0,
 2
 ],
-"songs": 4038,
-"song_frac": 0.5075
+"songs": 3990,
+"song_frac": 0.5083
 },
 {
 "pattern": [
@@ -11161,8 +11161,8 @@
 0,
 0
 ],
-"songs": 4014,
-"song_frac": 0.5045
+"songs": 3963,
+"song_frac": 0.5049
 },
 {
 "pattern": [
@@ -11170,8 +11170,8 @@
 -2,
 0
 ],
-"songs": 3718,
-"song_frac": 0.4673
+"songs": 3674,
+"song_frac": 0.4681
 },
 {
 "pattern": [
@@ -11179,8 +11179,8 @@
 0,
 0
 ],
-"songs": 3704,
-"song_frac": 0.4656
+"songs": 3658,
+"song_frac": 0.466
 },
 {
 "pattern": [
@@ -11188,8 +11188,8 @@
 2,
 0
 ],
-"songs": 3556,
-"song_frac": 0.447
+"songs": 3526,
+"song_frac": 0.4492
 },
 {
 "pattern": [
@@ -11197,8 +11197,8 @@
 2,
 -2
 ],
-"songs": 3173,
-"song_frac": 0.3988
+"songs": 3139,
+"song_frac": 0.3999
 },
 {
 "pattern": [
@@ -11206,8 +11206,8 @@
 -2,
 2
 ],
-"songs": 2758,
-"song_frac": 0.3467
+"songs": 2724,
+"song_frac": 0.3471
 },
 {
 "pattern": [
@@ -11215,348 +11215,348 @@
 0,
 -1
 ],
-"songs": 2693,
-"song_frac": 0.3385
+"songs": 2669,
+"song_frac": 0.34
 },
 {
 "pattern": [
 0,
 0,
 5
-],
-"songs": 2586,
-"song_frac": 0.325
-},
-{
-"pattern": [
--5,
-0,
-0
-],
-"songs": 2492,
-"song_frac": 0.3132
-},
-{
-"pattern": [
-0,
--2,
-2
-],
-"songs": 2455,
-"song_frac": 0.3086
-},
-{
-"pattern": [
-0,
-0,
-3
-],
-"songs": 2441,
-"song_frac": 0.3068
-},
-{
-"pattern": [
-0,
-0,
--3
-],
-"songs": 2408,
-"song_frac": 0.3027
-},
-{
-"pattern": [
-5,
-0,
-0
-],
-"songs": 2391,
-"song_frac": 0.3005
-},
-{
-"pattern": [
-1,
-0,
-0
-],
-"songs": 2390,
-"song_frac": 0.3004
-},
-{
-"pattern": [
-2,
-0,
--2
-],
-"songs": 2374,
-"song_frac": 0.2984
-},
-{
-"pattern": [
--3,
-0,
-0
-],
-"songs": 2343,
-"song_frac": 0.2945
-},
-{
-"pattern": [
-0,
--1,
-0
-],
-"songs": 2342,
-"song_frac": 0.2944
-},
-{
-"pattern": [
-0,
-2,
--2
-],
-"songs": 2308,
-"song_frac": 0.2901
-},
-{
-"pattern": [
--1,
--2,
--2
-],
-"songs": 2305,
-"song_frac": 0.2897
-},
-{
-"pattern": [
-0,
-0,
--5
-],
-"songs": 2296,
-"song_frac": 0.2886
-},
-{
-"pattern": [
--2,
--2,
-2
-],
-"songs": 2284,
-"song_frac": 0.2871
-},
-{
-"pattern": [
-3,
-0,
-0
-],
-"songs": 2279,
-"song_frac": 0.2865
-},
-{
-"pattern": [
--2,
-2,
-0
-],
-"songs": 2275,
-"song_frac": 0.2859
-},
-{
-"pattern": [
--3,
-3,
--3
-],
-"songs": 2239,
-"song_frac": 0.2814
-},
-{
-"pattern": [
-0,
-0,
-1
-],
-"songs": 2235,
-"song_frac": 0.2809
-},
-{
-"pattern": [
-2,
--2,
--2
-],
-"songs": 2196,
-"song_frac": 0.276
-},
-{
-"pattern": [
-3,
--3,
-3
-],
-"songs": 2143,
-"song_frac": 0.2694
-},
-{
-"pattern": [
--1,
-0,
-0
-],
-"songs": 2076,
-"song_frac": 0.2609
-},
-{
-"pattern": [
--2,
-0,
-2
-],
-"songs": 2062,
-"song_frac": 0.2592
-},
-{
-"pattern": [
-0,
-1,
-0
-],
-"songs": 2043,
-"song_frac": 0.2568
-},
-{
-"pattern": [
-0,
-5,
-0
-],
-"songs": 2040,
-"song_frac": 0.2564
-},
-{
-"pattern": [
--7,
-0,
-0
-],
-"songs": 1993,
-"song_frac": 0.2505
-},
-{
-"pattern": [
-0,
--5,
-0
-],
-"songs": 1979,
-"song_frac": 0.2487
-},
-{
-"pattern": [
-1,
--1,
--2
-],
-"songs": 1962,
-"song_frac": 0.2466
-},
-{
-"pattern": [
-2,
--2,
-0
-],
-"songs": 1959,
-"song_frac": 0.2462
-},
-{
-"pattern": [
-12,
--12,
-12
-],
-"songs": 1940,
-"song_frac": 0.2438
-},
-{
-"pattern": [
-0,
-0,
-7
-],
-"songs": 1937,
-"song_frac": 0.2435
-},
-{
-"pattern": [
-0,
-0,
-0,
-0
-],
-"songs": 5585,
-"song_frac": 0.702
-},
-{
-"pattern": [
-0,
-0,
-0,
--2
-],
-"songs": 3134,
-"song_frac": 0.3939
-},
-{
-"pattern": [
-0,
-0,
-0,
-2
-],
-"songs": 3075,
-"song_frac": 0.3865
-},
-{
-"pattern": [
-2,
-0,
-0,
-0
-],
-"songs": 2941,
-"song_frac": 0.3697
-},
-{
-"pattern": [
--2,
-0,
-0,
-0
-],
-"songs": 2656,
-"song_frac": 0.3338
-},
-{
-"pattern": [
-0,
-0,
--2,
-0
-],
-"songs": 2591,
-"song_frac": 0.3257
-},
-{
-"pattern": [
-0,
-0,
-2,
-0
 ],
 "songs": 2560,
-"song_frac": 0.3218
+"song_frac": 0.3262
+},
+{
+"pattern": [
+-5,
+0,
+0
+],
+"songs": 2472,
+"song_frac": 0.3149
+},
+{
+"pattern": [
+0,
+-2,
+2
+],
+"songs": 2429,
+"song_frac": 0.3095
+},
+{
+"pattern": [
+0,
+0,
+3
+],
+"songs": 2419,
+"song_frac": 0.3082
+},
+{
+"pattern": [
+0,
+0,
+-3
+],
+"songs": 2379,
+"song_frac": 0.3031
+},
+{
+"pattern": [
+5,
+0,
+0
+],
+"songs": 2366,
+"song_frac": 0.3014
+},
+{
+"pattern": [
+1,
+0,
+0
+],
+"songs": 2365,
+"song_frac": 0.3013
+},
+{
+"pattern": [
+2,
+0,
+-2
+],
+"songs": 2352,
+"song_frac": 0.2997
+},
+{
+"pattern": [
+0,
+-1,
+0
+],
+"songs": 2325,
+"song_frac": 0.2962
+},
+{
+"pattern": [
+-3,
+0,
+0
+],
+"songs": 2325,
+"song_frac": 0.2962
+},
+{
+"pattern": [
+0,
+2,
+-2
+],
+"songs": 2284,
+"song_frac": 0.291
+},
+{
+"pattern": [
+-1,
+-2,
+-2
+],
+"songs": 2280,
+"song_frac": 0.2905
+},
+{
+"pattern": [
+0,
+0,
+-5
+],
+"songs": 2272,
+"song_frac": 0.2895
+},
+{
+"pattern": [
+-2,
+-2,
+2
+],
+"songs": 2261,
+"song_frac": 0.2881
+},
+{
+"pattern": [
+3,
+0,
+0
+],
+"songs": 2250,
+"song_frac": 0.2867
+},
+{
+"pattern": [
+-2,
+2,
+0
+],
+"songs": 2250,
+"song_frac": 0.2867
+},
+{
+"pattern": [
+0,
+0,
+1
+],
+"songs": 2219,
+"song_frac": 0.2827
+},
+{
+"pattern": [
+-3,
+3,
+-3
+],
+"songs": 2213,
+"song_frac": 0.2819
+},
+{
+"pattern": [
+2,
+-2,
+-2
+],
+"songs": 2171,
+"song_frac": 0.2766
+},
+{
+"pattern": [
+3,
+-3,
+3
+],
+"songs": 2118,
+"song_frac": 0.2698
+},
+{
+"pattern": [
+-1,
+0,
+0
+],
+"songs": 2059,
+"song_frac": 0.2623
+},
+{
+"pattern": [
+-2,
+0,
+2
+],
+"songs": 2038,
+"song_frac": 0.2597
+},
+{
+"pattern": [
+0,
+1,
+0
+],
+"songs": 2029,
+"song_frac": 0.2585
+},
+{
+"pattern": [
+0,
+5,
+0
+],
+"songs": 2024,
+"song_frac": 0.2579
+},
+{
+"pattern": [
+-7,
+0,
+0
+],
+"songs": 1970,
+"song_frac": 0.251
+},
+{
+"pattern": [
+0,
+-5,
+0
+],
+"songs": 1961,
+"song_frac": 0.2498
+},
+{
+"pattern": [
+1,
+-1,
+-2
+],
+"songs": 1945,
+"song_frac": 0.2478
+},
+{
+"pattern": [
+2,
+-2,
+0
+],
+"songs": 1940,
+"song_frac": 0.2472
+},
+{
+"pattern": [
+12,
+-12,
+12
+],
+"songs": 1926,
+"song_frac": 0.2454
+},
+{
+"pattern": [
+0,
+0,
+7
+],
+"songs": 1923,
+"song_frac": 0.245
+},
+{
+"pattern": [
+0,
+0,
+0,
+0
+],
+"songs": 5512,
+"song_frac": 0.7023
+},
+{
+"pattern": [
+0,
+0,
+0,
+-2
+],
+"songs": 3096,
+"song_frac": 0.3944
+},
+{
+"pattern": [
+0,
+0,
+0,
+2
+],
+"songs": 3045,
+"song_frac": 0.3879
+},
+{
+"pattern": [
+2,
+0,
+0,
+0
+],
+"songs": 2908,
+"song_frac": 0.3705
+},
+{
+"pattern": [
+-2,
+0,
+0,
+0
+],
+"songs": 2624,
+"song_frac": 0.3343
+},
+{
+"pattern": [
+0,
+0,
+-2,
+0
+],
+"songs": 2566,
+"song_frac": 0.3269
+},
+{
+"pattern": [
+0,
+0,
+2,
+0
+],
+"songs": 2542,
+"song_frac": 0.3239
 },
 {
 "pattern": [
@@ -11565,8 +11565,8 @@
 0,
 0
 ],
-"songs": 2550,
-"song_frac": 0.3205
+"songs": 2534,
+"song_frac": 0.3228
 },
 {
 "pattern": [
@@ -11575,8 +11575,8 @@
 0,
 0
 ],
-"songs": 2461,
-"song_frac": 0.3093
+"songs": 2436,
+"song_frac": 0.3104
 },
 {
 "pattern": [
@@ -11585,8 +11585,8 @@
 0,
 -1
 ],
-"songs": 1911,
-"song_frac": 0.2402
+"songs": 1895,
+"song_frac": 0.2414
 },
 {
 "pattern": [
@@ -11595,8 +11595,8 @@
 0,
 5
 ],
-"songs": 1828,
-"song_frac": 0.2298
+"songs": 1810,
+"song_frac": 0.2306
 },
 {
 "pattern": [
@@ -11605,8 +11605,8 @@
 0,
 0
 ],
-"songs": 1686,
-"song_frac": 0.2119
+"songs": 1671,
+"song_frac": 0.2129
 },
 {
 "pattern": [
@@ -11615,8 +11615,8 @@
 -2,
 2
 ],
-"songs": 1655,
-"song_frac": 0.208
+"songs": 1636,
+"song_frac": 0.2084
 },
 {
 "pattern": [
@@ -11625,8 +11625,8 @@
 0,
 0
 ],
-"songs": 1648,
-"song_frac": 0.2071
+"songs": 1634,
+"song_frac": 0.2082
 },
 {
 "pattern": [
@@ -11635,8 +11635,18 @@
 0,
 3
 ],
-"songs": 1632,
-"song_frac": 0.2051
+"songs": 1620,
+"song_frac": 0.2064
+},
+{
+"pattern": [
+0,
+0,
+-1,
+0
+],
+"songs": 1596,
+"song_frac": 0.2033
 },
 {
 "pattern": [
@@ -11645,18 +11655,8 @@
 2,
 -2
 ],
-"songs": 1609,
-"song_frac": 0.2022
-},
-{
-"pattern": [
-0,
-0,
--1,
-0
-],
-"songs": 1606,
-"song_frac": 0.2019
+"songs": 1595,
+"song_frac": 0.2032
 },
 {
 "pattern": [
@@ -11665,8 +11665,8 @@
 0,
 1
 ],
-"songs": 1590,
-"song_frac": 0.1998
+"songs": 1581,
+"song_frac": 0.2014
 },
 {
 "pattern": [
@@ -11675,8 +11675,8 @@
 0,
 -3
 ],
-"songs": 1568,
-"song_frac": 0.1971
+"songs": 1552,
+"song_frac": 0.1977
 },
 {
 "pattern": [
@@ -11685,8 +11685,8 @@
 0,
 0
 ],
-"songs": 1550,
-"song_frac": 0.1948
+"songs": 1537,
+"song_frac": 0.1958
 },
 {
 "pattern": [
@@ -11695,8 +11695,8 @@
 0,
 -5
 ],
-"songs": 1549,
-"song_frac": 0.1947
+"songs": 1536,
+"song_frac": 0.1957
 },
 {
 "pattern": [
@@ -11705,8 +11705,8 @@
 0,
 0
 ],
-"songs": 1531,
-"song_frac": 0.1924
+"songs": 1522,
+"song_frac": 0.1939
 },
 {
 "pattern": [
@@ -11715,8 +11715,8 @@
 0,
 0
 ],
-"songs": 1476,
-"song_frac": 0.1855
+"songs": 1466,
+"song_frac": 0.1868
 },
 {
 "pattern": [
@@ -11725,8 +11725,8 @@
 0,
 0
 ],
-"songs": 1461,
-"song_frac": 0.1836
+"songs": 1453,
+"song_frac": 0.1851
 },
 {
 "pattern": [
@@ -11735,8 +11735,8 @@
 0,
 0
 ],
-"songs": 1412,
-"song_frac": 0.1775
+"songs": 1405,
+"song_frac": 0.179
 },
 {
 "pattern": [
@@ -11745,8 +11745,8 @@
 1,
 0
 ],
-"songs": 1394,
-"song_frac": 0.1752
+"songs": 1387,
+"song_frac": 0.1767
 },
 {
 "pattern": [
@@ -11755,8 +11755,8 @@
 0,
 0
 ],
-"songs": 1377,
-"song_frac": 0.1731
+"songs": 1362,
+"song_frac": 0.1735
 },
 {
 "pattern": [
@@ -11765,8 +11765,8 @@
 0,
 0
 ],
-"songs": 1349,
-"song_frac": 0.1696
+"songs": 1336,
+"song_frac": 0.1702
 },
 {
 "pattern": [
@@ -11775,8 +11775,8 @@
 -12,
 12
 ],
-"songs": 1343,
-"song_frac": 0.1688
+"songs": 1333,
+"song_frac": 0.1698
 },
 {
 "pattern": [
@@ -11785,8 +11785,18 @@
 0,
 7
 ],
-"songs": 1336,
-"song_frac": 0.1679
+"songs": 1327,
+"song_frac": 0.1691
+},
+{
+"pattern": [
+0,
+0,
+5,
+0
+],
+"songs": 1261,
+"song_frac": 0.1607
 },
 {
 "pattern": [
@@ -11795,18 +11805,8 @@
 12,
 -12
 ],
-"songs": 1270,
-"song_frac": 0.1596
-},
-{
-"pattern": [
-0,
-0,
-5,
-0
-],
-"songs": 1269,
-"song_frac": 0.1595
+"songs": 1259,
+"song_frac": 0.1604
 },
 {
 "pattern": [
@@ -11815,8 +11815,8 @@
 -2,
 2
 ],
-"songs": 1267,
-"song_frac": 0.1593
+"songs": 1253,
+"song_frac": 0.1596
 },
 {
 "pattern": [
@@ -11825,8 +11825,8 @@
 0,
 0
 ],
-"songs": 1236,
-"song_frac": 0.1554
+"songs": 1226,
+"song_frac": 0.1562
 },
 {
 "pattern": [
@@ -11835,8 +11835,8 @@
 0,
 4
 ],
-"songs": 1210,
-"song_frac": 0.1521
+"songs": 1203,
+"song_frac": 0.1533
 },
 {
 "pattern": [
@@ -11845,8 +11845,8 @@
 0,
 0
 ],
-"songs": 1203,
-"song_frac": 0.1512
+"songs": 1197,
+"song_frac": 0.1525
 },
 {
 "pattern": [
@@ -11855,8 +11855,8 @@
 0,
 0
 ],
-"songs": 1196,
-"song_frac": 0.1503
+"songs": 1187,
+"song_frac": 0.1512
 },
 {
 "pattern": [
@@ -11865,18 +11865,8 @@
 3,
 -3
 ],
-"songs": 1179,
-"song_frac": 0.1482
-},
-{
-"pattern": [
-0,
-0,
-2,
--2
-],
-"songs": 1156,
-"song_frac": 0.1453
+"songs": 1168,
+"song_frac": 0.1488
 },
 {
 "pattern": [
@@ -11885,8 +11875,18 @@
 -5,
 0
 ],
-"songs": 1155,
-"song_frac": 0.1452
+"songs": 1145,
+"song_frac": 0.1459
+},
+{
+"pattern": [
+0,
+0,
+2,
+-2
+],
+"songs": 1145,
+"song_frac": 0.1459
 },
 {
 "pattern": [
@@ -11896,8 +11896,8 @@
 0,
 0
 ],
-"songs": 4985,
-"song_frac": 0.6266
+"songs": 4930,
+"song_frac": 0.6281
 },
 {
 "pattern": [
@@ -11907,8 +11907,8 @@
 0,
 -2
 ],
-"songs": 2146,
-"song_frac": 0.2697
+"songs": 2129,
+"song_frac": 0.2712
 },
 {
 "pattern": [
@@ -11918,8 +11918,8 @@
 0,
 2
 ],
-"songs": 2105,
-"song_frac": 0.2646
+"songs": 2088,
+"song_frac": 0.266
 },
 {
 "pattern": [
@@ -11929,8 +11929,8 @@
 0,
 0
 ],
-"songs": 1968,
-"song_frac": 0.2474
+"songs": 1949,
+"song_frac": 0.2483
 },
 {
 "pattern": [
@@ -11940,8 +11940,8 @@
 2,
 0
 ],
-"songs": 1936,
-"song_frac": 0.2433
+"songs": 1925,
+"song_frac": 0.2453
 },
 {
 "pattern": [
@@ -11951,30 +11951,30 @@
 0,
 0
 ],
-"songs": 1916,
+"songs": 1905,
+"song_frac": 0.2427
+},
+{
+"pattern": [
+0,
+2,
+0,
+0,
+0
+],
+"songs": 1890,
 "song_frac": 0.2408
 },
 {
 "pattern": [
 0,
-2,
-0,
-0,
-0
-],
-"songs": 1902,
-"song_frac": 0.2391
-},
-{
-"pattern": [
-0,
 0,
 0,
 -2,
 0
 ],
-"songs": 1856,
-"song_frac": 0.2333
+"songs": 1838,
+"song_frac": 0.2342
 },
 {
 "pattern": [
@@ -11984,8 +11984,8 @@
 0,
 0
 ],
-"songs": 1806,
-"song_frac": 0.227
+"songs": 1794,
+"song_frac": 0.2286
 },
 {
 "pattern": [
@@ -11995,8 +11995,8 @@
 0,
 0
 ],
-"songs": 1751,
-"song_frac": 0.2201
+"songs": 1737,
+"song_frac": 0.2213
 },
 {
 "pattern": [
@@ -12006,8 +12006,8 @@
 0,
 0
 ],
-"songs": 1735,
-"song_frac": 0.2181
+"songs": 1723,
+"song_frac": 0.2195
 },
 {
 "pattern": [
@@ -12017,8 +12017,8 @@
 0,
 5
 ],
-"songs": 1256,
-"song_frac": 0.1579
+"songs": 1246,
+"song_frac": 0.1587
 },
 {
 "pattern": [
@@ -12028,8 +12028,8 @@
 0,
 -1
 ],
-"songs": 1203,
-"song_frac": 0.1512
+"songs": 1191,
+"song_frac": 0.1517
 },
 {
 "pattern": [
@@ -12039,8 +12039,8 @@
 0,
 0
 ],
-"songs": 1129,
-"song_frac": 0.1419
+"songs": 1120,
+"song_frac": 0.1427
 },
 {
 "pattern": [
@@ -12050,8 +12050,8 @@
 -1,
 0
 ],
-"songs": 1122,
-"song_frac": 0.141
+"songs": 1116,
+"song_frac": 0.1422
 },
 {
 "pattern": [
@@ -12061,8 +12061,19 @@
 0,
 0
 ],
-"songs": 1061,
-"song_frac": 0.1334
+"songs": 1051,
+"song_frac": 0.1339
+},
+{
+"pattern": [
+0,
+0,
+1,
+0,
+0
+],
+"songs": 1028,
+"song_frac": 0.131
 },
 {
 "pattern": [
@@ -12072,19 +12083,8 @@
 0,
 0
 ],
-"songs": 1037,
-"song_frac": 0.1303
-},
-{
-"pattern": [
-0,
-0,
-1,
-0,
-0
-],
-"songs": 1033,
-"song_frac": 0.1298
+"songs": 1026,
+"song_frac": 0.1307
 },
 {
 "pattern": [
@@ -12094,8 +12094,8 @@
 0,
 3
 ],
-"songs": 1030,
-"song_frac": 0.1295
+"songs": 1023,
+"song_frac": 0.1303
 },
 {
 "pattern": [
@@ -12105,8 +12105,8 @@
 0,
 0
 ],
-"songs": 1022,
-"song_frac": 0.1285
+"songs": 1015,
+"song_frac": 0.1293
 },
 {
 "pattern": [
@@ -12116,8 +12116,8 @@
 0,
 1
 ],
-"songs": 1019,
-"song_frac": 0.1281
+"songs": 1014,
+"song_frac": 0.1292
 },
 {
 "pattern": [
@@ -12127,8 +12127,8 @@
 2,
 -2
 ],
-"songs": 1016,
-"song_frac": 0.1277
+"songs": 1007,
+"song_frac": 0.1283
 },
 {
 "pattern": [
@@ -12138,19 +12138,19 @@
 1,
 0
 ],
-"songs": 1003,
+"songs": 998,
+"song_frac": 0.1271
+},
+{
+"pattern": [
+0,
+1,
+0,
+0,
+0
+],
+"songs": 990,
 "song_frac": 0.1261
-},
-{
-"pattern": [
-0,
-1,
-0,
-0,
-0
-],
-"songs": 992,
-"song_frac": 0.1247
 },
 {
 "pattern": [
@@ -12160,8 +12160,8 @@
 0,
 -5
 ],
-"songs": 959,
-"song_frac": 0.1205
+"songs": 953,
+"song_frac": 0.1214
 },
 {
 "pattern": [
@@ -12171,8 +12171,8 @@
 0,
 -3
 ],
-"songs": 953,
-"song_frac": 0.1198
+"songs": 946,
+"song_frac": 0.1205
 },
 {
 "pattern": [
@@ -12182,8 +12182,8 @@
 0,
 0
 ],
-"songs": 938,
-"song_frac": 0.1179
+"songs": 934,
+"song_frac": 0.119
 },
 {
 "pattern": [
@@ -12193,8 +12193,8 @@
 0,
 0
 ],
-"songs": 924,
-"song_frac": 0.1161
+"songs": 912,
+"song_frac": 0.1162
 },
 {
 "pattern": [
@@ -12204,8 +12204,8 @@
 -12,
 12
 ],
-"songs": 912,
-"song_frac": 0.1146
+"songs": 906,
+"song_frac": 0.1154
 },
 {
 "pattern": [
@@ -12215,8 +12215,8 @@
 0,
 0
 ],
-"songs": 901,
-"song_frac": 0.1132
+"songs": 894,
+"song_frac": 0.1139
 },
 {
 "pattern": [
@@ -12226,8 +12226,8 @@
 -2,
 2
 ],
-"songs": 891,
-"song_frac": 0.112
+"songs": 884,
+"song_frac": 0.1126
 },
 {
 "pattern": [
@@ -12237,8 +12237,8 @@
 0,
 7
 ],
-"songs": 889,
-"song_frac": 0.1117
+"songs": 882,
+"song_frac": 0.1124
 },
 {
 "pattern": [
@@ -12248,8 +12248,8 @@
 5,
 0
 ],
-"songs": 875,
-"song_frac": 0.11
+"songs": 868,
+"song_frac": 0.1106
 },
 {
 "pattern": [
@@ -12259,8 +12259,8 @@
 0,
 0
 ],
-"songs": 840,
-"song_frac": 0.1056
+"songs": 832,
+"song_frac": 0.106
 },
 {
 "pattern": [
@@ -12270,8 +12270,8 @@
 12,
 -12
 ],
-"songs": 833,
-"song_frac": 0.1047
+"songs": 826,
+"song_frac": 0.1052
 },
 {
 "pattern": [
@@ -12281,8 +12281,8 @@
 0,
 0
 ],
-"songs": 824,
-"song_frac": 0.1036
+"songs": 819,
+"song_frac": 0.1043
 },
 {
 "pattern": [
@@ -12292,8 +12292,8 @@
 0,
 0
 ],
-"songs": 796,
-"song_frac": 0.1001
+"songs": 790,
+"song_frac": 0.1006
 },
 {
 "pattern": [
@@ -12303,8 +12303,8 @@
 0,
 4
 ],
-"songs": 790,
-"song_frac": 0.0993
+"songs": 787,
+"song_frac": 0.1003
 },
 {
 "pattern": [
@@ -12314,8 +12314,8 @@
 -5,
 0
 ],
-"songs": 785,
-"song_frac": 0.0987
+"songs": 778,
+"song_frac": 0.0991
 },
 {
 "pattern": [
@@ -12325,8 +12325,8 @@
 0,
 0
 ],
-"songs": 779,
-"song_frac": 0.0979
+"songs": 771,
+"song_frac": 0.0982
 }
 ],
 "rhythm_ngrams": [
@@ -12335,320 +12335,320 @@
 0.5,
 0.5
 ],
-"songs": 6762,
-"song_frac": 0.8499
+"songs": 6676,
+"song_frac": 0.8506
 },
 {
 "pattern": [
 1.0,
 0.5
 ],
-"songs": 5716,
-"song_frac": 0.7185
+"songs": 5643,
+"song_frac": 0.7189
 },
 {
 "pattern": [
 0.5,
 1.0
 ],
-"songs": 5708,
-"song_frac": 0.7174
+"songs": 5630,
+"song_frac": 0.7173
 },
 {
 "pattern": [
 1.0,
 1.0
 ],
-"songs": 5448,
-"song_frac": 0.6848
+"songs": 5370,
+"song_frac": 0.6842
 },
 {
 "pattern": [
 0.25,
 0.25
 ],
-"songs": 4945,
-"song_frac": 0.6215
+"songs": 4895,
+"song_frac": 0.6236
 },
 {
 "pattern": [
 0.25,
 0.5
 ],
-"songs": 4641,
-"song_frac": 0.5833
+"songs": 4588,
+"song_frac": 0.5845
 },
 {
 "pattern": [
 0.5,
 0.25
 ],
-"songs": 4520,
-"song_frac": 0.5681
+"songs": 4470,
+"song_frac": 0.5695
 },
 {
 "pattern": [
 1.5,
 0.5
 ],
-"songs": 3855,
-"song_frac": 0.4845
+"songs": 3813,
+"song_frac": 0.4858
 },
 {
 "pattern": [
 0.5,
 1.5
 ],
-"songs": 3840,
-"song_frac": 0.4827
+"songs": 3794,
+"song_frac": 0.4834
 },
 {
 "pattern": [
 0.1667,
 0.1667
 ],
-"songs": 3673,
-"song_frac": 0.4617
+"songs": 3633,
+"song_frac": 0.4629
 },
 {
 "pattern": [
 0.5,
 0.1667
-],
-"songs": 2941,
-"song_frac": 0.3697
-},
-{
-"pattern": [
-0.75,
-0.25
 ],
 "songs": 2906,
-"song_frac": 0.3653
+"song_frac": 0.3702
+},
+{
+"pattern": [
+0.75,
+0.25
+],
+"songs": 2876,
+"song_frac": 0.3664
 },
 {
 "pattern": [
 0.1667,
 0.5
 ],
-"songs": 2840,
-"song_frac": 0.357
+"songs": 2807,
+"song_frac": 0.3576
 },
 {
 "pattern": [
 0.5,
 0.75
 ],
-"songs": 2818,
-"song_frac": 0.3542
+"songs": 2789,
+"song_frac": 0.3553
 },
 {
 "pattern": [
 1.0,
 1.5
 ],
-"songs": 2787,
-"song_frac": 0.3503
+"songs": 2749,
+"song_frac": 0.3502
 },
 {
 "pattern": [
 1.5,
 1.0
 ],
-"songs": 2767,
-"song_frac": 0.3478
+"songs": 2732,
+"song_frac": 0.3481
 },
 {
 "pattern": [
 0.25,
 0.75
 ],
-"songs": 2715,
-"song_frac": 0.3413
-},
-{
-"pattern": [
-0.5,
-2.0
-],
-"songs": 2667,
-"song_frac": 0.3352
-},
-{
-"pattern": [
-2.0,
-0.5
-],
-"songs": 2663,
-"song_frac": 0.3347
+"songs": 2689,
+"song_frac": 0.3426
 },
 {
 "pattern": [
 0.75,
 0.5
 ],
-"songs": 2662,
-"song_frac": 0.3346
+"songs": 2639,
+"song_frac": 0.3362
+},
+{
+"pattern": [
+0.5,
+2.0
+],
+"songs": 2638,
+"song_frac": 0.3361
+},
+{
+"pattern": [
+2.0,
+0.5
+],
+"songs": 2632,
+"song_frac": 0.3353
 },
 {
 "pattern": [
 2.0,
 1.0
 ],
-"songs": 2455,
-"song_frac": 0.3086
+"songs": 2429,
+"song_frac": 0.3095
 },
 {
 "pattern": [
 1.0,
 2.0
 ],
-"songs": 2374,
-"song_frac": 0.2984
+"songs": 2346,
+"song_frac": 0.2989
 },
 {
 "pattern": [
 1.0,
 0.25
 ],
-"songs": 2345,
+"songs": 2322,
+"song_frac": 0.2958
+},
+{
+"pattern": [
+0.25,
+1.0
+],
+"songs": 2313,
 "song_frac": 0.2947
 },
 {
 "pattern": [
-0.25,
-1.0
-],
-"songs": 2336,
-"song_frac": 0.2936
-},
-{
-"pattern": [
 2.0,
 2.0
 ],
-"songs": 2324,
-"song_frac": 0.2921
+"songs": 2305,
+"song_frac": 0.2937
 },
 {
 "pattern": [
 0.25,
 0.1667
 ],
-"songs": 2311,
-"song_frac": 0.2905
+"songs": 2288,
+"song_frac": 0.2915
 },
 {
 "pattern": [
 0.1667,
 0.25
 ],
-"songs": 2290,
-"song_frac": 0.2878
+"songs": 2268,
+"song_frac": 0.289
 },
 {
 "pattern": [
 1.0,
 0.1667
 ],
-"songs": 2130,
-"song_frac": 0.2677
-},
-{
-"pattern": [
-0.3333,
-0.5
-],
-"songs": 2115,
-"song_frac": 0.2658
+"songs": 2103,
+"song_frac": 0.2679
 },
 {
 "pattern": [
 0.75,
 0.75
 ],
-"songs": 2111,
-"song_frac": 0.2653
+"songs": 2094,
+"song_frac": 0.2668
+},
+{
+"pattern": [
+0.3333,
+0.5
+],
+"songs": 2091,
+"song_frac": 0.2664
 },
 {
 "pattern": [
 0.3333,
 0.1667
 ],
-"songs": 2101,
-"song_frac": 0.2641
+"songs": 2078,
+"song_frac": 0.2647
 },
 {
 "pattern": [
 0.1667,
 1.0
 ],
-"songs": 2094,
-"song_frac": 0.2632
+"songs": 2071,
+"song_frac": 0.2639
 },
 {
 "pattern": [
 0.5,
 0.3333
 ],
-"songs": 2063,
-"song_frac": 0.2593
+"songs": 2036,
+"song_frac": 0.2594
 },
 {
 "pattern": [
 0.1667,
 0.3333
 ],
-"songs": 1980,
-"song_frac": 0.2489
+"songs": 1959,
+"song_frac": 0.2496
 },
 {
 "pattern": [
 2.5,
 0.5
 ],
-"songs": 1968,
-"song_frac": 0.2474
+"songs": 1951,
+"song_frac": 0.2486
 },
 {
 "pattern": [
 0.25,
 0.3333
 ],
-"songs": 1880,
-"song_frac": 0.2363
-},
-{
-"pattern": [
-0.3333,
-0.3333
-],
-"songs": 1840,
-"song_frac": 0.2313
+"songs": 1860,
+"song_frac": 0.237
 },
 {
 "pattern": [
 0.5,
 2.5
 ],
-"songs": 1837,
-"song_frac": 0.2309
+"songs": 1827,
+"song_frac": 0.2328
+},
+{
+"pattern": [
+0.3333,
+0.3333
+],
+"songs": 1827,
+"song_frac": 0.2328
 },
 {
 "pattern": [
 1.0,
 0.75
 ],
-"songs": 1834,
-"song_frac": 0.2305
+"songs": 1817,
+"song_frac": 0.2315
 },
 {
 "pattern": [
 1.5,
 1.5
 ],
-"songs": 1703,
-"song_frac": 0.2141
+"songs": 1688,
+"song_frac": 0.2151
 },
 {
 "pattern": [
@@ -12656,8 +12656,8 @@
 0.5,
 0.5
 ],
-"songs": 6053,
-"song_frac": 0.7608
+"songs": 5974,
+"song_frac": 0.7611
 },
 {
 "pattern": [
@@ -12665,8 +12665,8 @@
 0.5,
 1.0
 ],
-"songs": 4725,
-"song_frac": 0.5939
+"songs": 4665,
+"song_frac": 0.5943
 },
 {
 "pattern": [
@@ -12674,8 +12674,8 @@
 0.5,
 0.5
 ],
-"songs": 4606,
-"song_frac": 0.5789
+"songs": 4545,
+"song_frac": 0.5791
 },
 {
 "pattern": [
@@ -12683,8 +12683,8 @@
 1.0,
 0.5
 ],
-"songs": 4320,
-"song_frac": 0.543
+"songs": 4264,
+"song_frac": 0.5433
 },
 {
 "pattern": [
@@ -12692,8 +12692,8 @@
 0.25,
 0.5
 ],
-"songs": 3945,
-"song_frac": 0.4959
+"songs": 3902,
+"song_frac": 0.4971
 },
 {
 "pattern": [
@@ -12701,8 +12701,8 @@
 1.0,
 1.0
 ],
-"songs": 3821,
-"song_frac": 0.4803
+"songs": 3762,
+"song_frac": 0.4793
 },
 {
 "pattern": [
@@ -12710,8 +12710,8 @@
 0.25,
 0.25
 ],
-"songs": 3796,
-"song_frac": 0.4771
+"songs": 3758,
+"song_frac": 0.4788
 },
 {
 "pattern": [
@@ -12719,8 +12719,8 @@
 0.25,
 0.25
 ],
-"songs": 3767,
-"song_frac": 0.4735
+"songs": 3732,
+"song_frac": 0.4755
 },
 {
 "pattern": [
@@ -12728,8 +12728,8 @@
 0.5,
 0.5
 ],
-"songs": 3572,
-"song_frac": 0.449
+"songs": 3532,
+"song_frac": 0.45
 },
 {
 "pattern": [
@@ -12737,8 +12737,8 @@
 1.0,
 1.0
 ],
-"songs": 3529,
-"song_frac": 0.4436
+"songs": 3478,
+"song_frac": 0.4431
 },
 {
 "pattern": [
@@ -12746,8 +12746,8 @@
 1.0,
 0.5
 ],
-"songs": 3487,
-"song_frac": 0.4383
+"songs": 3442,
+"song_frac": 0.4385
 },
 {
 "pattern": [
@@ -12755,17 +12755,8 @@
 0.5,
 0.25
 ],
-"songs": 3421,
-"song_frac": 0.43
-},
-{
-"pattern": [
-1.0,
-0.5,
-1.0
-],
-"songs": 2876,
-"song_frac": 0.3615
+"songs": 3387,
+"song_frac": 0.4315
 },
 {
 "pattern": [
@@ -12773,8 +12764,17 @@
 0.5,
 0.25
 ],
-"songs": 2869,
-"song_frac": 0.3606
+"songs": 2842,
+"song_frac": 0.3621
+},
+{
+"pattern": [
+1.0,
+0.5,
+1.0
+],
+"songs": 2841,
+"song_frac": 0.362
 },
 {
 "pattern": [
@@ -12782,8 +12782,8 @@
 0.1667,
 0.1667
 ],
-"songs": 2771,
-"song_frac": 0.3483
+"songs": 2740,
+"song_frac": 0.3491
 },
 {
 "pattern": [
@@ -12791,8 +12791,8 @@
 0.5,
 1.5
 ],
-"songs": 2583,
-"song_frac": 0.3247
+"songs": 2558,
+"song_frac": 0.3259
 },
 {
 "pattern": [
@@ -12800,8 +12800,8 @@
 0.5,
 0.5
 ],
-"songs": 2524,
-"song_frac": 0.3172
+"songs": 2500,
+"song_frac": 0.3185
 },
 {
 "pattern": [
@@ -12809,8 +12809,8 @@
 1.5,
 0.5
 ],
-"songs": 2502,
-"song_frac": 0.3145
+"songs": 2474,
+"song_frac": 0.3152
 },
 {
 "pattern": [
@@ -12818,8 +12818,8 @@
 0.25,
 0.5
 ],
-"songs": 2195,
-"song_frac": 0.2759
+"songs": 2172,
+"song_frac": 0.2767
 },
 {
 "pattern": [
@@ -12827,8 +12827,17 @@
 0.5,
 0.1667
 ],
-"songs": 1917,
-"song_frac": 0.241
+"songs": 1902,
+"song_frac": 0.2423
+},
+{
+"pattern": [
+0.1667,
+0.5,
+0.5
+],
+"songs": 1769,
+"song_frac": 0.2254
 },
 {
 "pattern": [
@@ -12836,17 +12845,8 @@
 0.5,
 0.5
 ],
-"songs": 1789,
-"song_frac": 0.2249
-},
-{
-"pattern": [
-0.1667,
-0.5,
-0.5
-],
-"songs": 1785,
-"song_frac": 0.2244
+"songs": 1767,
+"song_frac": 0.2251
 },
 {
 "pattern": [
@@ -12854,8 +12854,8 @@
 0.5,
 0.75
 ],
-"songs": 1720,
-"song_frac": 0.2162
+"songs": 1703,
+"song_frac": 0.217
 },
 {
 "pattern": [
@@ -12863,8 +12863,8 @@
 0.25,
 0.25
 ],
-"songs": 1687,
-"song_frac": 0.212
+"songs": 1669,
+"song_frac": 0.2126
 },
 {
 "pattern": [
@@ -12872,8 +12872,8 @@
 0.5,
 2.0
 ],
-"songs": 1677,
-"song_frac": 0.2108
+"songs": 1657,
+"song_frac": 0.2111
 },
 {
 "pattern": [
@@ -12881,8 +12881,8 @@
 0.25,
 1.0
 ],
-"songs": 1609,
-"song_frac": 0.2022
+"songs": 1595,
+"song_frac": 0.2032
 },
 {
 "pattern": [
@@ -12890,8 +12890,8 @@
 0.1667,
 0.1667
 ],
-"songs": 1568,
-"song_frac": 0.1971
+"songs": 1555,
+"song_frac": 0.1981
 },
 {
 "pattern": [
@@ -12899,8 +12899,8 @@
 0.25,
 0.75
 ],
-"songs": 1542,
-"song_frac": 0.1938
+"songs": 1533,
+"song_frac": 0.1953
 },
 {
 "pattern": [
@@ -12908,8 +12908,8 @@
 0.75,
 0.25
 ],
-"songs": 1522,
-"song_frac": 0.1913
+"songs": 1511,
+"song_frac": 0.1925
 },
 {
 "pattern": [
@@ -12917,8 +12917,8 @@
 0.25,
 0.25
 ],
-"songs": 1509,
-"song_frac": 0.1897
+"songs": 1499,
+"song_frac": 0.191
 },
 {
 "pattern": [
@@ -12926,8 +12926,8 @@
 0.1667,
 0.25
 ],
-"songs": 1496,
-"song_frac": 0.188
+"songs": 1481,
+"song_frac": 0.1887
 },
 {
 "pattern": [
@@ -12935,8 +12935,8 @@
 0.1667,
 0.1667
 ],
-"songs": 1491,
-"song_frac": 0.1874
+"songs": 1475,
+"song_frac": 0.1879
 },
 {
 "pattern": [
@@ -12944,8 +12944,8 @@
 1.0,
 0.5
 ],
-"songs": 1485,
-"song_frac": 0.1867
+"songs": 1468,
+"song_frac": 0.187
 },
 {
 "pattern": [
@@ -12953,8 +12953,8 @@
 1.5,
 0.5
 ],
-"songs": 1472,
-"song_frac": 0.185
+"songs": 1454,
+"song_frac": 0.1852
 },
 {
 "pattern": [
@@ -12962,8 +12962,8 @@
 1.0,
 1.0
 ],
-"songs": 1462,
-"song_frac": 0.1838
+"songs": 1449,
+"song_frac": 0.1846
 },
 {
 "pattern": [
@@ -12971,8 +12971,8 @@
 0.25,
 0.5
 ],
-"songs": 1460,
-"song_frac": 0.1835
+"songs": 1446,
+"song_frac": 0.1842
 },
 {
 "pattern": [
@@ -12980,8 +12980,8 @@
 1.0,
 1.5
 ],
-"songs": 1444,
-"song_frac": 0.1815
+"songs": 1429,
+"song_frac": 0.1821
 },
 {
 "pattern": [
@@ -12989,8 +12989,8 @@
 0.5,
 1.0
 ],
-"songs": 1408,
-"song_frac": 0.177
+"songs": 1394,
+"song_frac": 0.1776
 },
 {
 "pattern": [
@@ -12998,8 +12998,8 @@
 0.5,
 1.5
 ],
-"songs": 1407,
-"song_frac": 0.1768
+"songs": 1394,
+"song_frac": 0.1776
 },
 {
 "pattern": [
@@ -13007,8 +13007,8 @@
 0.75,
 0.25
 ],
-"songs": 1399,
-"song_frac": 0.1758
+"songs": 1386,
+"song_frac": 0.1766
 },
 {
 "pattern": [
@@ -13017,8 +13017,8 @@
 0.5,
 0.5
 ],
-"songs": 5301,
-"song_frac": 0.6663
+"songs": 5235,
+"song_frac": 0.667
 },
 {
 "pattern": [
@@ -13027,8 +13027,8 @@
 0.5,
 1.0
 ],
-"songs": 3874,
-"song_frac": 0.4869
+"songs": 3830,
+"song_frac": 0.488
 },
 {
 "pattern": [
@@ -13037,8 +13037,8 @@
 0.5,
 0.5
 ],
-"songs": 3749,
-"song_frac": 0.4712
+"songs": 3701,
+"song_frac": 0.4715
 },
 {
 "pattern": [
@@ -13047,8 +13047,8 @@
 1.0,
 0.5
 ],
-"songs": 3569,
-"song_frac": 0.4486
+"songs": 3527,
+"song_frac": 0.4494
 },
 {
 "pattern": [
@@ -13057,8 +13057,8 @@
 0.5,
 0.5
 ],
-"songs": 3516,
-"song_frac": 0.4419
+"songs": 3472,
+"song_frac": 0.4423
 },
 {
 "pattern": [
@@ -13067,8 +13067,8 @@
 0.25,
 0.25
 ],
-"songs": 3328,
-"song_frac": 0.4183
+"songs": 3299,
+"song_frac": 0.4203
 },
 {
 "pattern": [
@@ -13077,8 +13077,8 @@
 0.5,
 0.5
 ],
-"songs": 2819,
-"song_frac": 0.3543
+"songs": 2792,
+"song_frac": 0.3557
 },
 {
 "pattern": [
@@ -13087,8 +13087,8 @@
 1.0,
 1.0
 ],
-"songs": 2735,
-"song_frac": 0.3438
+"songs": 2703,
+"song_frac": 0.3444
 },
 {
 "pattern": [
@@ -13097,8 +13097,8 @@
 0.5,
 0.5
 ],
-"songs": 2639,
-"song_frac": 0.3317
+"songs": 2611,
+"song_frac": 0.3327
 },
 {
 "pattern": [
@@ -13107,27 +13107,27 @@
 0.25,
 0.25
 ],
-"songs": 2633,
+"songs": 2611,
+"song_frac": 0.3327
+},
+{
+"pattern": [
+0.25,
+0.25,
+0.25,
+0.5
+],
+"songs": 2597,
 "song_frac": 0.3309
 },
 {
 "pattern": [
-0.25,
-0.25,
-0.25,
-0.5
-],
-"songs": 2616,
-"song_frac": 0.3288
-},
-{
-"pattern": [
 0.5,
 0.5,
 1.0,
 1.0
 ],
-"songs": 2537,
+"songs": 2503,
 "song_frac": 0.3189
 },
 {
@@ -13137,18 +13137,8 @@
 0.5,
 0.25
 ],
-"songs": 2524,
-"song_frac": 0.3172
-},
-{
-"pattern": [
-0.5,
-0.25,
-0.25,
-0.5
-],
-"songs": 2506,
-"song_frac": 0.315
+"songs": 2499,
+"song_frac": 0.3184
 },
 {
 "pattern": [
@@ -13157,8 +13147,18 @@
 0.25,
 0.25
 ],
-"songs": 2503,
-"song_frac": 0.3146
+"songs": 2482,
+"song_frac": 0.3162
+},
+{
+"pattern": [
+0.5,
+0.25,
+0.25,
+0.5
+],
+"songs": 2480,
+"song_frac": 0.316
 },
 {
 "pattern": [
@@ -13167,8 +13167,8 @@
 0.5,
 0.5
 ],
-"songs": 2489,
-"song_frac": 0.3128
+"songs": 2461,
+"song_frac": 0.3135
 },
 {
 "pattern": [
@@ -13177,8 +13177,8 @@
 0.5,
 0.25
 ],
-"songs": 2279,
-"song_frac": 0.2865
+"songs": 2259,
+"song_frac": 0.2878
 },
 {
 "pattern": [
@@ -13187,8 +13187,8 @@
 0.5,
 1.0
 ],
-"songs": 2255,
-"song_frac": 0.2834
+"songs": 2230,
+"song_frac": 0.2841
 },
 {
 "pattern": [
@@ -13197,8 +13197,8 @@
 0.25,
 0.25
 ],
-"songs": 2225,
-"song_frac": 0.2797
+"songs": 2206,
+"song_frac": 0.2811
 },
 {
 "pattern": [
@@ -13207,8 +13207,8 @@
 1.0,
 0.5
 ],
-"songs": 2053,
-"song_frac": 0.258
+"songs": 2027,
+"song_frac": 0.2582
 },
 {
 "pattern": [
@@ -13217,8 +13217,8 @@
 1.0,
 1.0
 ],
-"songs": 2029,
-"song_frac": 0.255
+"songs": 2001,
+"song_frac": 0.2549
 },
 {
 "pattern": [
@@ -13227,8 +13227,8 @@
 0.5,
 1.0
 ],
-"songs": 1972,
-"song_frac": 0.2479
+"songs": 1948,
+"song_frac": 0.2482
 },
 {
 "pattern": [
@@ -13237,18 +13237,8 @@
 1.0,
 0.5
 ],
-"songs": 1952,
-"song_frac": 0.2453
-},
-{
-"pattern": [
-1.0,
-0.5,
-1.0,
-0.5
-],
-"songs": 1930,
-"song_frac": 0.2426
+"songs": 1927,
+"song_frac": 0.2455
 },
 {
 "pattern": [
@@ -13257,8 +13247,18 @@
 0.5,
 1.5
 ],
-"songs": 1928,
-"song_frac": 0.2423
+"songs": 1909,
+"song_frac": 0.2432
+},
+{
+"pattern": [
+1.0,
+0.5,
+1.0,
+0.5
+],
+"songs": 1909,
+"song_frac": 0.2432
 },
 {
 "pattern": [
@@ -13267,8 +13267,8 @@
 0.1667,
 0.1667
 ],
-"songs": 1894,
-"song_frac": 0.2381
+"songs": 1876,
+"song_frac": 0.239
 },
 {
 "pattern": [
@@ -13277,8 +13277,8 @@
 0.5,
 0.5
 ],
-"songs": 1831,
-"song_frac": 0.2301
+"songs": 1816,
+"song_frac": 0.2314
 },
 {
 "pattern": [
@@ -13287,8 +13287,8 @@
 0.5,
 0.25
 ],
-"songs": 1596,
-"song_frac": 0.2006
+"songs": 1588,
+"song_frac": 0.2023
 },
 {
 "pattern": [
@@ -13297,8 +13297,8 @@
 0.5,
 0.25
 ],
-"songs": 1575,
-"song_frac": 0.198
+"songs": 1560,
+"song_frac": 0.1988
 },
 {
 "pattern": [
@@ -13307,8 +13307,8 @@
 0.25,
 0.5
 ],
-"songs": 1541,
-"song_frac": 0.1937
+"songs": 1528,
+"song_frac": 0.1947
 },
 {
 "pattern": [
@@ -13317,8 +13317,8 @@
 1.5,
 0.5
 ],
-"songs": 1520,
-"song_frac": 0.1911
+"songs": 1504,
+"song_frac": 0.1916
 },
 {
 "pattern": [
@@ -13327,8 +13327,8 @@
 0.5,
 0.5
 ],
-"songs": 1475,
-"song_frac": 0.1854
+"songs": 1462,
+"song_frac": 0.1863
 },
 {
 "pattern": [
@@ -13337,8 +13337,8 @@
 0.5,
 0.1667
 ],
-"songs": 1366,
-"song_frac": 0.1717
+"songs": 1355,
+"song_frac": 0.1726
 },
 {
 "pattern": [
@@ -13347,8 +13347,8 @@
 1.0,
 1.0
 ],
-"songs": 1302,
-"song_frac": 0.1637
+"songs": 1287,
+"song_frac": 0.164
 },
 {
 "pattern": [
@@ -13357,8 +13357,8 @@
 0.5,
 1.0
 ],
-"songs": 1280,
-"song_frac": 0.1609
+"songs": 1270,
+"song_frac": 0.1618
 },
 {
 "pattern": [
@@ -13367,8 +13367,8 @@
 0.5,
 0.5
 ],
-"songs": 1225,
-"song_frac": 0.154
+"songs": 1218,
+"song_frac": 0.1552
 },
 {
 "pattern": [
@@ -13377,8 +13377,8 @@
 0.5,
 0.5
 ],
-"songs": 1214,
-"song_frac": 0.1526
+"songs": 1204,
+"song_frac": 0.1534
 },
 {
 "pattern": [
@@ -13387,8 +13387,8 @@
 0.5,
 0.5
 ],
-"songs": 1211,
-"song_frac": 0.1522
+"songs": 1199,
+"song_frac": 0.1528
 },
 {
 "pattern": [
@@ -13397,8 +13397,8 @@
 0.25,
 0.5
 ],
-"songs": 1186,
-"song_frac": 0.1491
+"songs": 1177,
+"song_frac": 0.15
 },
 {
 "pattern": [
@@ -13407,8 +13407,8 @@
 0.5,
 2.0
 ],
-"songs": 1113,
-"song_frac": 0.1399
+"songs": 1102,
+"song_frac": 0.1404
 },
 {
 "pattern": [
@@ -13418,8 +13418,8 @@
 0.5,
 0.5
 ],
-"songs": 4669,
-"song_frac": 0.5869
+"songs": 4609,
+"song_frac": 0.5872
 },
 {
 "pattern": [
@@ -13429,8 +13429,8 @@
 0.5,
 1.0
 ],
-"songs": 3115,
-"song_frac": 0.3915
+"songs": 3082,
+"song_frac": 0.3927
 },
 {
 "pattern": [
@@ -13440,8 +13440,8 @@
 0.5,
 0.5
 ],
-"songs": 3007,
-"song_frac": 0.378
+"songs": 2968,
+"song_frac": 0.3781
 },
 {
 "pattern": [
@@ -13451,8 +13451,8 @@
 0.5,
 0.5
 ],
-"songs": 2867,
-"song_frac": 0.3604
+"songs": 2834,
+"song_frac": 0.3611
 },
 {
 "pattern": [
@@ -13462,8 +13462,8 @@
 1.0,
 0.5
 ],
-"songs": 2800,
-"song_frac": 0.3519
+"songs": 2771,
+"song_frac": 0.353
 },
 {
 "pattern": [
@@ -13473,8 +13473,8 @@
 0.25,
 0.25
 ],
-"songs": 2731,
-"song_frac": 0.3433
+"songs": 2709,
+"song_frac": 0.3451
 },
 {
 "pattern": [
@@ -13484,8 +13484,8 @@
 0.5,
 0.5
 ],
-"songs": 2703,
-"song_frac": 0.3397
+"songs": 2675,
+"song_frac": 0.3408
 },
 {
 "pattern": [
@@ -13495,8 +13495,8 @@
 0.25,
 0.5
 ],
-"songs": 2131,
-"song_frac": 0.2678
+"songs": 2115,
+"song_frac": 0.2695
 },
 {
 "pattern": [
@@ -13506,8 +13506,8 @@
 0.25,
 0.25
 ],
-"songs": 2077,
-"song_frac": 0.2611
+"songs": 2062,
+"song_frac": 0.2627
 },
 {
 "pattern": [
@@ -13517,8 +13517,8 @@
 1.0,
 1.0
 ],
-"songs": 1929,
-"song_frac": 0.2425
+"songs": 1907,
+"song_frac": 0.243
 },
 {
 "pattern": [
@@ -13528,8 +13528,8 @@
 0.5,
 0.5
 ],
-"songs": 1910,
-"song_frac": 0.2401
+"songs": 1895,
+"song_frac": 0.2414
 },
 {
 "pattern": [
@@ -13539,8 +13539,8 @@
 0.25,
 0.25
 ],
-"songs": 1830,
-"song_frac": 0.23
+"songs": 1813,
+"song_frac": 0.231
 },
 {
 "pattern": [
@@ -13550,8 +13550,8 @@
 0.25,
 0.25
 ],
-"songs": 1797,
-"song_frac": 0.2259
+"songs": 1783,
+"song_frac": 0.2272
 },
 {
 "pattern": [
@@ -13561,30 +13561,30 @@
 1.0,
 1.0
 ],
-"songs": 1795,
-"song_frac": 0.2256
+"songs": 1776,
+"song_frac": 0.2263
 },
 {
 "pattern": [
 1.0,
 1.0,
-0.5,
-0.5,
-0.5
-],
-"songs": 1765,
-"song_frac": 0.2218
-},
-{
-"pattern": [
-0.25,
-0.5,
 0.5,
 0.5,
 0.5
 ],
 "songs": 1744,
-"song_frac": 0.2192
+"song_frac": 0.2222
+},
+{
+"pattern": [
+0.25,
+0.5,
+0.5,
+0.5,
+0.5
+],
+"songs": 1727,
+"song_frac": 0.22
 },
 {
 "pattern": [
@@ -13594,8 +13594,8 @@
 0.5,
 0.25
 ],
-"songs": 1724,
-"song_frac": 0.2167
+"songs": 1709,
+"song_frac": 0.2177
 },
 {
 "pattern": [
@@ -13605,7 +13605,18 @@
 0.25,
 0.25
 ],
-"songs": 1564,
+"songs": 1551,
+"song_frac": 0.1976
+},
+{
+"pattern": [
+0.25,
+0.25,
+0.25,
+0.5,
+0.25
+],
+"songs": 1543,
 "song_frac": 0.1966
 },
 {
@@ -13614,21 +13625,10 @@
 0.25,
 0.25,
 0.5,
-0.25
-],
-"songs": 1555,
-"song_frac": 0.1954
-},
-{
-"pattern": [
-0.25,
-0.25,
-0.25,
-0.5,
 0.5
 ],
-"songs": 1516,
-"song_frac": 0.1905
+"songs": 1505,
+"song_frac": 0.1917
 },
 {
 "pattern": [
@@ -13638,8 +13638,8 @@
 0.5,
 1.0
 ],
-"songs": 1513,
-"song_frac": 0.1902
+"songs": 1498,
+"song_frac": 0.1909
 },
 {
 "pattern": [
@@ -13649,8 +13649,8 @@
 1.0,
 0.5
 ],
-"songs": 1503,
-"song_frac": 0.1889
+"songs": 1485,
+"song_frac": 0.1892
 },
 {
 "pattern": [
@@ -13660,8 +13660,8 @@
 0.5,
 0.5
 ],
-"songs": 1481,
-"song_frac": 0.1861
+"songs": 1469,
+"song_frac": 0.1872
 },
 {
 "pattern": [
@@ -13671,8 +13671,8 @@
 0.25,
 0.5
 ],
-"songs": 1455,
-"song_frac": 0.1829
+"songs": 1440,
+"song_frac": 0.1835
 },
 {
 "pattern": [
@@ -13682,8 +13682,8 @@
 0.25,
 0.25
 ],
-"songs": 1411,
-"song_frac": 0.1774
+"songs": 1403,
+"song_frac": 0.1787
 },
 {
 "pattern": [
@@ -13693,8 +13693,8 @@
 0.1667,
 0.1667
 ],
-"songs": 1353,
-"song_frac": 0.1701
+"songs": 1341,
+"song_frac": 0.1708
 },
 {
 "pattern": [
@@ -13702,32 +13702,32 @@
 0.5,
 1.0,
 1.0,
-1.0
-],
-"songs": 1344,
-"song_frac": 0.1689
-},
-{
-"pattern": [
-1.0,
-1.0,
-1.0,
-0.5,
-0.5
-],
-"songs": 1333,
-"song_frac": 0.1675
-},
-{
-"pattern": [
-1.0,
-0.5,
-0.5,
-0.5,
 1.0
 ],
 "songs": 1323,
-"song_frac": 0.1663
+"song_frac": 0.1686
+},
+{
+"pattern": [
+1.0,
+1.0,
+1.0,
+0.5,
+0.5
+],
+"songs": 1316,
+"song_frac": 0.1677
+},
+{
+"pattern": [
+1.0,
+0.5,
+0.5,
+0.5,
+1.0
+],
+"songs": 1310,
+"song_frac": 0.1669
 },
 {
 "pattern": [
@@ -13737,8 +13737,8 @@
 0.5,
 0.5
 ],
-"songs": 1322,
-"song_frac": 0.1662
+"songs": 1309,
+"song_frac": 0.1668
 },
 {
 "pattern": [
@@ -13748,7 +13748,7 @@
 1.0,
 0.5
 ],
-"songs": 1319,
+"songs": 1301,
 "song_frac": 0.1658
 },
 {
@@ -13759,8 +13759,8 @@
 0.5,
 1.0
 ],
-"songs": 1306,
-"song_frac": 0.1642
+"songs": 1291,
+"song_frac": 0.1645
 },
 {
 "pattern": [
@@ -13770,19 +13770,19 @@
 0.5,
 1.5
 ],
-"songs": 1299,
-"song_frac": 0.1633
-},
-{
-"pattern": [
-1.0,
-0.5,
-1.0,
-0.5,
-0.5
-],
 "songs": 1285,
-"song_frac": 0.1615
+"song_frac": 0.1637
+},
+{
+"pattern": [
+1.0,
+0.5,
+1.0,
+0.5,
+0.5
+],
+"songs": 1271,
+"song_frac": 0.1619
 },
 {
 "pattern": [
@@ -13792,8 +13792,8 @@
 1.0,
 0.5
 ],
-"songs": 1249,
-"song_frac": 0.157
+"songs": 1240,
+"song_frac": 0.158
 },
 {
 "pattern": [
@@ -13803,8 +13803,8 @@
 0.25,
 0.5
 ],
-"songs": 1217,
-"song_frac": 0.153
+"songs": 1205,
+"song_frac": 0.1535
 },
 {
 "pattern": [
@@ -13814,8 +13814,8 @@
 0.5,
 0.25
 ],
-"songs": 1189,
-"song_frac": 0.1494
+"songs": 1175,
+"song_frac": 0.1497
 },
 {
 "pattern": [
@@ -13825,8 +13825,8 @@
 0.5,
 0.5
 ],
-"songs": 1161,
-"song_frac": 0.1459
+"songs": 1156,
+"song_frac": 0.1473
 },
 {
 "pattern": [
@@ -13836,8 +13836,8 @@
 1.0,
 0.5
 ],
-"songs": 1088,
-"song_frac": 0.1368
+"songs": 1080,
+"song_frac": 0.1376
 },
 {
 "pattern": [
@@ -13847,8 +13847,8 @@
 1.0,
 1.0
 ],
-"songs": 1084,
-"song_frac": 0.1362
+"songs": 1070,
+"song_frac": 0.1363
 }
 ],
 "figures": [
@@ -13861,8 +13861,8 @@
 0.5,
 0.5
 ],
-"songs": 4452,
-"song_frac": 0.5596
+"songs": 4396,
+"song_frac": 0.5601
 },
 {
 "intervals": [
@@ -13873,8 +13873,8 @@
 1.0,
 1.0
 ],
-"songs": 2905,
-"song_frac": 0.3651
+"songs": 2861,
+"song_frac": 0.3645
 },
 {
 "intervals": [
@@ -13885,8 +13885,8 @@
 1.0,
 0.5
 ],
-"songs": 2752,
-"song_frac": 0.3459
+"songs": 2716,
+"song_frac": 0.346
 },
 {
 "intervals": [
@@ -13897,8 +13897,8 @@
 0.25,
 0.25
 ],
-"songs": 2691,
-"song_frac": 0.3382
+"songs": 2666,
+"song_frac": 0.3397
 },
 {
 "intervals": [
@@ -13909,8 +13909,8 @@
 0.5,
 1.0
 ],
-"songs": 2596,
-"song_frac": 0.3263
+"songs": 2560,
+"song_frac": 0.3262
 },
 {
 "intervals": [
@@ -13921,8 +13921,8 @@
 0.5,
 0.5
 ],
-"songs": 2454,
-"song_frac": 0.3084
+"songs": 2424,
+"song_frac": 0.3088
 },
 {
 "intervals": [
@@ -13933,8 +13933,8 @@
 0.5,
 0.5
 ],
-"songs": 2315,
-"song_frac": 0.291
+"songs": 2287,
+"song_frac": 0.2914
 },
 {
 "intervals": [
@@ -13945,8 +13945,8 @@
 0.5,
 0.5
 ],
-"songs": 2251,
-"song_frac": 0.2829
+"songs": 2226,
+"song_frac": 0.2836
 },
 {
 "intervals": [
@@ -13957,8 +13957,8 @@
 0.25,
 0.5
 ],
-"songs": 2237,
-"song_frac": 0.2812
+"songs": 2218,
+"song_frac": 0.2826
 },
 {
 "intervals": [
@@ -13969,8 +13969,8 @@
 0.5,
 0.5
 ],
-"songs": 2222,
-"song_frac": 0.2793
+"songs": 2198,
+"song_frac": 0.28
 },
 {
 "intervals": [
@@ -13981,8 +13981,8 @@
 0.5,
 0.25
 ],
-"songs": 2215,
-"song_frac": 0.2784
+"songs": 2195,
+"song_frac": 0.2797
 },
 {
 "intervals": [
@@ -13993,8 +13993,8 @@
 0.5,
 0.5
 ],
-"songs": 2162,
-"song_frac": 0.2717
+"songs": 2132,
+"song_frac": 0.2716
 },
 {
 "intervals": [
@@ -14005,8 +14005,8 @@
 0.5,
 0.5
 ],
-"songs": 2041,
-"song_frac": 0.2565
+"songs": 2015,
+"song_frac": 0.2567
 },
 {
 "intervals": [
@@ -14017,8 +14017,8 @@
 0.5,
 0.5
 ],
-"songs": 1992,
-"song_frac": 0.2504
+"songs": 1973,
+"song_frac": 0.2514
 },
 {
 "intervals": [
@@ -14029,8 +14029,8 @@
 0.5,
 0.5
 ],
-"songs": 1981,
-"song_frac": 0.249
+"songs": 1962,
+"song_frac": 0.25
 },
 {
 "intervals": [
@@ -14041,8 +14041,8 @@
 0.5,
 0.5
 ],
-"songs": 1768,
-"song_frac": 0.2222
+"songs": 1756,
+"song_frac": 0.2237
 },
 {
 "intervals": [
@@ -14053,8 +14053,8 @@
 0.5,
 0.5
 ],
-"songs": 1744,
-"song_frac": 0.2192
+"songs": 1726,
+"song_frac": 0.2199
 },
 {
 "intervals": [
@@ -14065,8 +14065,8 @@
 0.5,
 0.5
 ],
-"songs": 1630,
-"song_frac": 0.2049
+"songs": 1610,
+"song_frac": 0.2051
 },
 {
 "intervals": [
@@ -14076,21 +14076,21 @@
 "gaps": [
 0.5,
 0.5
-],
-"songs": 1606,
-"song_frac": 0.2019
-},
-{
-"intervals": [
-2,
--2
-],
-"gaps": [
-0.25,
-0.25
 ],
 "songs": 1589,
-"song_frac": 0.1997
+"song_frac": 0.2024
+},
+{
+"intervals": [
+2,
+-2
+],
+"gaps": [
+0.25,
+0.25
+],
+"songs": 1580,
+"song_frac": 0.2013
 },
 {
 "intervals": [
@@ -14103,8 +14103,8 @@
 0.5,
 0.5
 ],
-"songs": 3116,
-"song_frac": 0.3917
+"songs": 3076,
+"song_frac": 0.3919
 },
 {
 "intervals": [
@@ -14117,8 +14117,8 @@
 0.25,
 0.25
 ],
-"songs": 1780,
-"song_frac": 0.2237
+"songs": 1770,
+"song_frac": 0.2255
 },
 {
 "intervals": [
@@ -14131,8 +14131,8 @@
 1.0,
 1.0
 ],
-"songs": 1660,
-"song_frac": 0.2086
+"songs": 1636,
+"song_frac": 0.2084
 },
 {
 "intervals": [
@@ -14145,8 +14145,8 @@
 0.5,
 0.5
 ],
-"songs": 1465,
-"song_frac": 0.1841
+"songs": 1451,
+"song_frac": 0.1849
 },
 {
 "intervals": [
@@ -14159,8 +14159,8 @@
 0.25,
 0.5
 ],
-"songs": 1367,
-"song_frac": 0.1718
+"songs": 1358,
+"song_frac": 0.173
 },
 {
 "intervals": [
@@ -14173,8 +14173,8 @@
 0.25,
 0.25
 ],
-"songs": 1351,
-"song_frac": 0.1698
+"songs": 1342,
+"song_frac": 0.171
 },
 {
 "intervals": [
@@ -14187,8 +14187,8 @@
 0.5,
 0.5
 ],
-"songs": 1286,
-"song_frac": 0.1616
+"songs": 1273,
+"song_frac": 0.1622
 },
 {
 "intervals": [
@@ -14201,8 +14201,8 @@
 0.5,
 1.0
 ],
-"songs": 1243,
-"song_frac": 0.1562
+"songs": 1232,
+"song_frac": 0.157
 },
 {
 "intervals": [
@@ -14215,8 +14215,8 @@
 0.5,
 0.5
 ],
-"songs": 1221,
-"song_frac": 0.1535
+"songs": 1209,
+"song_frac": 0.154
 },
 {
 "intervals": [
@@ -14229,8 +14229,8 @@
 1.0,
 0.5
 ],
-"songs": 1216,
-"song_frac": 0.1528
+"songs": 1206,
+"song_frac": 0.1537
 },
 {
 "intervals": [
@@ -14243,8 +14243,8 @@
 0.5,
 0.25
 ],
-"songs": 1162,
-"song_frac": 0.1461
+"songs": 1153,
+"song_frac": 0.1469
 },
 {
 "intervals": [
@@ -14257,8 +14257,8 @@
 0.5,
 0.5
 ],
-"songs": 1009,
-"song_frac": 0.1268
+"songs": 1005,
+"song_frac": 0.128
 },
 {
 "intervals": [
@@ -14271,8 +14271,8 @@
 0.5,
 0.25
 ],
-"songs": 982,
-"song_frac": 0.1234
+"songs": 976,
+"song_frac": 0.1243
 },
 {
 "intervals": [
@@ -14285,8 +14285,8 @@
 0.5,
 0.5
 ],
-"songs": 964,
-"song_frac": 0.1212
+"songs": 956,
+"song_frac": 0.1218
 },
 {
 "intervals": [
@@ -14299,8 +14299,8 @@
 0.5,
 0.5
 ],
-"songs": 954,
-"song_frac": 0.1199
+"songs": 944,
+"song_frac": 0.1203
 },
 {
 "intervals": [
@@ -14313,8 +14313,8 @@
 1.0,
 0.5
 ],
-"songs": 927,
-"song_frac": 0.1165
+"songs": 915,
+"song_frac": 0.1166
 },
 {
 "intervals": [
@@ -14327,8 +14327,8 @@
 0.5,
 0.5
 ],
-"songs": 899,
-"song_frac": 0.113
+"songs": 892,
+"song_frac": 0.1136
 },
 {
 "intervals": [
@@ -14341,8 +14341,8 @@
 0.5,
 0.5
 ],
-"songs": 826,
-"song_frac": 0.1038
+"songs": 819,
+"song_frac": 0.1043
 },
 {
 "intervals": [
@@ -14355,8 +14355,8 @@
 1.0,
 1.0
 ],
-"songs": 824,
-"song_frac": 0.1036
+"songs": 810,
+"song_frac": 0.1032
 },
 {
 "intervals": [
@@ -14369,8 +14369,8 @@
 0.25,
 0.5
 ],
-"songs": 796,
-"song_frac": 0.1001
+"songs": 790,
+"song_frac": 0.1006
 },
 {
 "intervals": [
@@ -14385,7 +14385,7 @@
 0.5,
 0.5
 ],
-"songs": 2288,
+"songs": 2257,
 "song_frac": 0.2876
 },
 {
@@ -14401,8 +14401,8 @@
 0.25,
 0.25
 ],
-"songs": 1320,
-"song_frac": 0.1659
+"songs": 1313,
+"song_frac": 0.1673
 },
 {
 "intervals": [
@@ -14417,8 +14417,8 @@
 1.0,
 1.0
 ],
-"songs": 966,
-"song_frac": 0.1214
+"songs": 951,
+"song_frac": 0.1212
 },
 {
 "intervals": [
@@ -14433,8 +14433,8 @@
 0.5,
 0.5
 ],
-"songs": 860,
-"song_frac": 0.1081
+"songs": 853,
+"song_frac": 0.1087
 },
 {
 "intervals": [
@@ -14449,8 +14449,8 @@
 0.5,
 0.5
 ],
-"songs": 794,
-"song_frac": 0.0998
+"songs": 787,
+"song_frac": 0.1003
 },
 {
 "intervals": [
@@ -14465,8 +14465,8 @@
 0.5,
 0.5
 ],
-"songs": 782,
-"song_frac": 0.0983
+"songs": 773,
+"song_frac": 0.0985
 },
 {
 "intervals": [
@@ -14481,8 +14481,8 @@
 0.5,
 0.25
 ],
-"songs": 728,
-"song_frac": 0.0915
+"songs": 722,
+"song_frac": 0.092
 },
 {
 "intervals": [
@@ -14497,8 +14497,8 @@
 0.25,
 0.25
 ],
-"songs": 717,
-"song_frac": 0.0901
+"songs": 710,
+"song_frac": 0.0905
 },
 {
 "intervals": [
@@ -14513,8 +14513,24 @@
 0.25,
 0.25
 ],
-"songs": 711,
-"song_frac": 0.0894
+"songs": 708,
+"song_frac": 0.0902
+},
+{
+"intervals": [
+0,
+0,
+0,
+0
+],
+"gaps": [
+0.5,
+1.0,
+0.5,
+0.5
+],
+"songs": 697,
+"song_frac": 0.0888
 },
 {
 "intervals": [
@@ -14529,24 +14545,8 @@
 0.5,
 1.0
 ],
-"songs": 703,
-"song_frac": 0.0884
-},
-{
-"intervals": [
-0,
-0,
-0,
-0
-],
-"gaps": [
-0.5,
-1.0,
-0.5,
-0.5
-],
-"songs": 700,
-"song_frac": 0.088
+"songs": 697,
+"song_frac": 0.0888
 },
 {
 "intervals": [
@@ -14561,8 +14561,8 @@
 1.0,
 0.5
 ],
-"songs": 675,
-"song_frac": 0.0848
+"songs": 671,
+"song_frac": 0.0855
 },
 {
 "intervals": [
@@ -14577,8 +14577,8 @@
 0.25,
 0.5
 ],
-"songs": 655,
-"song_frac": 0.0823
+"songs": 648,
+"song_frac": 0.0826
 },
 {
 "intervals": [
@@ -14593,8 +14593,8 @@
 0.25,
 0.5
 ],
-"songs": 636,
-"song_frac": 0.0799
+"songs": 634,
+"song_frac": 0.0808
 },
 {
 "intervals": [
@@ -14609,8 +14609,8 @@
 0.5,
 0.5
 ],
-"songs": 629,
-"song_frac": 0.0791
+"songs": 624,
+"song_frac": 0.0795
 },
 {
 "intervals": [
@@ -14625,8 +14625,8 @@
 0.5,
 0.5
 ],
-"songs": 577,
-"song_frac": 0.0725
+"songs": 571,
+"song_frac": 0.0727
 },
 {
 "intervals": [
@@ -14641,8 +14641,8 @@
 0.5,
 0.5
 ],
-"songs": 569,
-"song_frac": 0.0715
+"songs": 565,
+"song_frac": 0.072
 },
 {
 "intervals": [
@@ -14657,8 +14657,24 @@
 0.5,
 0.5
 ],
-"songs": 540,
-"song_frac": 0.0679
+"songs": 539,
+"song_frac": 0.0687
+},
+{
+"intervals": [
+0,
+0,
+0,
+0
+],
+"gaps": [
+0.5,
+0.5,
+0.25,
+0.25
+],
+"songs": 530,
+"song_frac": 0.0675
 },
 {
 "intervals": [
@@ -14673,24 +14689,8 @@
 0.5,
 0.5
 ],
-"songs": 532,
-"song_frac": 0.0669
-},
-{
-"intervals": [
-0,
-0,
-0,
-0
-],
-"gaps": [
-0.5,
-0.5,
-0.25,
-0.25
-],
-"songs": 532,
-"song_frac": 0.0669
+"songs": 527,
+"song_frac": 0.0671
 },
 {
 "intervals": [
@@ -14707,8 +14707,8 @@
 0.5,
 0.5
 ],
-"songs": 1829,
-"song_frac": 0.2299
+"songs": 1804,
+"song_frac": 0.2298
 },
 {
 "intervals": [
@@ -14725,8 +14725,8 @@
 0.25,
 0.25
 ],
-"songs": 923,
-"song_frac": 0.116
+"songs": 921,
+"song_frac": 0.1173
 },
 {
 "intervals": [
@@ -14743,8 +14743,8 @@
 1.0,
 1.0
 ],
-"songs": 695,
-"song_frac": 0.0874
+"songs": 685,
+"song_frac": 0.0873
 },
 {
 "intervals": [
@@ -14761,8 +14761,8 @@
 0.5,
 0.5
 ],
-"songs": 571,
-"song_frac": 0.0718
+"songs": 566,
+"song_frac": 0.0721
 },
 {
 "intervals": [
@@ -14779,8 +14779,26 @@
 0.25,
 0.25
 ],
-"songs": 500,
-"song_frac": 0.0628
+"songs": 496,
+"song_frac": 0.0632
+},
+{
+"intervals": [
+0,
+0,
+0,
+0,
+0
+],
+"gaps": [
+0.5,
+0.25,
+0.25,
+0.25,
+0.25
+],
+"songs": 491,
+"song_frac": 0.0626
 },
 {
 "intervals": [
@@ -14797,26 +14815,8 @@
 0.5,
 0.5
 ],
-"songs": 495,
-"song_frac": 0.0622
-},
-{
-"intervals": [
-0,
-0,
-0,
-0,
-0
-],
-"gaps": [
-0.5,
-0.25,
-0.25,
-0.25,
-0.25
-],
-"songs": 494,
-"song_frac": 0.0621
+"songs": 489,
+"song_frac": 0.0623
 },
 {
 "intervals": [
@@ -14833,8 +14833,8 @@
 0.5,
 0.5
 ],
-"songs": 472,
-"song_frac": 0.0593
+"songs": 465,
+"song_frac": 0.0592
 },
 {
 "intervals": [
@@ -14851,8 +14851,8 @@
 0.5,
 0.5
 ],
-"songs": 439,
-"song_frac": 0.0552
+"songs": 436,
+"song_frac": 0.0555
 },
 {
 "intervals": [
@@ -14869,8 +14869,8 @@
 0.25,
 0.5
 ],
-"songs": 410,
-"song_frac": 0.0515
+"songs": 408,
+"song_frac": 0.052
 },
 {
 "intervals": [
@@ -14887,8 +14887,8 @@
 0.5,
 0.5
 ],
-"songs": 382,
-"song_frac": 0.048
+"songs": 379,
+"song_frac": 0.0483
 },
 {
 "intervals": [
@@ -14905,8 +14905,8 @@
 0.5,
 0.5
 ],
-"songs": 377,
-"song_frac": 0.0474
+"songs": 376,
+"song_frac": 0.0479
 },
 {
 "intervals": [
@@ -14923,8 +14923,8 @@
 0.5,
 1.0
 ],
-"songs": 374,
-"song_frac": 0.047
+"songs": 371,
+"song_frac": 0.0473
 },
 {
 "intervals": [
@@ -14941,8 +14941,8 @@
 1.0,
 0.5
 ],
-"songs": 373,
-"song_frac": 0.0469
+"songs": 371,
+"song_frac": 0.0473
 },
 {
 "intervals": [
@@ -14959,8 +14959,8 @@
 0.25,
 0.25
 ],
-"songs": 370,
-"song_frac": 0.0465
+"songs": 369,
+"song_frac": 0.047
 },
 {
 "intervals": [
@@ -14977,8 +14977,8 @@
 0.5,
 0.5
 ],
-"songs": 370,
-"song_frac": 0.0465
+"songs": 369,
+"song_frac": 0.047
 },
 {
 "intervals": [
@@ -14995,7 +14995,7 @@
 0.5,
 0.5
 ],
-"songs": 366,
+"songs": 361,
 "song_frac": 0.046
 },
 {
@@ -15013,7 +15013,25 @@
 0.5,
 0.5
 ],
-"songs": 361,
+"songs": 357,
+"song_frac": 0.0455
+},
+{
+"intervals": [
+0,
+0,
+0,
+0,
+0
+],
+"gaps": [
+0.5,
+1.0,
+0.5,
+0.5,
+0.5
+],
+"songs": 356,
 "song_frac": 0.0454
 },
 {
@@ -15031,34 +15049,16 @@
 0.5,
 0.25
 ],
-"songs": 359,
-"song_frac": 0.0451
-},
-{
-"intervals": [
-0,
-0,
-0,
-0,
-0
-],
-"gaps": [
-0.5,
-1.0,
-0.5,
-0.5,
-0.5
-],
-"songs": 358,
-"song_frac": 0.045
+"songs": 355,
+"song_frac": 0.0452
 }
 ],
 "tropes": {
 "octave_leap": {
 "phrases": 197753,
 "phrase_frac": 0.3676,
-"songs": 5481,
-"song_frac": 0.6889,
+"songs": 5423,
+"song_frac": 0.6909,
 "examples": [
 {
 "song": "911",
@@ -15120,8 +15120,8 @@
 "chug_run": {
 "phrases": 179602,
 "phrase_frac": 0.3339,
-"songs": 6314,
-"song_frac": 0.7936,
+"songs": 6227,
+"song_frac": 0.7933,
 "examples": [
 {
 "song": "911",
@@ -15209,8 +15209,8 @@
 "ends_on_lowest_note": {
 "phrases": 101648,
 "phrase_frac": 0.189,
-"songs": 7091,
-"song_frac": 0.8913,
+"songs": 7005,
+"song_frac": 0.8925,
 "examples": [
 {
 "song": "911",
@@ -15272,8 +15272,8 @@
 "pedal_tone": {
 "phrases": 96080,
 "phrase_frac": 0.1786,
-"songs": 5482,
-"song_frac": 0.689,
+"songs": 5415,
+"song_frac": 0.6899,
 "examples": [
 {
 "song": "912",
@@ -15377,8 +15377,8 @@
 "repeated_figure": {
 "phrases": 33463,
 "phrase_frac": 0.0622,
-"songs": 5229,
-"song_frac": 0.6572,
+"songs": 5168,
+"song_frac": 0.6584,
 "examples": [
 {
 "song": "911",
@@ -15512,8 +15512,8 @@
 "tritone_move": {
 "phrases": 32326,
 "phrase_frac": 0.0601,
-"songs": 3469,
-"song_frac": 0.436,
+"songs": 3443,
+"song_frac": 0.4387,
 "examples": [
 {
 "song": "914",
@@ -15560,7 +15560,7 @@
 ]
 },
 {
-"song": "950",
+"song": "948",
 "pitches": [
 47,
 41
@@ -15575,8 +15575,8 @@
 "descending_run": {
 "phrases": 24790,
 "phrase_frac": 0.0461,
-"songs": 3504,
-"song_frac": 0.4404,
+"songs": 3466,
+"song_frac": 0.4416,
 "examples": [
 {
 "song": "911",
@@ -15658,8 +15658,8 @@
 "pentatonic_lick": {
 "phrases": 23272,
 "phrase_frac": 0.0433,
-"songs": 3802,
-"song_frac": 0.4779,
+"songs": 3750,
+"song_frac": 0.4778,
 "examples": [
 {
 "song": "913",
@@ -15827,8 +15827,8 @@
 "gallop": {
 "phrases": 22038,
 "phrase_frac": 0.041,
-"songs": 1767,
-"song_frac": 0.2221,
+"songs": 1756,
+"song_frac": 0.2237,
 "examples": [
 {
 "song": "911",
@@ -15861,7 +15861,7 @@
 ]
 },
 {
-"song": "943",
+"song": "941",
 "pitches": [
 42,
 42,
@@ -15876,7 +15876,7 @@
 ]
 },
 {
-"song": "944",
+"song": "942",
 "pitches": [
 40,
 40,
@@ -15891,7 +15891,7 @@
 ]
 },
 {
-"song": "946",
+"song": "944",
 "pitches": [
 57,
 57,
@@ -15910,8 +15910,8 @@
 "ascending_run": {
 "phrases": 16571,
 "phrase_frac": 0.0308,
-"songs": 2793,
-"song_frac": 0.3511,
+"songs": 2773,
+"song_frac": 0.3533,
 "examples": [
 {
 "song": "912",
@@ -15929,7 +15929,7 @@
 ]
 },
 {
-"song": "943",
+"song": "941",
 "pitches": [
 40,
 42,
@@ -15944,7 +15944,7 @@
 ]
 },
 {
-"song": "945",
+"song": "943",
 "pitches": [
 60,
 62,
@@ -15959,7 +15959,7 @@
 ]
 },
 {
-"song": "949",
+"song": "947",
 "pitches": [
 53,
 55,
@@ -15974,7 +15974,7 @@
 ]
 },
 {
-"song": "955",
+"song": "953",
 "pitches": [
 42,
 43,

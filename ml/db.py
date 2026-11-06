@@ -2,11 +2,11 @@
 
 Design
 ------
-``work``       the composition (title, artist, genre). One row per song however
+``song``       the composition (title, artist, genre). One row per song however
                many files we hold of it. Splits attach here, so a song is never
                in training through one file and in test through another.
 ``rendition``  one file of one source (a Lakh MIDI, a DadaGP tab, an audio
-               recording ...) pointing at its work; carries the file's own
+               recording ...) pointing at its song; carries the file's own
                facts (path, hash, tempo, resolution).
 ``track``      instrument tracks of a rendition, with a role (melody, guitar,
                bass, drums, other).
@@ -18,17 +18,17 @@ Design
                derived row points at one so it can be re-run and replaced.
 ``phrase``     a training phrase cut from a track by an extractor, stored with
                its pitches/onsets/durations and the note ids it covers.
-``split``      work -> train/val/test.
-``*_feature``  key/value rows per work, rendition or note from any extractor,
+``split``      song -> train/val/test.
+``*_feature``  key/value rows per song, rendition or note from any extractor,
                and ``frame_feature`` for time-indexed signals not aligned to
                notes (loudness curves and the like).
 
-Identifiers: ``work.id`` is the song id and ``rendition.id`` the rendition id,
+Identifiers: ``song.id`` is the song id and ``rendition.id`` the rendition id,
 both integers assigned at ingest. A source's own identifier (POP909's folder
 number, Lakh's relative path, a DadaGP file name) is kept as
-``rendition.original_id`` for provenance only. Works are matched across
+``rendition.original_id`` for provenance only. Songs are matched across
 sources by normalised artist and title; sources that carry no names get one
-work per rendition. Exported phrases carry ``song_id = work.id`` and
+song per rendition. Exported phrases carry ``song_id = song.id`` and
 ``rendition_id``.
 
 CLI::
@@ -71,17 +71,17 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS source (
     id INTEGER PRIMARY KEY, name TEXT UNIQUE NOT NULL, licence TEXT, notes TEXT);
 
-CREATE TABLE IF NOT EXISTS work (
+CREATE TABLE IF NOT EXISTS song (
     id INTEGER PRIMARY KEY,
     title TEXT, artist TEXT, title_norm TEXT, artist_norm TEXT, genre TEXT, notes TEXT);
-CREATE INDEX IF NOT EXISTS work_norm ON work(artist_norm, title_norm);
+CREATE INDEX IF NOT EXISTS song_norm ON song(artist_norm, title_norm);
 
 CREATE TABLE IF NOT EXISTS rendition (
-    id INTEGER PRIMARY KEY, work_id INTEGER NOT NULL REFERENCES work(id),
+    id INTEGER PRIMARY KEY, song_id INTEGER NOT NULL REFERENCES song(id),
     source_id INTEGER NOT NULL REFERENCES source(id), original_id TEXT NOT NULL,
     path TEXT, content_hash TEXT, format TEXT, tempo REAL, resolution INTEGER, meta_json TEXT,
     UNIQUE(source_id, original_id));
-CREATE INDEX IF NOT EXISTS rendition_work ON rendition(work_id);
+CREATE INDEX IF NOT EXISTS rendition_work ON rendition(song_id);
 
 CREATE TABLE IF NOT EXISTS track (
     id INTEGER PRIMARY KEY, rendition_id INTEGER NOT NULL REFERENCES rendition(id) ON DELETE CASCADE,
@@ -109,12 +109,12 @@ CREATE TABLE IF NOT EXISTS phrase (
 CREATE INDEX IF NOT EXISTS phrase_rendition ON phrase(rendition_id);
 
 CREATE TABLE IF NOT EXISTS split (
-    work_id INTEGER PRIMARY KEY REFERENCES work(id) ON DELETE CASCADE, name TEXT NOT NULL, seed INTEGER);
+    song_id INTEGER PRIMARY KEY REFERENCES song(id) ON DELETE CASCADE, name TEXT NOT NULL, seed INTEGER);
 
-CREATE TABLE IF NOT EXISTS work_feature (
-    work_id INTEGER NOT NULL REFERENCES work(id) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS song_feature (
+    song_id INTEGER NOT NULL REFERENCES song(id) ON DELETE CASCADE,
     extractor_id INTEGER NOT NULL REFERENCES extractor(id), key TEXT NOT NULL,
-    value_num REAL, value_text TEXT, PRIMARY KEY (work_id, extractor_id, key));
+    value_num REAL, value_text TEXT, PRIMARY KEY (song_id, extractor_id, key));
 CREATE TABLE IF NOT EXISTS rendition_feature (
     rendition_id INTEGER NOT NULL REFERENCES rendition(id) ON DELETE CASCADE,
     extractor_id INTEGER NOT NULL REFERENCES extractor(id), key TEXT NOT NULL,
@@ -139,10 +139,52 @@ SOURCES = {
 }
 
 _NORM_RE = re.compile(r"[^a-z0-9]+")
+_PAREN_RE = re.compile(r"\s*[\(\[][^\)\]]*[\)\]]")  # "(Live)", "[Remastered]"
+_SUFFIX_RE = re.compile(r"\s+-\s+(live|remaster(ed)?( \d{4})?|single version|album version|radio edit|demo|acoustic|mono|stereo)\b.*$")
+_AND_WORDS = {"&", "n", "and", "'n", "'n'", "+"}
+_LEAD_ARTICLES = ("the ", "a ", "an ", "los ", "las ", "le ", "la ", "les ", "die ", "der ", "das ")
 
 
 def norm_text(s: str | None) -> str:
-    return _NORM_RE.sub(" ", (s or "").lower()).strip()
+    """Lowercase ASCII words: accents stripped, punctuation to spaces."""
+    import unicodedata
+
+    s = unicodedata.normalize("NFKD", s or "")
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return _NORM_RE.sub(" ", s.lower()).strip()
+
+
+def artist_key(artist: str | None) -> str:
+    """Matching key for an artist name: "Guns N' Roses", "Guns 'n Roses",
+    "Guns & Roses" and "Guns And Roses" all give "guns and roses"; a leading
+    article is dropped ("The Beatles" -> "beatles")."""
+    raw = (artist or "").lower().strip()
+    for art in _LEAD_ARTICLES:
+        if raw.startswith(art):
+            raw = raw[len(art):]
+            break
+    words = [("and" if w.strip("'") in {"n", "and"} or w in _AND_WORDS else w) for w in raw.replace("&", " & ").split()]
+    return norm_text(" ".join(words))
+
+
+def title_key(title: str | None) -> str:
+    """Matching key for a title: parenthetical and " - live/remastered" suffixes
+    dropped (they mark a rendition, not a different composition)."""
+    raw = (title or "").lower().strip()
+    raw = _PAREN_RE.sub("", raw)
+    raw = _SUFFIX_RE.sub("", raw)
+    return norm_text(raw) or norm_text(title)
+
+
+def similar(a: str, b: str) -> float:
+    """0..1 string similarity (difflib ratio), used as a typo backstop."""
+    from difflib import SequenceMatcher
+
+    return SequenceMatcher(None, a, b).ratio() if a and b else 0.0
+
+
+ARTIST_FUZZY = 0.85  # same title key, artist keys this similar -> same song
+TITLE_FUZZY = 0.92  # same artist key, title keys this similar -> same song
 
 
 # --------------------------------------------------------------------------- #
@@ -183,20 +225,101 @@ def extractor_id(con: sqlite3.Connection, name: str, version: str = "1", params:
     return int(row["id"])
 
 
-def get_or_create_work(con: sqlite3.Connection, title: str | None, artist: str | None,
-                       genre: str | None = None) -> int:
-    """The work with this normalised artist+title, created if absent.
+def find_song(con: sqlite3.Connection, title_k: str, artist_k: str) -> int | None:
+    """The song whose keys match exactly, else the best fuzzy match
+    (same title key and artist similarity >= ARTIST_FUZZY, or same artist key
+    and title similarity >= TITLE_FUZZY); None when nothing qualifies."""
+    if not title_k or not artist_k:
+        return None
+    row = con.execute("SELECT id FROM song WHERE title_norm=? AND artist_norm=?", (title_k, artist_k)).fetchone()
+    if row is not None:
+        return int(row["id"])
+    best, best_score = None, 0.0
+    for r in con.execute("SELECT id, artist_norm FROM song WHERE title_norm=?", (title_k,)):
+        sc = similar(artist_k, r["artist_norm"] or "")
+        if sc >= ARTIST_FUZZY and sc > best_score:
+            best, best_score = int(r["id"]), sc
+    for r in con.execute("SELECT id, title_norm FROM song WHERE artist_norm=?", (artist_k,)):
+        sc = similar(title_k, r["title_norm"] or "")
+        if sc >= TITLE_FUZZY and sc > best_score:
+            best, best_score = int(r["id"]), sc
+    return best
 
-    Without both names there is nothing to match on, so a new work is created.
+
+def get_or_create_song(con: sqlite3.Connection, title: str | None, artist: str | None,
+                       genre: str | None = None) -> int:
+    """The song this artist+title refers to, created if absent.
+
+    Matching uses :func:`artist_key` / :func:`title_key` (stored as
+    ``artist_norm`` / ``title_norm``) with :func:`find_song`'s fuzzy backstop.
+    Without both names there is nothing to match on, so a new song is created.
     """
-    tn, an = norm_text(title), norm_text(artist)
-    if tn and an:
-        row = con.execute("SELECT id FROM work WHERE title_norm=? AND artist_norm=?", (tn, an)).fetchone()
-        if row is not None:
-            return int(row["id"])
-    cur = con.execute("INSERT INTO work(title, artist, title_norm, artist_norm, genre) VALUES (?,?,?,?,?)",
-                      (title, artist, tn or None, an or None, genre))
+    tk, ak = title_key(title), artist_key(artist)
+    found = find_song(con, tk, ak)
+    if found is not None:
+        return found
+    cur = con.execute("INSERT INTO song(title, artist, title_norm, artist_norm, genre) VALUES (?,?,?,?,?)",
+                      (title, artist, tk or None, ak or None, genre))
     return int(cur.lastrowid)
+
+
+def merge_songs(con: sqlite3.Connection, keep: int, drop: int) -> None:
+    """Fold song ``drop`` into ``keep``: renditions move over, features move
+    unless the key already exists on ``keep``, the split of ``keep`` wins."""
+    if keep == drop:
+        return
+    con.execute("UPDATE rendition SET song_id=? WHERE song_id=?", (keep, drop))
+    con.execute("UPDATE OR IGNORE song_feature SET song_id=? WHERE song_id=?", (keep, drop))
+    con.execute("DELETE FROM song_feature WHERE song_id=?", (drop,))
+    if con.execute("SELECT 1 FROM split WHERE song_id=?", (keep,)).fetchone() is None:
+        con.execute("UPDATE OR IGNORE split SET song_id=? WHERE song_id=?", (keep, drop))
+    con.execute("DELETE FROM split WHERE song_id=?", (drop,))
+    con.execute("DELETE FROM song WHERE id=?", (drop,))
+
+
+def dedupe_songs(con: sqlite3.Connection, dry_run: bool = False, log=print) -> list[tuple[int, int, str]]:
+    """Merge songs that the current matching rules consider the same.
+
+    Re-keys every song with the current :func:`artist_key` / :func:`title_key`
+    (so a database built with older rules catches up), then merges fuzzy
+    duplicates into the lowest id. Returns ``(keep, drop, reason)`` triples.
+    """
+    rows = con.execute("SELECT id, title, artist FROM song ORDER BY id").fetchall()
+    for r in rows:
+        con.execute("UPDATE song SET title_norm=?, artist_norm=? WHERE id=?",
+                    (title_key(r["title"]) or None, artist_key(r["artist"]) or None, r["id"]))
+    merges: list[tuple[int, int, str]] = []
+    seen_drop: set[int] = set()
+    for r in con.execute("SELECT id, title_norm, artist_norm FROM song WHERE title_norm IS NOT NULL AND artist_norm IS NOT NULL ORDER BY id").fetchall():
+        if r["id"] in seen_drop:
+            continue
+        cands = con.execute(
+            "SELECT id, title_norm, artist_norm FROM song WHERE id > ? AND (title_norm=? OR artist_norm=?)",
+            (r["id"], r["title_norm"], r["artist_norm"])).fetchall()
+        for c in cands:
+            if c["id"] in seen_drop:
+                continue
+            same = (c["title_norm"] == r["title_norm"] and c["artist_norm"] == r["artist_norm"])
+            reason = "exact keys" if same else None
+            if not same and c["title_norm"] == r["title_norm"]:
+                sc = similar(r["artist_norm"], c["artist_norm"])
+                if sc >= ARTIST_FUZZY:
+                    reason = f"artist similarity {sc:.2f}"
+            if not same and reason is None and c["artist_norm"] == r["artist_norm"]:
+                sc = similar(r["title_norm"], c["title_norm"])
+                if sc >= TITLE_FUZZY:
+                    reason = f"title similarity {sc:.2f}"
+            if reason:
+                merges.append((int(r["id"]), int(c["id"]), reason))
+                seen_drop.add(int(c["id"]))
+                if not dry_run:
+                    merge_songs(con, int(r["id"]), int(c["id"]))
+    if dry_run:
+        con.rollback()
+    else:
+        con.commit()
+    log(f"{len(merges)} merges{' (dry run)' if dry_run else ''}")
+    return merges
 
 
 def file_hash(path: Path) -> str:
@@ -337,7 +460,7 @@ def jobs_for(pop909_dir: Path | None, guitar_dir: Path | None, dadagp_dir: Path 
 
 def ingest(con: sqlite3.Connection, jobs: list[tuple], workers: int = 1, min_notes: int = 5,
            max_notes: int = 16, log=print) -> dict[str, int]:
-    """Parse files in worker processes and write works, renditions, tracks, notes and phrases."""
+    """Parse files in worker processes and write songs, renditions, tracks, notes and phrases."""
     try:
         from tqdm import tqdm
     except ImportError:  # pragma: no cover
@@ -349,10 +472,10 @@ def ingest(con: sqlite3.Connection, jobs: list[tuple], workers: int = 1, min_not
         "lakh_guitar": extractor_id(con, "phrases_from_guitar_midi", "1", {"min_notes": min_notes, "max_notes": max_notes}),
         "dadagp": extractor_id(con, "phrases_from_dadagp", "1", {"min_notes": min_notes, "max_notes": max_notes}),
     }
-    work_jobs = [j[:7] for j in jobs]
+    parse_jobs = [j[:7] for j in jobs]
     names = {j[1]: j[7:] for j in jobs}  # path -> (artist, title)
     done = set(r["path"] for r in con.execute("SELECT path FROM rendition"))
-    todo = [j for j in work_jobs if j[1] not in done]
+    todo = [j for j in parse_jobs if j[1] not in done]
     log(f"{len(jobs)} files, {len(todo)} not yet ingested")
 
     def results():
@@ -371,9 +494,9 @@ def ingest(con: sqlite3.Connection, jobs: list[tuple], workers: int = 1, min_not
             log(f"  skip {path}: {err}")
             continue
         sid = source_id(con, source)
-        wid = get_or_create_work(con, title, artist)
+        wid = get_or_create_song(con, title, artist)
         cur = con.execute(
-            "INSERT INTO rendition(work_id, source_id, original_id, path, content_hash, format, tempo, resolution, meta_json)"
+            "INSERT INTO rendition(song_id, source_id, original_id, path, content_hash, format, tempo, resolution, meta_json)"
             " VALUES (?,?,?,?,?,?,?,?,?)",
             (wid, sid, original_id, path, file_hash(Path(path)), parsed["format"], parsed["tempo"],
              parsed["resolution"], json.dumps(parsed["meta"])))
@@ -412,14 +535,14 @@ def ingest(con: sqlite3.Connection, jobs: list[tuple], workers: int = 1, min_not
 
 def assign_splits(con: sqlite3.Connection, val_frac: float = 0.1, test_frac: float = 0.1,
                   seed: int = 0) -> dict[str, int]:
-    """Song-level split over works: a seeded random draw over work ids.
+    """Song-level split: a seeded random draw over song ids.
 
-    Works already in the table keep their split, so re-running after a new
-    ingest only draws the new works; evaluation sets stay stable.
+    Songs already in the table keep their split, so re-running after a new
+    ingest only draws the new songs; evaluation sets stay stable.
     """
-    existing = {int(r["work_id"]): r["name"] for r in con.execute("SELECT work_id, name FROM split")}
+    existing = {int(r["song_id"]): r["name"] for r in con.execute("SELECT song_id, name FROM split")}
     ids = [int(r["id"]) for r in con.execute(
-        "SELECT id FROM work WHERE id IN (SELECT DISTINCT work_id FROM rendition) ORDER BY id")]
+        "SELECT id FROM song WHERE id IN (SELECT DISTINCT song_id FROM rendition) ORDER BY id")]
     new = [i for i in ids if i not in existing]
     rng = np.random.default_rng([seed, len(existing)])
     order = [new[i] for i in rng.permutation(len(new))]
@@ -430,14 +553,14 @@ def assign_splits(con: sqlite3.Connection, val_frac: float = 0.1, test_frac: flo
     counts: dict[str, int] = defaultdict(int)
     for wid in ids:
         name = existing.get(wid) or drawn[wid]
-        con.execute("INSERT OR REPLACE INTO split(work_id, name, seed) VALUES (?,?,?)", (wid, name, seed))
+        con.execute("INSERT OR REPLACE INTO split(song_id, name, seed) VALUES (?,?,?)", (wid, name, seed))
         counts[name] += 1
     con.commit()
     return dict(counts)
 
 
 def load_db_phrases(con: sqlite3.Connection, sources: Iterable[str] | None = None) -> list[Phrase]:
-    q = ("SELECT r.work_id, r.id AS rendition_id, s.name AS source, p.pitches_json, p.onsets_json, p.durations_json "
+    q = ("SELECT r.song_id, r.id AS rendition_id, s.name AS source, p.pitches_json, p.onsets_json, p.durations_json "
          "FROM phrase p JOIN rendition r ON r.id = p.rendition_id "
          "JOIN source s ON s.id = r.source_id")
     args: tuple = ()
@@ -446,13 +569,13 @@ def load_db_phrases(con: sqlite3.Connection, sources: Iterable[str] | None = Non
         q += " WHERE s.name IN (%s)" % ",".join("?" * len(names))
         args = tuple(names)
     q += " ORDER BY r.id, p.idx"
-    return [Phrase(str(r["work_id"]), json.loads(r["pitches_json"]), json.loads(r["onsets_json"]),
+    return [Phrase(str(r["song_id"]), json.loads(r["pitches_json"]), json.loads(r["onsets_json"]),
                    json.loads(r["durations_json"]), r["source"], rendition_id=int(r["rendition_id"]))
             for r in con.execute(q, args)]
 
 
 def cap_per_song(phrases: list[Phrase], max_per_song: int | None, seed: int = 0) -> list[Phrase]:
-    """Keep at most ``max_per_song`` phrases per work (a seeded random subset, in
+    """Keep at most ``max_per_song`` phrases per song (a seeded random subset, in
     time order), so a song with many renditions or guitar tracks cannot
     outweigh one with a single melody track."""
     if not max_per_song:
@@ -470,9 +593,9 @@ def cap_per_song(phrases: list[Phrase], max_per_song: int | None, seed: int = 0)
 def export(con: sqlite3.Connection, out: Path, sources: Iterable[str] | None = None,
            max_per_song: int | None = None, cap_exempt: Iterable[str] = ("pop909",),
            seed: int = 0) -> tuple[int, dict[str, int]]:
-    """Write phrases as JSONL (``song_id`` = work id) plus ``splits.json`` next to it.
+    """Write phrases as JSONL (``song_id`` = song id) plus ``splits.json`` next to it.
 
-    ``max_per_song`` caps phrases per work for every source except those in
+    ``max_per_song`` caps phrases per song for every source except those in
     ``cap_exempt`` (melody sources have one track per song and need no cap).
     """
     exempt = set(cap_exempt or ())
@@ -481,8 +604,8 @@ def export(con: sqlite3.Connection, out: Path, sources: Iterable[str] | None = N
     phrases = [p for p in phrases if p.source in exempt] + capped
     save_phrases(phrases, out)
     splits = defaultdict(list)
-    for r in con.execute("SELECT work_id, name FROM split"):
-        splits[r["name"]].append(str(r["work_id"]))
+    for r in con.execute("SELECT song_id, name FROM split"):
+        splits[r["name"]].append(str(r["song_id"]))
     present = {p.song_id for p in phrases}
     ids = {name: sorted((k for k in v if k in present), key=int) for name, v in splits.items()}
     Path(out).with_name("splits.json").write_text(json.dumps(ids, indent=1))
@@ -491,17 +614,17 @@ def export(con: sqlite3.Connection, out: Path, sources: Iterable[str] | None = N
 
 def stats(con: sqlite3.Connection) -> str:
     lines = []
-    for r in con.execute("""SELECT s.name, COUNT(DISTINCT r.work_id) works, COUNT(r.id) renditions,
+    for r in con.execute("""SELECT s.name, COUNT(DISTINCT r.song_id) songs, COUNT(r.id) renditions,
                                    (SELECT COUNT(*) FROM track t JOIN rendition r2 ON r2.id=t.rendition_id WHERE r2.source_id=s.id) tracks,
                                    (SELECT COUNT(*) FROM note n JOIN track t ON t.id=n.track_id JOIN rendition r3 ON r3.id=t.rendition_id WHERE r3.source_id=s.id) notes,
                                    (SELECT COUNT(*) FROM phrase p JOIN rendition r4 ON r4.id=p.rendition_id WHERE r4.source_id=s.id) phrases
                             FROM source s JOIN rendition r ON r.source_id = s.id GROUP BY s.id"""):
-        lines.append(f"{r['name']:12s} works {r['works']:6d}  renditions {r['renditions']:6d}  tracks {r['tracks']:7d}  "
+        lines.append(f"{r['name']:12s} songs {r['songs']:6d}  renditions {r['renditions']:6d}  tracks {r['tracks']:7d}  "
                      f"notes {r['notes']:9d}  phrases {r['phrases']:7d}")
-    multi = con.execute("SELECT COUNT(*) c FROM (SELECT work_id FROM rendition GROUP BY work_id HAVING COUNT(*) > 1)").fetchone()["c"]
-    lines.append(f"works with more than one rendition: {multi}")
+    multi = con.execute("SELECT COUNT(*) c FROM (SELECT song_id FROM rendition GROUP BY song_id HAVING COUNT(*) > 1)").fetchone()["c"]
+    lines.append(f"songs with more than one rendition: {multi}")
     sp = {r["name"]: r["c"] for r in con.execute("SELECT name, COUNT(*) c FROM split GROUP BY name")}
-    lines.append(f"splits (works): {sp}")
+    lines.append(f"splits (songs): {sp}")
     roles = {r["role"]: r["c"] for r in con.execute("SELECT role, COUNT(*) c FROM track GROUP BY role")}
     lines.append(f"track roles: {roles}")
     ex = [f"{r['name']} v{r['version']}" for r in con.execute("SELECT name, version FROM extractor")]
@@ -538,6 +661,12 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--cap-exempt", nargs="*", default=["pop909"], help="sources the cap does not apply to")
     p.add_argument("--seed", type=int, default=0)
     sub.add_parser("stats")
+    p = sub.add_parser("dedupe", help="merge songs the matching rules consider the same")
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--show", type=int, default=20, help="print this many merges")
+    p = sub.add_parser("merge", help="fold one song id into another by hand")
+    p.add_argument("keep", type=int)
+    p.add_argument("drop", type=int)
     p = sub.add_parser("sql")
     p.add_argument("query")
     args = ap.parse_args(argv)
@@ -556,6 +685,15 @@ def main(argv: list[str] | None = None) -> None:
         print(f"wrote {n} phrases to {args.out}; splits {sp}")
     elif args.cmd == "stats":
         print(stats(con))
+    elif args.cmd == "dedupe":
+        merges = dedupe_songs(con, args.dry_run)
+        names = {r["id"]: f"{r['artist']} / {r['title']}" for r in con.execute("SELECT id, artist, title FROM song")} if args.dry_run else {}
+        for keep, drop, reason in merges[:args.show]:
+            print(f"  {drop} -> {keep}  ({reason})" + (f": {names.get(drop)} => {names.get(keep)}" if names else ""))
+    elif args.cmd == "merge":
+        merge_songs(con, args.keep, args.drop)
+        con.commit()
+        print(f"merged song {args.drop} into {args.keep}")
     elif args.cmd == "sql":
         for row in con.execute(args.query):
             print(dict(row))
