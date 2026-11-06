@@ -151,3 +151,103 @@ def suggest_gestures(sketch: Sketch, min_run: int = 3, same_tol: float = 0.6) ->
             out.append(GestureTag("buildup", 0, n - 1, 0.5))
 
     return out
+
+
+# --------------------------------------------------------------------------- #
+# Trope catalogue (mined from real music by ml/tropes.py)
+# --------------------------------------------------------------------------- #
+
+from functools import lru_cache  # noqa: E402
+from pathlib import Path  # noqa: E402
+import json  # noqa: E402
+
+CATALOGUE_PATH = Path(__file__).resolve().parent.parent / "data" / "tropes.json"
+
+TROPE_LABELS: dict[str, str] = {
+    "chug_run": "chug run (repeated note)",
+    "ascending_run": "ascending run",
+    "descending_run": "descending run",
+    "pedal_tone": "pedal tone",
+    "tritone_move": "tritone move",
+    "octave_leap": "octave leap",
+    "gallop": "gallop rhythm",
+    "repeated_figure": "repeated figure",
+    "pentatonic_lick": "pentatonic lick",
+    "ends_on_lowest_note": "ends on its lowest note",
+}
+
+
+@lru_cache(maxsize=1)
+def load_catalogue(path: str | None = None) -> dict[str, Any]:
+    """The mined catalogue, or an empty one when the file is missing."""
+    p = Path(path) if path else CATALOGUE_PATH
+    if not p.exists():
+        return {"genres": {}}
+    return json.loads(p.read_text())
+
+
+def catalogue_genre(genre: str | None, catalogue: dict[str, Any] | None = None) -> dict[str, Any] | None:
+    cat = catalogue if catalogue is not None else load_catalogue()
+    genres = cat.get("genres", {})
+    if genre in genres:
+        return genres[genre]
+    return genres.get("all")
+
+
+def _detect_named(pitches: list[int], gaps: list[float]) -> list[tuple[str, int, int]]:
+    """Run the catalogue's named-trope detectors on a concrete riff."""
+    from ml.datasets import Phrase  # light dataclass, no torch import
+    from ml.tropes import detect_tropes
+
+    onsets = [0.0]
+    for g in gaps:
+        onsets.append(onsets[-1] + g)
+    return detect_tropes(Phrase("riff", list(pitches), onsets, [1.0] * len(pitches), "riff"))
+
+
+def label_tropes(pitches: list[int], gaps_beats: list[float], genre: str | None = None) -> dict[str, Any]:
+    """Name the tropes a candidate riff uses and say how common they are in the genre.
+
+    Returns ``{"tropes": [{kind, label, start, end, song_frac}], "familiarity": f,
+    "familiar_ngrams": k, "ngrams": m}`` where familiarity is the share of the
+    riff's interval trigrams that are frequent in the genre's catalogue.
+    """
+    g = catalogue_genre(genre)
+    found = _detect_named(pitches, gaps_beats) if len(pitches) >= 3 else []
+    seen: set[str] = set()
+    tropes = []
+    for kind, s, e in found:
+        if kind in seen:
+            continue
+        seen.add(kind)
+        share = (g or {}).get("tropes", {}).get(kind, {}).get("song_frac")
+        tropes.append({"kind": kind, "label": TROPE_LABELS.get(kind, kind), "start": s, "end": e,
+                       "song_frac": share})
+    familiar, total = 0, 0
+    if g:
+        clip = load_catalogue().get("interval_clip", 12)
+        common = {tuple(x["pattern"]) for x in g.get("interval_ngrams", []) if len(x["pattern"]) == 3}
+        iv = [max(-clip, min(clip, b - a)) for a, b in zip(pitches, pitches[1:])]
+        for i in range(len(iv) - 2):
+            total += 1
+            familiar += tuple(iv[i:i + 3]) in common
+    return {"tropes": tropes, "familiarity": (familiar / total) if total else None,
+            "familiar_ngrams": familiar, "ngrams": total}
+
+
+def catalogue_summary(genre: str | None = None) -> dict[str, Any]:
+    """Compact view of one genre's catalogue for the API / UI."""
+    g = catalogue_genre(genre)
+    if not g:
+        return {"available": False}
+    return {
+        "available": True, "songs": g["songs"], "phrases": g["phrases"],
+        "tropes": [{"kind": k, "label": TROPE_LABELS.get(k, k), "song_frac": v["song_frac"],
+                    "example": (v["examples"][0] if v.get("examples") else None)}
+                   for k, v in sorted(g["tropes"].items(), key=lambda kv: -kv[1]["song_frac"])],
+        "scales": g["scales"],
+        "interval_unigram": g["interval_unigram"],
+        "top_interval_trigrams": [x for x in g["interval_ngrams"] if len(x["pattern"]) == 3][:10],
+        "top_rhythm_trigrams": [x for x in g["rhythm_ngrams"] if len(x["pattern"]) == 3][:5],
+        "contours": g["contours"][:8],
+    }

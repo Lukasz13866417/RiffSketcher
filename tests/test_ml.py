@@ -581,3 +581,47 @@ def test_dataset_has_rhythm_targets_and_model_trains_with_head():
     # a model without the head still runs on batches that carry rhythm targets
     plain = SketchTransformer(ModelConfig(d_model=32, n_layers=1, n_heads=2))
     assert plain.forward_joint(batch)[1] is None and torch.isfinite(plain.loss(batch))
+
+
+# -- trope catalogue ---------------------------------------------------------- #
+
+def test_trope_detectors_on_handwritten_riffs():
+    from ml.datasets import Phrase
+    from ml.tropes import detect_tropes, scale_family, contour_word
+    # chug run + tritone + ends on lowest note, gallop rhythm (eighth + two sixteenths, twice)
+    p = Phrase("s", [40, 40, 40, 40, 46, 40, 40, 40, 43, 40],
+               [0, 0.5, 0.75, 1.0, 1.5, 1.75, 2.0, 2.5, 2.75, 3.0], [0.25] * 10, "lakh_guitar")
+    kinds = {k for k, _, _ in detect_tropes(p)}
+    assert {"chug_run", "tritone_move", "gallop", "ends_on_lowest_note"} <= kinds
+    # pedal tone: alternates with a fixed low note
+    p2 = Phrase("s", [40, 47, 40, 48, 40, 50, 40, 52], list(range(8)), [1] * 8, "x")
+    assert "pedal_tone" in {k for k, _, _ in detect_tropes(p2)}
+    # repeated figure and runs
+    p3 = Phrase("s", [60, 62, 64, 65, 60, 62, 64, 65], list(range(8)), [1] * 8, "x")
+    kinds3 = {k for k, _, _ in detect_tropes(p3)}
+    assert "repeated_figure" in kinds3 and "ascending_run" in kinds3
+    assert scale_family([60, 62, 64, 67, 69]) == "pentatonic"
+    assert scale_family([60, 62, 64, 65, 67, 69, 71]) == "diatonic"
+    assert scale_family([60, 61, 62, 63, 64, 65, 66, 67]) == "chromatic"
+    assert contour_word([2, 2, -1, 0, 0, 3]) == "u d s u"
+
+
+def test_mine_and_catalogue_roundtrip(tmp_path):
+    import json
+    from ml.datasets import synthetic_phrases
+    from ml.tropes import mine, to_catalogue, summary
+    phrases = synthetic_phrases(200, seed=3)
+    for p in phrases[:100]:
+        p.source = "pop909"
+    for p in phrases[100:]:
+        p.source = "lakh_guitar"
+    cat = to_catalogue(mine(phrases), top=10, min_songs=2)
+    assert {"pop", "rock", "all"} <= set(cat["genres"])
+    g = cat["genres"]["all"]
+    assert g["phrases"] == len([p for p in phrases if len(p.pitches) >= 3])
+    assert abs(sum(g["interval_unigram"].values()) - 1.0) < 0.01
+    assert g["interval_ngrams"] and all(x["songs"] >= 2 for x in g["interval_ngrams"])
+    assert all(len(x["pattern"]) == len(x["pattern"]) for x in g["rhythm_ngrams"])
+    out = tmp_path / "cat.json"
+    out.write_text(json.dumps(cat))
+    assert "== all" in summary(json.loads(out.read_text()))

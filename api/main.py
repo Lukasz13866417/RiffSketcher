@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 
 from core.constraints import build_constraints, violations
 from core.inference import DeterministicReconstructor, InferenceConfig
-from core.motifs import GESTURE_LIBRARY, suggest_gestures
+from core.motifs import GESTURE_LIBRARY, catalogue_summary, label_tropes, suggest_gestures
 from core.representation import Riff, Sketch, midi_to_name
 from core.rhythm import fill_missed_taps, merge_passes, quantise
 from core.synthesis import riff_to_wav
@@ -88,10 +88,12 @@ class QuantiseIn(BaseModel):
     tempo_hint: float | None = None
 
 
-def _riff_out(r: Riff) -> dict[str, Any]:
+def _riff_out(r: Riff, genre: str | None = None) -> dict[str, Any]:
     d = r.to_dict()
     d["note_names"] = [midi_to_name(n.pitch) for n in r.notes]
     d["intervals"] = r.intervals
+    gaps = [b.onset - a.onset for a, b in zip(r.notes, r.notes[1:])]
+    d.update(label_tropes(r.pitches, gaps, genre))
     return d
 
 
@@ -117,6 +119,12 @@ def engines() -> dict[str, Any]:
             d["genres"] = eng.genres
         info.append(d)
     return {"engines": info, "default": DEFAULT_ENGINE}
+
+
+@app.get("/api/tropes")
+def tropes(genre: str | None = None) -> dict[str, Any]:
+    """Mined trope catalogue for a genre ('all' when unknown); see ml/tropes.py."""
+    return catalogue_summary(genre)
 
 
 @app.get("/api/gestures")
@@ -162,9 +170,10 @@ def reconstruct(body: ReconstructIn) -> dict[str, Any]:
         raise HTTPException(400, f"unknown engine {name!r}; available: {sorted(ENGINES)}")
     riffs = ENGINES[name].reconstruct(sketch, n)
     cs = build_constraints(sketch)
+    genre = sketch.meta.get("genre")
     return {
         "engine": name,
-        "candidates": [{**_riff_out(r), "violations": violations(r, cs)} for r in riffs],
+        "candidates": [{**_riff_out(r, genre), "violations": violations(r, cs)} for r in riffs],
         "constraints": {
             "fixed_pitch": cs.fixed_pitch, "direction": cs.direction,
             "interval": cs.interval, "same": cs.same,

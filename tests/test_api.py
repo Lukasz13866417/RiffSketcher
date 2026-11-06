@@ -62,3 +62,14 @@ def test_reconstruct_accepts_genre_and_engines_report_genres():
         assert isinstance(model["genres"], list)
     r = client.post("/api/reconstruct", json={"sketch": SKETCH, "n_candidates": 2, "engine": "deterministic", "genre": "metal"})
     assert r.status_code == 200
+
+
+def test_tropes_endpoint_and_candidate_labels():
+    r = client.get("/api/tropes", params={"genre": "rock"}).json()
+    assert "available" in r
+    sketch = dict(SKETCH)
+    sketch["observations"] = [{"t": i * 0.25, "y": y, "confidence": 0.9} for i, y in enumerate([0, 0, 0, 0, 6, 0, 3, 0])]
+    c = client.post("/api/reconstruct", json={"sketch": sketch, "n_candidates": 2, "engine": "deterministic"}).json()
+    cand = c["candidates"][0]
+    assert "tropes" in cand and "familiarity" in cand
+    assert all({"kind", "label", "start", "end"} <= set(t) for t in cand["tropes"])

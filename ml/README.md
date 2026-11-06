@@ -258,6 +258,44 @@ uv run python -m ml.evaluate --checkpoint runs/pop909/best.pt runs/mixed/best.pt
 uv run python -m experiments.chug_probe runs/pop909/best.pt runs/mixed/best.pt
 ```
 
+### Trope catalogue (2026-11-06)
+
+`ml/tropes.py` counts recurring patterns in the real phrases, per genre, and
+writes `data/tropes.json` (113 KB, committed). Everything is a document
+frequency (once per song), so a song that repeats one riff does not dominate.
+It holds, per genre and overall: interval unigrams; interval, rhythm and
+combined "figure" n-grams (2-5) with the share of songs containing each;
+named tropes from rule detectors with example phrases; the smallest scale
+family each phrase fits; and compressed contour words.
+
+Named tropes (share of songs), POP909 melodies vs Lakh guitar riff lines:
+
+| trope | pop | rock |
+| --- | --- | --- |
+| chug run (3+ repeated notes) | 58% | 71% |
+| pedal tone | 76% | 52% |
+| repeated figure (exact interval period) | 10% | 53% |
+| tritone move | 5% | 25% |
+| octave leap | 43% | 55% |
+| gallop (eighth + two sixteenths, twice) | 20% | 11% |
+| pentatonic lick (4+ pitch classes, two minor-third hops) | 70% | 28% |
+| descending run | 54% | 27% |
+| ascending run | 35% | 19% |
+| ends on its lowest note | 92% | 79% |
+
+Interval unigrams: repeats are 22% of pop intervals and 33% of rock; whole
+steps are 38% of pop and 16% of rock. Top rock trigram `[0, 0, 0]` appears in
+71% of songs; top pop trigrams are `[-2, -2, 2]` and `[-2, 2, -2]` (62% / 61%).
+Rhythm trigram `[0.5, 0.5, 0.5]` leads both.
+
+Used in the app via `core.motifs.label_tropes` (chips on every candidate, plus
+a familiarity score = share of the candidate's interval trigrams that are
+common in the genre) and `GET /api/tropes`. Rebuild after changing the data:
+
+```bash
+uv run python -m ml.tropes --data data/processed/mixed.jsonl --out data/tropes.json
+```
+
 ### Rhythm head: learned timing vs the rule-based quantiser (2026-11-06)
 
 Motivation: on fast riffs tap jitter (30-50 ms) is comparable to a sixteenth

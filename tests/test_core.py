@@ -199,3 +199,19 @@ def test_fill_missed_taps_inserts_unknown_notes():
     assert all(abs(b - a - 0.2) < 1e-6 for a, b in zip(out.onsets, out.onsets[1:]))
     # nothing tagged: nothing happens
     assert fill_missed_taps(Sketch([Observation(t, 0) for t in ts]))[1] == 0
+
+
+def test_label_tropes_and_catalogue_summary():
+    from core.motifs import catalogue_summary, label_tropes, load_catalogue
+    # the committed catalogue should be present; the functions must also work without it
+    res = label_tropes([40, 40, 40, 40, 46, 40, 43, 40], [0.5, 0.25, 0.25, 0.5, 0.25, 0.25, 0.5], "rock")
+    kinds = {t["kind"] for t in res["tropes"]}
+    assert "chug_run" in kinds and "tritone_move" in kinds
+    assert res["ngrams"] == 5 and (res["familiarity"] is None or 0 <= res["familiarity"] <= 1)
+    assert label_tropes([40, 43], [0.5])["tropes"] == []
+    s = catalogue_summary("rock")
+    if load_catalogue().get("genres"):
+        assert s["available"] and s["songs"] > 0 and s["tropes"] and "scales" in s
+        assert catalogue_summary("nonexistent")["available"]  # falls back to "all"
+    else:
+        assert s == {"available": False}

@@ -558,8 +558,11 @@ function renderCandidates() {
     const scoreTxt = method.startsWith('transformer')
       ? `model log-prob ${c.score.toFixed(2)} (≈${(100 * Math.exp(c.score)).toPrecision(2)}% of the model's probability mass)`
       : `search score ${c.score.toFixed(2)}`;
+    const chips = (c.tropes || []).map((t) => `<span class="chip" title="${t.song_frac != null ? Math.round(t.song_frac * 100) + '% of songs in this genre use it' : 'not in the catalogue'}">${t.label}</span>`).join('');
+    const fam = c.familiarity == null ? '' : `<span class="chip fam" title="share of this riff's 3-interval patterns that are common in the genre catalogue">${Math.round(c.familiarity * 100)}% familiar patterns</span>`;
     li.innerHTML = `<span class="key">${c.key}</span> <span class="muted">${scoreTxt} · ${method}</span><br>` +
       `<span class="notes">${c.note_names.join(' ')}</span>` +
+      ((chips || fam) ? `<br><span class="chips">${fam}${chips}</span>` : '') +
       (c.violations.length ? `<br><span class="viol">violates: ${c.violations.join('; ')}</span>` : '');
     li.onclick = () => { state.selectedCandidate = i; renderCandidates(); renderGraph(); $('btn-play').disabled = false; state.feedbackNote = -1; $('feedback').hidden = true; };
     ol.appendChild(li);

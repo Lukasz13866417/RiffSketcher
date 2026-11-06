@@ -81,6 +81,9 @@ select { width: auto; }
 .candidates .key { color: var(--accent2); font-weight: 600; }
 .candidates .notes { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; }
 .candidates .viol { color: var(--danger); font-size: 0.85rem; }
+.chips { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.chip { font-size: 0.75rem; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--grid-strong); color: var(--muted); }
+.chip.fam { border-color: var(--accent2); color: var(--accent2); }
 .feedback b { color: var(--accent2); }
 footer { padding: 8px 24px; border-top: 1px solid var(--grid-strong); }
 @media (max-width: 700px) { header { grid-template-columns: 1fr; } .header-actions { grid-column: 1; grid-row: auto; } main { padding: 8px 12px 30px; } }

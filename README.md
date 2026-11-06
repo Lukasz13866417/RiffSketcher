@@ -95,9 +95,21 @@ that drops to 77% / 86%. That is the baseline the Transformer has to beat (`ml/e
 | `POST /api/quantise` | `{onsets, tempo_hint}` | tempo, onsets in beats |
 | `POST /api/suggest-gestures` | sketch | rule-based gesture suggestions |
 | `POST /api/fill-gaps` | sketch | the sketch with placeholder notes inserted inside tapping-run regions |
+| `GET /api/tropes?genre=rock` | – | the mined trope catalogue for a genre: named tropes with how many songs use them, scale families, common interval and rhythm patterns |
 | `GET /api/engines` | – | available reconstruction engines and the default |
-| `POST /api/reconstruct` | `{sketch, n_candidates, engine}` | ranked candidate riffs with note names and violations; `engine` is `auto`, `model` or `deterministic` |
+| `POST /api/reconstruct` | `{sketch, n_candidates, engine}` | ranked candidate riffs with note names, violations, and the tropes each candidate uses with a familiarity score; `engine` is `auto`, `model` or `deterministic` |
 | `POST /api/synthesize` | riff | `audio/wav` |
+
+## Trope catalogue
+
+`data/tropes.json` is mined from the real phrases by `uv run python -m ml.tropes` (see
+`ml/README.md`, "Trope catalogue"): per genre, how many songs use each named trope (chug run, pedal
+tone, gallop, tritone move, octave leap, pentatonic lick, repeated figure, runs, ending on the lowest
+note), the smallest scale family phrases fit, interval and rhythm n-grams counted once per song, and
+contour habits. No ML: it is counting over real music. The app uses it to label every candidate with the
+tropes it contains and a "familiar patterns" score, the share of the candidate's 3-interval patterns
+that are common in the chosen genre, so a candidate that is musically unusual is visible before you
+play it.
 
 ## Roadmap (from the plan)
 
