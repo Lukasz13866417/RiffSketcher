@@ -16,8 +16,10 @@ Design
                vibrato, dead, tie) that tabs and audio extraction fill in.
 ``extractor``  name + version + params of anything that derives data; every
                derived row points at one so it can be re-run and replaced.
-``phrase``     a training phrase cut from a track by an extractor, stored with
-               its pitches/onsets/durations and the note ids it covers.
+``phrase``     a training phrase cut from a track's note rows by ``cut_phrases``
+               (the melody line or the riff line, see ``ml.datasets``), stored
+               with its pitches/onsets/durations and the ids of the note rows it
+               covers, so per-note data reaches training through the phrase.
 ``split``      song -> train/val/test.
 ``*_feature``  key/value rows per song, rendition or note from any extractor,
                and ``frame_feature`` for time-indexed signals not aligned to
@@ -35,6 +37,7 @@ CLI::
 
     uv run python -m ml.db init
     uv run python -m ml.db ingest --pop909-dir data/raw/pop909/POP909 --guitar-midi-dir data/raw/lakh_clean/clean_midi
+    uv run python -m ml.db cut --recut      # ingest cuts phrases for new files; this recuts everything
     uv run python -m ml.db split --seed 0
     uv run python -m ml.db export --out data/processed/mixed.jsonl --max-per-song 12
     uv run python -m ml.db stats
@@ -57,10 +60,9 @@ from typing import Any, Iterable
 
 import numpy as np
 
-from ml.datasets import (Phrase, _is_guitar_track, _monophonic_notes, _onsets_from_dadagp_events,
-                         _onsets_from_notes, _pick_melody_instrument, dadagp_track_events,
-                         phrases_from_dadagp, phrases_from_guitar_midi, phrases_from_midi,
-                         save_phrases)
+from ml.datasets import (MAX_RIFF_CHORD, Phrase, _is_guitar_track, _monophonic_notes,
+                         _onsets_from_dadagp_events, _pick_melody_instrument, dadagp_track_events,
+                         melody_line_phrases, riff_line_phrases_indexed, save_phrases)
 
 DEFAULT_DB = Path("data/riffs.db")
 
@@ -351,7 +353,7 @@ def _midi_role(ins: Any, melody_ins: Any) -> str:
 
 def parse_midi(path: Path, source: str, original_id: str, keep_roles: tuple[str, ...], min_notes: int,
                max_notes: int) -> Parsed:
-    """Tracks (+ notes for ``keep_roles``) and the phrases of one MIDI file."""
+    """Tracks (+ notes for ``keep_roles``) of one MIDI file; phrases are cut later from the note rows."""
     import pretty_midi
 
     warnings.simplefilter("ignore")
@@ -370,16 +372,14 @@ def parse_midi(path: Path, source: str, original_id: str, keep_roles: tuple[str,
             src_notes = _monophonic_notes(ins.notes) if role == "melody" else sorted(ins.notes, key=lambda n: (n.start, n.pitch))
             for k, n in enumerate(src_notes):
                 s, e = to_beats(n.start), to_beats(n.end)
-                notes.append((k, round(s, 4), round(max(e - s, 0.0), 4), round(float(n.start), 4),
+                # six decimals: a 480-tick quarter note is 1/480 = 0.002083 beats, and phrase onsets are
+                # differences of these values rounded to four, so the store must be finer than that
+                notes.append((k, round(s, 6), round(max(e - s, 0.0), 6), round(float(n.start), 6),
                               int(n.pitch), int(n.velocity)))
         tracks.append({"idx": idx, "name": ins.name, "program": int(ins.program), "role": role,
                        "is_drum": int(ins.is_drum), "n_notes": len(ins.notes), "notes": notes})
-    if source == "pop909":
-        phrases = phrases_from_midi(path, min_notes, max_notes, song_id=original_id, source=source)
-    else:
-        phrases = phrases_from_guitar_midi(path, min_notes, max_notes, song_id=original_id, source=source)
     tempos = pm.get_tempo_changes()[1]
-    return {"tracks": tracks, "phrases": [p.to_dict() for p in phrases],
+    return {"tracks": tracks,
             "tempo": float(tempos[0]) if len(tempos) else None, "resolution": int(pm.resolution),
             "format": path.suffix.lower().lstrip("."), "meta": {"n_instruments": len(pm.instruments)}}
 
@@ -393,11 +393,10 @@ def parse_dadagp(path: Path, source: str, original_id: str, min_notes: int, max_
         notes = []
         for k, (s, e, pitches) in enumerate(_onsets_from_dadagp_events(events)):
             if pitches:
-                notes.append((k, round(s, 4), round(max(e - s, 0.0), 4), None, int(min(pitches)), None))
+                notes.append((k, round(s, 6), round(max(e - s, 0.0), 6), None, int(min(pitches)), None))
         tracks.append({"idx": idx, "name": name, "program": None, "role": "guitar", "is_drum": 0,
                        "n_notes": len(notes), "notes": notes})
-    phrases = phrases_from_dadagp(path, min_notes, max_notes, song_id=original_id, source=source)
-    return {"tracks": tracks, "phrases": [p.to_dict() for p in phrases], "tempo": None, "resolution": 960,
+    return {"tracks": tracks, "tempo": None, "resolution": 960,
             "format": "dadagp", "meta": {}}
 
 
@@ -467,11 +466,7 @@ def ingest(con: sqlite3.Connection, jobs: list[tuple], workers: int = 1, min_not
         def tqdm(it, **kw):
             return it
     counts: dict[str, int] = defaultdict(int)
-    ext = {
-        "pop909": extractor_id(con, "phrases_from_midi", "1", {"min_notes": min_notes, "max_notes": max_notes}),
-        "lakh_guitar": extractor_id(con, "phrases_from_guitar_midi", "1", {"min_notes": min_notes, "max_notes": max_notes}),
-        "dadagp": extractor_id(con, "phrases_from_dadagp", "1", {"min_notes": min_notes, "max_notes": max_notes}),
-    }
+    new_renditions: list[int] = []
     parse_jobs = [j[:7] for j in jobs]
     names = {j[1]: j[7:] for j in jobs}  # path -> (artist, title)
     done = set(r["path"] for r in con.execute("SELECT path FROM rendition"))
@@ -514,18 +509,95 @@ def ingest(con: sqlite3.Connection, jobs: list[tuple], workers: int = 1, min_not
                     [(tid, k, s, d, os_, p, v) for k, s, d, os_, p, v in t["notes"]])
                 counts["notes"] += len(t["notes"])
             counts["tracks"] += 1
-        for i, p in enumerate(parsed["phrases"]):
-            con.execute(
-                "INSERT INTO phrase(rendition_id, track_id, extractor_id, idx, start_beats, n_notes, pitches_json, onsets_json, durations_json)"
-                " VALUES (?,?,?,?,?,?,?,?,?)",
-                (rid, None, ext[source], i, None, len(p["pitches"]), json.dumps(p["pitches"]),
-                 json.dumps(p["onsets_beats"]), json.dumps(p["durations_beats"])))
-        counts["phrases"] += len(parsed["phrases"])
+        new_renditions.append(rid)
         counts["renditions"] += 1
         if counts["renditions"] % 200 == 0:
             con.commit()
     con.commit()
+    if new_renditions:
+        counts["phrases"] = cut_phrases(con, new_renditions, min_notes, max_notes, log=log)
     return dict(counts)
+
+
+# --------------------------------------------------------------------------- #
+# phrases from the note rows
+# --------------------------------------------------------------------------- #
+
+CUT_EXTRACTOR = "cut_phrases"
+CUT_VERSION = "1"
+
+
+def _onsets_with_ids(rows: list[sqlite3.Row], tol_beats: float = 0.05) -> tuple[list, list[int]]:
+    """Group a guitar track's note rows into onsets ``(start, end, pitches)``
+    plus, per onset, the id of its lowest note (the riff note)."""
+    onsets: list[list] = []  # [start, end, pitches, lowest id, lowest pitch]
+    for r in sorted(rows, key=lambda r: (r["onset_beats"], r["pitch"])):
+        start, end, pitch = float(r["onset_beats"]), float(r["onset_beats"] + r["duration_beats"]), int(r["pitch"])
+        if onsets and start - onsets[-1][0] <= tol_beats:
+            o = onsets[-1]
+            if pitch < o[4]:
+                o[1], o[3], o[4] = end, int(r["id"]), pitch
+            o[2].append(pitch)
+        else:
+            onsets.append([start, end, [pitch], int(r["id"]), pitch])
+    return [(o[0], o[1], o[2]) for o in onsets], [o[3] for o in onsets]
+
+
+def cut_phrases(con: sqlite3.Connection, rendition_ids: Iterable[int] | None = None, min_notes: int = 5,
+                max_notes: int = 16, rest_split_beats: float = 2.0, log=print) -> int:
+    """Cut training phrases from the stored note rows and link them to their notes.
+
+    Melody tracks give the melody line (:func:`melody_line_phrases`); guitar
+    tracks give the riff line (:func:`riff_line_phrases_indexed`: lowest note
+    per onset, strummed chords end a phrase). Exact repeats within a rendition
+    are kept once. Existing phrases of the renditions are replaced. Returns the
+    number of phrases written.
+    """
+    ext = extractor_id(con, CUT_EXTRACTOR, CUT_VERSION,
+                       {"min_notes": min_notes, "max_notes": max_notes, "rest_split_beats": rest_split_beats,
+                        "max_chord": MAX_RIFF_CHORD})
+    if rendition_ids is None:
+        rids = [int(r["id"]) for r in con.execute("SELECT id FROM rendition ORDER BY id")]
+    else:
+        rids = list(rendition_ids)
+    total = 0
+    for n_done, rid in enumerate(rids, 1):
+        con.execute("DELETE FROM phrase WHERE rendition_id=?", (rid,))
+        src = con.execute("SELECT s.name FROM rendition r JOIN source s ON s.id=r.source_id WHERE r.id=?", (rid,)).fetchone()["name"]
+        seen: set[tuple] = set()
+        idx = 0
+        for t in con.execute("SELECT id, role FROM track WHERE rendition_id=? AND notes_stored=1 ORDER BY idx", (rid,)):
+            rows = con.execute("SELECT id, onset_beats, duration_beats, pitch FROM note WHERE track_id=? ORDER BY idx",
+                               (t["id"],)).fetchall()
+            if not rows:
+                continue
+            if t["role"] == "melody":
+                starts = [float(r["onset_beats"]) for r in rows]
+                ends = [float(r["onset_beats"] + r["duration_beats"]) for r in rows]
+                found = [(p, [int(rows[i]["id"]) for i in ix]) for p, ix in melody_line_phrases(
+                    starts, ends, [int(r["pitch"]) for r in rows], str(rid), src, min_notes, max_notes, rest_split_beats)]
+            else:
+                onsets, lowest = _onsets_with_ids(rows)
+                found = [(p, [lowest[i] for i in ix]) for p, ix in riff_line_phrases_indexed(
+                    onsets, str(rid), src, min_notes, max_notes, rest_split_beats)]
+            for p, note_ids in found:
+                key = (tuple(p.pitches), tuple(p.onsets_beats))
+                if key in seen:
+                    continue
+                seen.add(key)
+                start = con.execute("SELECT onset_beats FROM note WHERE id=?", (note_ids[0],)).fetchone()["onset_beats"]
+                con.execute(
+                    "INSERT INTO phrase(rendition_id, track_id, extractor_id, idx, start_beats, n_notes, pitches_json, onsets_json, durations_json, note_ids_json)"
+                    " VALUES (?,?,?,?,?,?,?,?,?,?)",
+                    (rid, t["id"], ext, idx, float(start), len(p.pitches), json.dumps(p.pitches),
+                     json.dumps(p.onsets_beats), json.dumps(p.durations_beats), json.dumps(note_ids)))
+                idx += 1
+                total += 1
+        if n_done % 500 == 0:
+            con.commit()
+            log(f"  cut {n_done}/{len(rids)} renditions, {total} phrases")
+    con.commit()
+    return total
 
 
 # --------------------------------------------------------------------------- #
@@ -560,7 +632,8 @@ def assign_splits(con: sqlite3.Connection, val_frac: float = 0.1, test_frac: flo
 
 
 def load_db_phrases(con: sqlite3.Connection, sources: Iterable[str] | None = None) -> list[Phrase]:
-    q = ("SELECT r.song_id, r.id AS rendition_id, s.name AS source, p.pitches_json, p.onsets_json, p.durations_json "
+    q = ("SELECT r.song_id, r.id AS rendition_id, p.id AS phrase_id, s.name AS source, "
+         "p.pitches_json, p.onsets_json, p.durations_json "
          "FROM phrase p JOIN rendition r ON r.id = p.rendition_id "
          "JOIN source s ON s.id = r.source_id")
     args: tuple = ()
@@ -570,7 +643,8 @@ def load_db_phrases(con: sqlite3.Connection, sources: Iterable[str] | None = Non
         args = tuple(names)
     q += " ORDER BY r.id, p.idx"
     return [Phrase(str(r["song_id"]), json.loads(r["pitches_json"]), json.loads(r["onsets_json"]),
-                   json.loads(r["durations_json"]), r["source"], rendition_id=int(r["rendition_id"]))
+                   json.loads(r["durations_json"]), r["source"], rendition_id=int(r["rendition_id"]),
+                   phrase_id=int(r["phrase_id"]))
             for r in con.execute(q, args)]
 
 
@@ -650,6 +724,10 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--max-notes", type=int, default=16)
     p.add_argument("--limit", type=int, default=None, help="max files per source (debug)")
     p.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) // 2))
+    p = sub.add_parser("cut", help="cut phrases from the stored notes (ingest does this for new files)")
+    p.add_argument("--recut", action="store_true", help="replace the phrases of every rendition")
+    p.add_argument("--min-notes", type=int, default=5)
+    p.add_argument("--max-notes", type=int, default=16)
     p = sub.add_parser("split")
     p.add_argument("--val-frac", type=float, default=0.1)
     p.add_argument("--test-frac", type=float, default=0.1)
@@ -678,6 +756,14 @@ def main(argv: list[str] | None = None) -> None:
     elif args.cmd == "ingest":
         jobs = jobs_for(args.pop909_dir, args.guitar_midi_dir, args.dadagp_dir, args.min_notes, args.max_notes, args.limit)
         print(ingest(con, jobs, args.workers, args.min_notes, args.max_notes))
+    elif args.cmd == "cut":
+        if args.recut:
+            n = cut_phrases(con, None, args.min_notes, args.max_notes)
+        else:
+            missing = [int(r["id"]) for r in con.execute(
+                "SELECT id FROM rendition WHERE id NOT IN (SELECT DISTINCT rendition_id FROM phrase)")]
+            n = cut_phrases(con, missing, args.min_notes, args.max_notes)
+        print(f"{n} phrases written")
     elif args.cmd == "split":
         print(assign_splits(con, args.val_frac, args.test_frac, args.seed))
     elif args.cmd == "export":

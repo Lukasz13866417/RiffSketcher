@@ -274,22 +274,35 @@ files. Tables:
 | `track` | instrument track | role: melody / guitar / bass / drums / other; notes stored only for kept roles |
 | `note` | note event | onset and duration in beats, seconds, pitch, velocity, string, fret, palm mute, bend, slide, hammer, vibrato, dead, tie |
 | `extractor` | name + version + params | every derived row points at one |
-| `phrase` | training phrase | pitches / onsets / durations as JSON, the extractor that cut it |
+| `phrase` | training phrase | `id`; pitches / onsets / durations as JSON; the track and the **ids of the note rows it covers**; the extractor that cut it |
 | `split` | song | train / val / test, kept across runs and seedable |
 | `song_feature`, `rendition_feature`, `note_feature` | key/value | any extractor output at the right granularity |
 | `frame_feature` | time-indexed value | signals not aligned to notes (audio curves) |
 
 Ingest parses files in worker processes (`pretty_midi` for MIDI, the DadaGP
-token reader for tabs), stores all tracks but only the notes of melody
-(POP909) and guitar (Lakh, DadaGP) tracks, and runs the phrase extractors
-(`phrases_from_midi`, `phrases_from_guitar_midi`, `phrases_from_dadagp`).
-Files already present are skipped, so ingest is incremental. Exported
-phrases carry `song_id` and `rendition_id`; `--max-per-song`
-caps phrases per song for riff sources (`--cap-exempt pop909` by default,
-since a melody source has one track per song).
+token reader for tabs) and stores all tracks but only the notes of melody
+(POP909) and guitar (Lakh, DadaGP) tracks. Phrases are then **cut from the
+stored note rows** by `cut_phrases` (the melody line of a melody track, the
+riff line of a guitar track: lowest note per onset, strummed chords end a
+phrase, rests and largest gaps split, exact repeats within a rendition kept
+once — for melodies too, where the earlier file loader kept every repeated
+chorus as a separate phrase), and each phrase stores the ids of the notes it
+covers, so anything recorded per note
+(articulation from tabs, a classifier's palm-mute probability) reaches
+training through the phrase. The raw files are not needed after ingest;
+`cut --recut` re-derives every phrase, e.g. after changing the rules. (Cut
+from the stored rows, 99.85% of the phrases are identical to what the old
+file loader cut; the rest are the melody repeats, now kept once, and runs
+with tied largest gaps that split at a different tie, because a 32nd-note
+grid sits on the four-decimal rounding boundary: 1.46875 beats.) Files
+already present are skipped, so ingest is incremental. Exported phrases
+carry `song_id`, `rendition_id` and `phrase_id`; `--max-per-song` caps
+phrases per song for riff sources (`--cap-exempt pop909` by default, since
+a melody source has one track per song).
 
 ```bash
 uv run python -m ml.db ingest --pop909-dir data/raw/pop909/POP909 --guitar-midi-dir data/raw/lakh_clean/clean_midi
+uv run python -m ml.db cut --recut             # phrases from the note rows (ingest does this for new files)
 uv run python -m ml.db split --seed 0          # seeded draw over song ids; re-runs only assign new songs
 uv run python -m ml.db export --out data/processed/mixed.jsonl --max-per-song 12
 uv run python -m ml.db stats
@@ -320,19 +333,26 @@ phrase query; palm mute as a model input is the same column.
 
 Full ingest of POP909 and Lakh guitar: 909 + 16,977 renditions (279
 unreadable MIDI files skipped) into 10,923 songs, 173,201 tracks, 22.0M notes
-(melody and guitar tracks only) and 568,613 phrases; 1.7 GB; 3,425 songs have
-more than one rendition. Matching by normalised artist and title merges
+(melody and guitar tracks only) and 552,757 phrases cut from the note rows
+(104,085 exported after the 12-per-song cap); 1.7 GB; 3,425 songs have more
+than one rendition. Matching by normalised artist and title merges
 Lakh's case variants of one title ("Stairway to Heaven" / "Stairway To
 Heaven", "Y.M.C.A" / "Y.M.C.A."); a path-based song id, as the first mixed
 file used, treated those as different songs and put six of them on both
 sides of its split (e.g. "Sweet Child O' Mine" in train and test): too few
 to move the result tables above, and impossible now that splits are per
-song. The served model (`runs/genre/best.pt`, genre token, no rhythm head)
-is trained on the database export: teacher-forced validation accuracy
-0.762; on 2,000 test sketches of the database split (medium noise, true
-genre label) interval accuracy 0.602, NLL 1.134, ECE 0.014, top-5
-reconstruction 0.342. Earlier checkpoints were trained on a different split
-and are not comparable on this test set.
+song. The served pair (`runs/genre_facts/best.pt` for pitches,
+`runs/genre_facts_rh/best.pt` for timing; see "Constrained decoding") is
+trained on the note-linked export: teacher-forced validation accuracy 0.762
+and 0.750; on 2,000 test sketches of the database split (medium noise, true
+genre label) interval accuracy 0.594 with facts shown and 0.579 with facts
+hidden, NLL 1.151, ECE 0.014, top-5 reconstruction 0.343; the rhythm head
+scores 0.748 on gap classes against the quantiser's 0.655. These are a
+point or two under the numbers in the "Constrained decoding" tables, which
+were measured on the previous export: that export kept every repeated
+chorus of a POP909 melody as its own test phrase, so its test set was
+easier, and the two are not comparable. Earlier checkpoints were trained
+on a different split and are not comparable on this test set either.
 
 ### Constrained decoding and facts as inputs (2026-11-06)
 

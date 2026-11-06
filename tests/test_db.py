@@ -162,3 +162,41 @@ def test_dedupe_and_merge(tmp_path):
     assert con.execute("SELECT name FROM split WHERE song_id=1").fetchone()["name"] == "test"  # moved from the dropped song
     db.merge_songs(con, 1, 4); con.commit()
     assert con.execute("SELECT COUNT(*) c FROM song").fetchone()["c"] == 1
+
+
+def test_phrases_are_cut_from_notes_and_link_to_them(tmp_path, raw):
+    pop, lakh = raw
+    con = db.connect(tmp_path / "c.db")
+    db.init(con)
+    counts = ingest_all(con, pop, lakh)
+    assert counts["phrases"] > 0
+    rows = con.execute("""SELECT p.id, p.track_id, p.note_ids_json, p.pitches_json, p.start_beats, t.role
+                          FROM phrase p JOIN track t ON t.id = p.track_id""").fetchall()
+    assert rows and {r["role"] for r in rows} == {"melody", "guitar"}
+    for r in rows:
+        note_ids = json.loads(r["note_ids_json"]); pitches = json.loads(r["pitches_json"])
+        assert len(note_ids) == len(pitches)
+        stored = [con.execute("SELECT pitch, track_id, onset_beats FROM note WHERE id=?", (i,)).fetchone() for i in note_ids]
+        assert [x["pitch"] for x in stored] == pitches  # the phrase's pitches are exactly its notes' pitches
+        assert all(x["track_id"] == r["track_id"] for x in stored)
+        assert stored[0]["onset_beats"] == r["start_beats"]
+    ext = con.execute("SELECT name, version FROM extractor e JOIN phrase p ON p.extractor_id=e.id LIMIT 1").fetchone()
+    assert (ext["name"], ext["version"]) == (db.CUT_EXTRACTOR, db.CUT_VERSION)
+    # recut replaces, never duplicates
+    n_before = con.execute("SELECT COUNT(*) c FROM phrase").fetchone()["c"]
+    assert db.cut_phrases(con, None, log=lambda *a: None) == n_before
+    assert con.execute("SELECT COUNT(*) c FROM phrase").fetchone()["c"] == n_before
+    # the export carries phrase ids
+    out = tmp_path / "p.jsonl"
+    db.export(con, out)
+    assert all(p.phrase_id is not None for p in load_phrases(out))
+
+
+def test_onsets_with_ids_groups_chords_and_keeps_lowest_note():
+    import sqlite3
+    con = sqlite3.connect(":memory:"); con.row_factory = sqlite3.Row
+    con.execute("CREATE TABLE note(id INTEGER PRIMARY KEY, onset_beats REAL, duration_beats REAL, pitch INTEGER)")
+    con.executemany("INSERT INTO note VALUES (?,?,?,?)", [(1, 0.0, 1.0, 52), (2, 0.01, 0.5, 40), (3, 0.02, 0.7, 47), (4, 1.0, 1.0, 43)])
+    onsets, lowest = db._onsets_with_ids(con.execute("SELECT * FROM note").fetchall())
+    assert len(onsets) == 2 and sorted(onsets[0][2]) == [40, 47, 52] and lowest == [2, 4]
+    assert onsets[0][1] == pytest.approx(0.51)  # the onset ends with its lowest note

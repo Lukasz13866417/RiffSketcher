@@ -91,6 +91,7 @@ class Phrase:
     durations_beats: list[float]
     source: str = "unknown"
     rendition_id: int | None = None  # which file of the song the phrase was cut from
+    phrase_id: int | None = None  # the phrase row in the song database
 
     def __len__(self) -> int:
         return len(self.pitches)
@@ -108,7 +109,8 @@ class Phrase:
                    onsets_beats=[float(x) for x in d["onsets_beats"]],
                    durations_beats=[float(x) for x in d["durations_beats"]],
                    source=str(d.get("source", "unknown")),
-                   rendition_id=None if d.get("rendition_id") is None else int(d["rendition_id"]))
+                   rendition_id=None if d.get("rendition_id") is None else int(d["rendition_id"]),
+                   phrase_id=None if d.get("phrase_id") is None else int(d["phrase_id"]))
 
 
 def save_phrases(phrases: Iterable[Phrase], path: str | Path) -> None:
@@ -225,31 +227,41 @@ def phrases_from_midi(path: str | Path, min_notes: int = 5, max_notes: int = 16,
 
     starts = [to_beats(n.start) for n in notes]
     ends = [to_beats(n.end) for n in notes]
+    return [p for p, _ in melody_line_phrases(starts, ends, [int(n.pitch) for n in notes], sid, source,
+                                             min_notes, max_notes, rest_split_beats)]
+
+
+def melody_line_phrases(starts: list[float], ends: list[float], pitches: list[int], song_id: str,
+                        source: str, min_notes: int = 5, max_notes: int = 16,
+                        rest_split_beats: float = 2.0) -> list[tuple[Phrase, list[int]]]:
+    """Phrases from a monophonic line given in beats; returns (phrase, note indices).
+
+    The line is cut at rests longer than ``rest_split_beats``; runs longer than
+    ``max_notes`` are cut at their largest gaps (:func:`split_segment`);
+    phrases shorter than ``min_notes`` are dropped.
+    """
+    if not starts:
+        return []
     # trim overlaps so durations never run past the next onset
     durs = [max(0.125, min(e - s, (starts[i + 1] - s) if i + 1 < len(starts) else e - s))
             for i, (s, e) in enumerate(zip(starts, ends))]
-
-    # 1) hard cuts at long rests
     runs: list[list[int]] = [[0]]
-    for i in range(1, len(notes)):
+    for i in range(1, len(starts)):
         prev = runs[-1][-1]
-        rest = starts[i] - (starts[prev] + durs[prev])
-        if rest > rest_split_beats:
+        if starts[i] - (starts[prev] + durs[prev]) > rest_split_beats:
             runs.append([])
         runs[-1].append(i)
-
-    # 2) cut over-long runs at their biggest gaps, drop the too-short ones
-    phrases: list[Phrase] = []
+    out: list[tuple[Phrase, list[int]]] = []
     for run in runs:
         for seg in split_segment([starts[i] for i in run], [durs[i] for i in run], min_notes, max_notes):
             idx = [run[k] for k in seg]
             if len(idx) < min_notes:
                 continue
             t0 = starts[idx[0]]
-            phrases.append(Phrase(sid, [int(notes[i].pitch) for i in idx],
-                                  [round(starts[i] - t0, 4) for i in idx],
-                                  [round(durs[i], 4) for i in idx], source))
-    return phrases
+            out.append((Phrase(song_id, [int(pitches[i]) for i in idx],
+                               [round(starts[i] - t0, 4) for i in idx],
+                               [round(durs[i], 4) for i in idx], source), idx))
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -273,6 +285,13 @@ Onset = tuple[float, float, list[int]]
 def riff_line_phrases(onsets: list[Onset], song_id: str, source: str, min_notes: int = 5,
                       max_notes: int = 16, rest_split_beats: float = 2.0,
                       max_chord: int = MAX_RIFF_CHORD) -> list[Phrase]:
+    return [p for p, _ in riff_line_phrases_indexed(onsets, song_id, source, min_notes, max_notes,
+                                                    rest_split_beats, max_chord)]
+
+
+def riff_line_phrases_indexed(onsets: list[Onset], song_id: str, source: str, min_notes: int = 5,
+                              max_notes: int = 16, rest_split_beats: float = 2.0,
+                              max_chord: int = MAX_RIFF_CHORD) -> list[tuple[Phrase, list[int]]]:
     """Phrases from one guitar track given as onsets ``(start, end, pitches)`` in beats.
 
     Keeps the lowest pitch per onset, cuts at strummed chords (more than
@@ -281,26 +300,28 @@ def riff_line_phrases(onsets: list[Onset], song_id: str, source: str, min_notes:
     shorter than ``min_notes`` or with an interval beyond the model's range
     (±24 semitones, e.g. an octave-displaced MIDI transcription) are dropped.
     """
-    runs: list[list[tuple[float, float, int]]] = [[]]  # (start, duration, pitch)
-    for start, end, pitches in sorted(onsets, key=lambda o: o[0]):
+    order = sorted(range(len(onsets)), key=lambda i: onsets[i][0])
+    runs: list[list[tuple[float, float, int, int]]] = [[]]  # (start, duration, pitch, onset index)
+    for oi in order:
+        start, end, pitches = onsets[oi]
         if not pitches or len(pitches) > max_chord:
             if runs[-1]:
                 runs.append([])
             continue
         if runs[-1]:
-            prev_start, prev_dur, _ = runs[-1][-1]
+            prev_start, prev_dur, _, _ = runs[-1][-1]
             if start - (prev_start + prev_dur) > rest_split_beats:
                 runs.append([])
-        runs[-1].append((start, end - start, min(pitches)))
+        runs[-1].append((start, end - start, min(pitches), oi))
 
-    phrases: list[Phrase] = []
+    out: list[tuple[Phrase, list[int]]] = []
     for run in runs:
         if len(run) < min_notes:
             continue
-        starts = [s for s, _, _ in run]
+        starts = [s for s, _, _, _ in run]
         # trim durations so no note runs past the next onset
         durs = [max(0.125, min(d, (starts[i + 1] - s) if i + 1 < len(run) else d))
-                for i, (s, d, _) in enumerate(run)]
+                for i, (s, d, _, _) in enumerate(run)]
         for seg in split_segment(starts, durs, min_notes, max_notes):
             if len(seg) < min_notes:
                 continue
@@ -308,9 +329,9 @@ def riff_line_phrases(onsets: list[Onset], song_id: str, source: str, min_notes:
             if any(abs(b - a) > INTERVAL_MAX for a, b in zip(pitches, pitches[1:])):
                 continue
             t0 = starts[seg[0]]
-            phrases.append(Phrase(song_id, pitches, [round(starts[i] - t0, 4) for i in seg],
-                                  [round(durs[i], 4) for i in seg], source))
-    return phrases
+            out.append((Phrase(song_id, pitches, [round(starts[i] - t0, 4) for i in seg],
+                               [round(durs[i], 4) for i in seg], source), [run[i][3] for i in seg]))
+    return out
 
 
 def unique_phrases(phrases: list[Phrase]) -> list[Phrase]:
