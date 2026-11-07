@@ -219,22 +219,29 @@ def split_segment(starts: list[float], durs: list[float], min_notes: int,
     some of which may still be shorter than ``min_notes`` (the caller drops
     those).
     """
-    n = len(starts)
-    if n <= max_notes:
-        return [list(range(n))]
-    lo, hi = min_notes, n - min_notes  # candidate cut positions (cut before index j)
-    if lo >= hi:
-        lo, hi = 1, n - 1
-    best, best_key = lo, (-1.0, -1.0)
-    for j in range(lo, hi + 1):
-        rest = starts[j] - (starts[j - 1] + durs[j - 1])
-        ioi = starts[j] - starts[j - 1]
-        key = (round(rest, 4), round(ioi, 4))
-        if key > best_key:
-            best, best_key = j, key
-    left = split_segment(starts[:best], durs[:best], min_notes, max_notes)
-    right = split_segment(starts[best:], durs[best:], min_notes, max_notes)
-    return left + [[i + best for i in seg] for seg in right]
+    # iterative: a run of thousands of notes without a rest would otherwise recurse once per cut
+    out: list[list[int]] = []
+    stack: list[tuple[int, int]] = [(0, len(starts))]  # half-open index ranges, processed left to right
+    while stack:
+        a, b = stack.pop()
+        n = b - a
+        if n <= max_notes:
+            out.append(list(range(a, b)))
+            continue
+        lo, hi = min_notes, n - min_notes  # candidate cut positions (cut before index a + j)
+        if lo >= hi:
+            lo, hi = 1, n - 1
+        best, best_key = lo, (-1.0, -1.0)
+        for j in range(lo, hi + 1):
+            k = a + j
+            rest = starts[k] - (starts[k - 1] + durs[k - 1])
+            ioi = starts[k] - starts[k - 1]
+            key = (round(rest, 4), round(ioi, 4))
+            if key > best_key:
+                best, best_key = j, key
+        stack.append((a + best, b))  # right half is handled after the left one
+        stack.append((a, a + best))
+    return out
 
 
 def phrases_from_midi(path: str | Path, min_notes: int = 5, max_notes: int = 16,

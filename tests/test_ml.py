@@ -844,3 +844,17 @@ def test_expansion_model_emits_more_notes_than_taps_and_stops():
                 valid = [a for a in al[b, 0].tolist() if a >= 0]
                 assert valid[0] == 0 and valid[-1] == int(batch["mask"][b].sum()) - 1
                 assert all(y - x in (0, 1) for x, y in zip(valid, valid[1:]))
+
+
+def test_split_segment_handles_very_long_runs_without_recursion():
+    from ml.datasets import split_segment
+    n = 20000
+    starts = [0.25 * i for i in range(n)]
+    durs = [0.2] * n
+    segs = split_segment(starts, durs, 5, 16)
+    assert sum(len(s) for s in segs) == n and all(len(s) <= 16 for s in segs)
+    assert [i for s in segs for i in s] == list(range(n))  # time order, every note once
+    # a run with one clear rest splits there first
+    starts2 = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 12, 12.5, 13, 13.5, 14, 14.5]
+    segs2 = split_segment(starts2, [0.4] * len(starts2), 5, 16)
+    assert any(s[0] == 18 for s in segs2)

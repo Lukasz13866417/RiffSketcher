@@ -145,6 +145,9 @@ SOURCES = {
     "dadagp": "DadaGP (Sarmento et al. 2021): GuitarPro tabs as tokens; research-only, by request",
     "guitarset": ("GuitarSet (Xi et al. 2018): 360 real guitar excerpts with per-string note transcriptions, "
                   "beats, tempo and key; CC BY 4.0 (annotations from Zenodo record 3371780)"),
+    "lakh_full": ("Lakh MIDI Dataset full set (Raffel 2016), files named by MD5 with no artist or title, guitar "
+                  "tracks only; files already present from clean_midi are skipped by content hash; CC-BY 4.0 for "
+                  "the collection, underlying compositions are copyrighted"),
 }
 
 # GuitarSet file names: <player>_<style><progression>-<bpm>-<key>_<comp|solo>.jams
@@ -522,7 +525,7 @@ def dadagp_artist_title(path: Path) -> tuple[str | None, str]:
 
 def jobs_for(pop909_dir: Path | None, guitar_dir: Path | None, dadagp_dir: Path | None,
              min_notes: int, max_notes: int, limit: int | None = None,
-             guitarset_dir: Path | None = None) -> list[tuple]:
+             guitarset_dir: Path | None = None, lakh_full_dir: Path | None = None) -> list[tuple]:
     """(kind, path, source, original_id, keep_roles, min, max, artist, title[, genre])."""
     jobs: list[tuple] = []
     if guitarset_dir:
@@ -542,6 +545,11 @@ def jobs_for(pop909_dir: Path | None, guitar_dir: Path | None, dadagp_dir: Path 
             artist, title = lakh_artist_title(f, guitar_dir)
             jobs.append(("midi", str(f), "lakh_guitar", str(f.relative_to(guitar_dir)), STORED_ROLES,
                          min_notes, max_notes, artist, title))
+    if lakh_full_dir:  # no metadata: one song per file, guitar notes only (volume, not context)
+        files = _midi_files(lakh_full_dir)
+        for f in files[:limit] if limit else files:
+            jobs.append(("midi", str(f), "lakh_full", str(f.relative_to(lakh_full_dir)), ("guitar",),
+                         min_notes, max_notes, None, None))
     if dadagp_dir:
         files = sorted(dadagp_dir.rglob("*.txt"))
         for f in files[:limit] if limit else files:
@@ -565,6 +573,24 @@ def ingest(con: sqlite3.Connection, jobs: list[tuple], workers: int = 1, min_not
     done = set(r["path"] for r in con.execute("SELECT path FROM rendition"))
     todo = [j for j in parse_jobs if j[1] not in done]
     log(f"{len(jobs)} files, {len(todo)} not yet ingested")
+    # the same file under another path (clean_midi inside the full Lakh set) is one rendition
+    known_hashes = set(r["content_hash"] for r in con.execute("SELECT content_hash FROM rendition") if r["content_hash"])
+    if known_hashes and todo:
+        kept = []
+        for j in todo:
+            try:
+                h = file_hash(Path(j[1]))
+            except OSError:
+                kept.append(j)
+                continue
+            if h in known_hashes:
+                counts["duplicate"] += 1
+            else:
+                known_hashes.add(h)
+                kept.append(j)
+        if counts["duplicate"]:
+            log(f"{counts['duplicate']} files skipped: same content as a rendition already stored")
+        todo = kept
 
     def results():
         if workers > 1:
@@ -719,7 +745,9 @@ def cut_phrases(con: sqlite3.Connection, rendition_ids: Iterable[int] | None = N
         src = con.execute("SELECT s.name FROM rendition r JOIN source s ON s.id=r.source_id WHERE r.id=?", (rid,)).fetchone()["name"]
         seen: set[tuple] = set()
         idx = 0
-        for t in con.execute("SELECT id, role FROM track WHERE rendition_id=? AND notes_stored=1 ORDER BY idx", (rid,)):
+        # only melody and guitar tracks are phrase sources; bass and drum notes are context (ml/features.py)
+        for t in con.execute("SELECT id, role FROM track WHERE rendition_id=? AND notes_stored=1 "
+                             "AND role IN ('melody', 'guitar') ORDER BY idx", (rid,)):
             rows = con.execute("SELECT id, onset_beats, duration_beats, pitch FROM note WHERE track_id=? ORDER BY idx",
                                (t["id"],)).fetchall()
             if not rows:
@@ -874,6 +902,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--guitar-midi-dir", type=Path)
     p.add_argument("--dadagp-dir", type=Path)
     p.add_argument("--guitarset-dir", type=Path, help="folder of GuitarSet .jams annotations")
+    p.add_argument("--lakh-full-dir", type=Path, help="Lakh MIDI full set (lmd_full): guitar notes only, no metadata")
     p.add_argument("--min-notes", type=int, default=5)
     p.add_argument("--max-notes", type=int, default=16)
     p.add_argument("--limit", type=int, default=None, help="max files per source (debug)")
@@ -912,7 +941,7 @@ def main(argv: list[str] | None = None) -> None:
         print(f"initialised {args.db}")
     elif args.cmd == "ingest":
         jobs = jobs_for(args.pop909_dir, args.guitar_midi_dir, args.dadagp_dir, args.min_notes, args.max_notes, args.limit,
-                        guitarset_dir=args.guitarset_dir)
+                        guitarset_dir=args.guitarset_dir, lakh_full_dir=args.lakh_full_dir)
         print(ingest(con, jobs, args.workers, args.min_notes, args.max_notes))
     elif args.cmd == "notes":
         print(add_notes(con, tuple(r.strip() for r in args.roles.split(",") if r.strip()), args.workers))

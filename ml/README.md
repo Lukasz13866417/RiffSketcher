@@ -344,7 +344,23 @@ beat grid for honest timing, the key, and a style genre (bossa nova and
 jazz as jazz, funk as soul, rock, singer-songwriter as folk). 3,320 phrases;
 the comp takes are strummed chords and yield few, the solos yield melodic
 lines. It is small, so its value is as an evaluation set and as the first
-ground truth for fret positions rather than as training volume. Matching by normalised artist and title merges
+ground truth for fret positions rather than as training volume.
+**Full Lakh** (2026-11-08, `ingest --lakh-full-dir`, source `lakh_full`):
+the 178,561 MD5-named files of `lmd_full`, with no artist or title, so one
+song per file and no genre (the token says unknown). Only guitar notes are
+stored, to keep the database within the disk, and files whose content hash
+matches a rendition already present (the clean subset is inside the full
+set) are skipped before parsing: 16,456 were, 4,140 files were unreadable,
+and 157,965 renditions went in with 123M guitar notes and 3,487,160 phrases
+(82,627 renditions have at least one; the rest are chord strumming or too
+short). The database is 15 GB. Two things this run exposed: the recursive
+phrase splitter overflowed on a run of thousands of notes without a rest
+and is iterative now, with identical output; and the cutter, which had
+taken every track with stored notes as a phrase source, was restricted to
+melody and guitar tracks after it cut 136,714 bass lines and kick patterns
+from clean-subset renditions that have no guitar track (those are deleted).
+Overall now: 168,918 songs, 176,211 renditions, 162M notes, 4,043,237
+phrases; splits 135,136 / 16,891 / 16,891 songs. Matching by normalised artist and title merges
 Lakh's case variants of one title ("Stairway to Heaven" / "Stairway To
 Heaven", "Y.M.C.A" / "Y.M.C.A."); a path-based song id, as the first mixed
 file used, treated those as different songs and put six of them on both

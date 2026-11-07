@@ -248,3 +248,47 @@ def test_guitarset_ingest_stores_strings_frets_beats_and_style_genre(tmp_path):
     from ml.genres import apply
     apply(con, {}, log=lambda *a: None)
     assert con.execute("SELECT genre FROM song WHERE title='Rock1-120-E'").fetchone()["genre"] == "rock"
+
+
+def test_lakh_full_ingest_skips_files_already_stored_by_content(tmp_path, raw):
+    import shutil
+    pop, lakh = raw
+    con = db.connect(tmp_path / "t.db")
+    db.init(con)
+    ingest_all(con, pop, lakh)
+    before = con.execute("SELECT COUNT(*) c FROM rendition").fetchone()["c"]
+    full = tmp_path / "lmd_full"
+    (full / "a").mkdir(parents=True)
+    shutil.copy(lakh / "Band" / "Song.mid", full / "a" / "0a0a.mid")  # same bytes as a clean_midi file
+    write_midi(full / "a" / "0b0b.mid", melody=False, tempo=133)  # new content
+    counts = db.ingest(con, db.jobs_for(None, None, None, 5, 16, lakh_full_dir=full), workers=1, log=lambda *a: None)
+    assert counts["duplicate"] == 1 and counts["renditions"] == 1
+    assert con.execute("SELECT COUNT(*) c FROM rendition").fetchone()["c"] == before + 1
+    r = con.execute("""SELECT s.name src, w.title, w.artist FROM rendition r JOIN source s ON s.id=r.source_id
+                       JOIN song w ON w.id=r.song_id WHERE r.original_id='a/0b0b.mid'""").fetchone()
+    assert r["src"] == "lakh_full" and r["title"] is None and r["artist"] is None
+    # guitar notes only: the drum track of the new file is listed but its notes are not stored
+    roles = {x["role"]: x["notes_stored"] for x in con.execute(
+        "SELECT t.role, t.notes_stored FROM track t JOIN rendition r ON r.id=t.rendition_id WHERE r.original_id='a/0b0b.mid'")}
+    assert roles["guitar"] == 1 and roles["drums"] == 0
+
+
+def test_phrases_come_only_from_melody_and_guitar_tracks(tmp_path):
+    import pretty_midi
+    pm = pretty_midi.PrettyMIDI(initial_tempo=120)
+    b = pretty_midi.Instrument(program=33, name="Bass")
+    for i in range(12):
+        b.notes.append(pretty_midi.Note(velocity=100, pitch=28 + (i % 4), start=i * 0.5, end=i * 0.5 + 0.4))
+    pm.instruments.append(b)
+    d = pretty_midi.Instrument(program=0, is_drum=True, name="Drums")
+    for i in range(12):
+        d.notes.append(pretty_midi.Note(velocity=100, pitch=36, start=i * 0.5, end=i * 0.5 + 0.05))
+    pm.instruments.append(d)
+    path = tmp_path / "lakh" / "Band" / "Bassline.mid"
+    path.parent.mkdir(parents=True)
+    pm.write(str(path))
+    con = db.connect(tmp_path / "t.db")
+    db.init(con)
+    counts = db.ingest(con, db.jobs_for(None, tmp_path / "lakh", None, 5, 16), workers=1, log=lambda *a: None)
+    assert counts["notes"] == 24 and counts.get("phrases", 0) == 0  # bass and drums stored, no phrases from them
+    assert db.cut_phrases(con, None, log=lambda *a: None) == 0
