@@ -31,12 +31,13 @@ from core.inference import (SCALES, DeterministicReconstructor, InferenceConfig,
 from core.representation import Note, Riff, Sketch, class_to_interval, interval_to_class
 from core.rhythm import quantise
 
-# runs/mixed/best.pt is trained on POP909 melodies plus Lakh guitar riffs; it beats
-# the POP909-only model on both sources (see ml/README.md, "Results: mixed data").
-DEFAULT_CHECKPOINT = os.environ.get("RIFF_MODEL", "runs/genre_facts/best.pt")
-# A second checkpoint used only for timing: its rhythm head beats the rule-based quantiser by ten
-# points, but sharing an encoder with the rhythm loss costs two points of interval accuracy, so
-# pitches come from DEFAULT_CHECKPOINT and gaps from this one. Unset or missing -> quantiser.
+# The served model: the large joint-token decoder (d_model 192, 6+6 layers) trained on the
+# genre-labelled export; every decoder step emits interval, gap and duration, so one checkpoint
+# gives pitches and timing (see ml/README.md, "Joint-token decoder").
+DEFAULT_CHECKPOINT = os.environ.get("RIFF_MODEL", "runs/joint_large_genres/best.pt")
+# An optional second checkpoint used only for timing when the main one has no timing output of
+# its own (the older pitch-only models): its encoder-side gap head beats the rule-based quantiser.
+# Unset or missing -> the quantiser.
 DEFAULT_RHYTHM_CHECKPOINT = os.environ.get("RIFF_RHYTHM_MODEL", "runs/genre_facts_rh/best.pt")
 
 
@@ -247,6 +248,8 @@ class TransformerReconstructor:
         m = len(sketch) - 1
         batch = self.model._batch_from_sketch(sketch)
         out: list[tuple[list[int], float, float, list[int]]] = []
+        if self.model.cfg.joint:
+            return self._decode_joint(sketch, cs, anchor, beam, n_samples, rng, batch, target, sigma)
         with torch.no_grad():
             memory, mask = self.model.encode(batch)
             rs = self._predict_gaps(batch, memory, m)
@@ -313,6 +316,102 @@ class TransformerReconstructor:
                 out.append((seq, mlp, tot, rs))
         return out
 
+    def _masked_row(self, row: np.ndarray, k: int, rel: list[int], cs, anchor, m: int) -> np.ndarray:
+        """Interval log-probs with the classes the facts forbid at step k set to -inf
+        (one-step lookahead; contradictory facts leave the row unmasked)."""
+        from core.representation import INTERVAL_MIN
+
+        ok = self._allowed(cs, k, rel, anchor)
+        if ok is None:
+            ok = np.ones(len(row), dtype=bool)
+        if k < m:
+            look = ok.copy()
+            for c in np.flatnonzero(ok):
+                nxt = self._allowed(cs, k + 1, rel + [rel[-1] + c + INTERVAL_MIN], anchor)
+                if nxt is not None and not nxt.any():
+                    look[c] = False
+            if look.any():
+                ok = look
+        if ok.all() or not ok.any():
+            return row
+        r = np.where(ok, row, -np.inf)
+        return r - np.log(np.exp(r[ok]).sum())
+
+    def _decode_joint(self, sketch: Sketch, cs, anchor, beam: int, n_samples: int, rng, batch, target, sigma):
+        """Constrained beam search over the joint decoder: the beam branches on intervals
+        under the fact masks, and each hypothesis carries the gaps and durations the
+        decoder chose given its intervals, so timing conditions on pitch and back.
+        Returns ``(intervals, model_logp, total_score, gap_classes)``; durations are
+        kept per interval sequence in ``_last_durations_by_seq``."""
+        import torch
+
+        from .model import BOS
+
+        model = self.model
+        m = len(sketch) - 1
+        out: list[tuple[list[int], float, float, list[int]]] = []
+        self._last_durations_by_seq = {}
+        with torch.no_grad():
+            memory, mask = model.encode(batch)
+            dur0 = int(model.duration0(memory)[0])
+            dev = memory.device
+
+            def step(hyps):
+                """(interval log-prob rows, decoder states) for hypotheses (intervals, gaps, durs)."""
+                tok = torch.tensor([[BOS] + [interval_to_class(d) for d in h[0]] for h in hyps], dtype=torch.long, device=dev)
+                gt = torch.tensor([[model.bos_gap] + h[1] for h in hyps], dtype=torch.long, device=dev)
+                dt = torch.tensor([[model.bos_dur] + h[2] for h in hyps], dtype=torch.long, device=dev)
+                lp, h = model.joint_step(tok, gt, dt, memory.expand(len(hyps), -1, -1), mask.expand(len(hyps), -1))
+                return lp.cpu().numpy(), h
+
+            def timing(states, intervals):
+                g, d = model.joint_timing(states, torch.tensor([interval_to_class(i) for i in intervals],
+                                                               dtype=torch.long, device=dev))
+                return g.tolist(), d.tolist()
+
+            # beam entries: (total, model_logp, intervals, gaps, durs, relative pitches)
+            beams = [(0.0, 0.0, [], [], [], [0])]
+            for k in range(1, m + 1):
+                rows, states = step([(b[2], b[3], b[4]) for b in beams])
+                cand = []
+                for bi, ((tot, mlp, seq, gs, ds, rel), row) in enumerate(zip(beams, rows)):
+                    row = self._masked_row(row, k, rel, cs, anchor, m)
+                    top = [c for c in np.argsort(row)[::-1][: max(beam, 8)] if np.isfinite(row[c])]
+                    for c in top:
+                        d = class_to_interval(int(c))
+                        new_rel = rel[-1] + d
+                        guide = -self.guide_weight * 0.5 * ((new_rel - target[k]) / sigma[k]) ** 2
+                        cand.append((tot + float(row[c]) + guide, mlp + float(row[c]), seq + [d], gs, ds, rel + [new_rel], bi))
+                cand.sort(key=lambda x: -x[0])
+                cand = cand[:beam]
+                g, dd = timing(states[[c[6] for c in cand]], [c[2][-1] for c in cand])
+                beams = [(tot, mlp, seq, gs + [gi], ds + [di], rel)
+                         for (tot, mlp, seq, gs, ds, rel, _), gi, di in zip(cand, g, dd)]
+            for tot, mlp, seq, gs, ds, _ in beams:
+                out.append((seq, mlp, tot, gs))
+                self._last_durations_by_seq[tuple(seq)] = [dur0] + ds
+
+            # masked ancestral samples for diversity
+            samples = [(0.0, [], [], [], [0]) for _ in range(n_samples)]
+            for k in range(1, m + 1):
+                rows, states = step([(s[1], s[2], s[3]) for s in samples])
+                nxt = []
+                picks = []
+                for (mlp, seq, gs, ds, rel), row in zip(samples, rows):
+                    row = self._masked_row(row, k, rel, cs, anchor, m)
+                    p = np.exp(row - row.max()); p[~np.isfinite(row)] = 0.0; p /= p.sum()
+                    c = int(rng.choice(len(p), p=p))
+                    d = class_to_interval(c)
+                    nxt.append((mlp + float(row[c]), seq + [d], gs, ds, rel + [rel[-1] + d]))
+                    picks.append(d)
+                g, dd = timing(states, picks)
+                samples = [(mlp, seq, gs + [gi], ds + [di], rel) for (mlp, seq, gs, ds, rel), gi, di in zip(nxt, g, dd)]
+            for mlp, seq, gs, ds, rel in samples:
+                tot = mlp - self.guide_weight * 0.5 * float(np.sum(((np.array(rel[1:]) - target[1:]) / sigma[1:]) ** 2))
+                out.append((seq, mlp, tot, gs))
+                self._last_durations_by_seq.setdefault(tuple(seq), [dur0] + ds)
+        return out
+
     def _interval_candidates(self, sketch: Sketch, n: int, cs=None,
                              anchor: tuple[int, int] | None = None) -> list[tuple[list[int], float]]:
         """Candidate interval sequences with their model log-probability, best first.
@@ -365,7 +464,8 @@ class TransformerReconstructor:
             rs = getattr(self, "_last_rhythms", {}).get(tuple(intervals), [])
             timing_model = self.rhythm_model if self.rhythm_model is not None else self.model
             if timing_model.has_rhythm and len(rs) == len(intervals) and intervals:
-                ds = getattr(self, "_last_durations", None)
+                ds = getattr(self, "_last_durations_by_seq", {}).get(tuple(intervals)) if self.model.cfg.joint \
+                    else getattr(self, "_last_durations", None)
                 onsets, durations, tempo = timing_model.rhythm_from_classes(rs, sketch.onsets, ds)
                 meta = {"method": "transformer", "rhythm": "model", "durations": "model" if ds else "legato"}
             else:

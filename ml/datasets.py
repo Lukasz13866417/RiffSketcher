@@ -31,7 +31,7 @@ GESTURE_KINDS: tuple[str, ...] = (
     "ascending_run", "descending_run", "repeated_note", "repeated_figure",
     "pedal_tone", "arpeggio", "big_leap",
 )
-N_CONTINUOUS_FEATURES = 16  # see sketch_to_features; the first 6 are the original ones
+N_CONTINUOUS_FEATURES = 22  # see sketch_to_features; the first 6 are the original ones
 FEATURE_VERSION = 1
 PAD_TARGET = -100  # ignore_index for cross-entropy
 
@@ -649,7 +649,7 @@ def apply_split_ids(phrases: list[Phrase], ids: dict[str, list[str]]) -> dict[st
 def sketch_to_features(sketch: Sketch) -> dict[str, np.ndarray]:
     """Per-note model inputs from a sketch (tempo- and register-invariant).
 
-    Returns ``cont`` (n, 16) and ``gest`` (n, K) gesture multi-hot. The
+    Returns ``cont`` (n, 22) and ``gest`` (n, K) gesture multi-hot. The
     continuous columns, in order (checkpoints trained on fewer columns use a
     prefix, see ``SketchTransformer.encode``):
 
@@ -671,6 +671,12 @@ def sketch_to_features(sketch: Sketch) -> dict[str, np.ndarray]:
     14 hold ratio: how long the tap was held as a share of the gap to the next tap
        (the last note against the median gap), clipped to [0, 1.5]; 0 when not recorded
     15 hold-known flag
+    16 position in the sketch, i / (n - 1)
+    17 sketch length, n / 32
+    18 log ratio of the next IOI to the previous one (0 at the ends): accelerating or slowing
+    19 quantised gap to the next note, log2 beats (0 for the last note)
+    20 tempo-hint flag
+    21 log2(tempo hint / 120) when given
     """
     sketch = sketch.sorted()
     n = len(sketch)
@@ -730,9 +736,20 @@ def sketch_to_features(sketch: Sketch) -> dict[str, np.ndarray]:
             gap_s = (t[i + 1] - t[i]) if i + 1 < n else med_s
             hold_ratio[i] = float(np.clip(o.hold / max(gap_s, 1e-3), 0.0, 1.5))
             hold_flag[i] = 1.0
+    pos_frac = np.arange(n) / max(n - 1, 1)
+    n_norm = np.full(n, n / 32.0)
+    ioi_ratio = np.zeros(n)
+    for i in range(1, n - 1):
+        if iois[i - 1] > 1e-4 and iois[i] > 1e-4:
+            ioi_ratio[i] = float(np.clip(np.log(iois[i] / iois[i - 1]), -3.0, 3.0))
+    qgap_next = np.zeros(n)
+    qgap_next[:-1] = qgap[1:]
+    tempo_flag = np.full(n, 1.0 if sketch.tempo_hint else 0.0)
+    tempo_log = np.full(n, float(np.log2(sketch.tempo_hint / 120.0)) if sketch.tempo_hint else 0.0)
     cont = np.stack([ioi, log_ioi, y / 12.0, dy / 12.0, conf, missing, qgap, qflag,
                      pin_flag, pin_rel, dir_known, dir_sign, same_flag, same_back,
-                     hold_ratio, hold_flag], axis=1).astype(np.float32)
+                     hold_ratio, hold_flag,
+                     pos_frac, n_norm, ioi_ratio, qgap_next, tempo_flag, tempo_log], axis=1).astype(np.float32)
 
     gest = np.zeros((n, len(GESTURE_KINDS)), dtype=np.float32)
     for g in sketch.gestures:

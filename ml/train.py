@@ -66,7 +66,7 @@ def train(train_phrases, val_phrases, model_cfg: ModelConfig, sim_level: str, ou
           epochs: int = 20, batch_size: int = 64, lr: float = 3e-4, weight_decay: float = 0.01,
           max_steps_per_epoch: int | None = None, seed: int = 0, device: str | None = None,
           genre_dropout: float = 0.0, rhythm_weight: float = 1.0, duration_weight: float = 1.0,
-          log=print) -> dict:
+          ss_max: float = 0.0, log=print) -> dict:
     torch.manual_seed(seed)
     np.random.seed(seed)
     device_t = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
@@ -83,7 +83,8 @@ def train(train_phrases, val_phrases, model_cfg: ModelConfig, sim_level: str, ou
     log(f"device {device_t}; model {count_parameters(model) / 1e6:.2f}M params; "
         f"{len(train_ds)} train / {len(val_ds)} val phrases; sim={sim_level}; "
         f"genres={'on (dropout %.2f)' % genre_dropout if model_cfg.n_genres else 'off'}; "
-        f"timing branch={('%d layers%s; gap head weight %.2f; duration head %s' % (model_cfg.n_branch, ', trunk detached' if model_cfg.branch_detach else '', rhythm_weight, ('weight %.2f' % duration_weight) if model_cfg.n_duration else 'off')) if model_cfg.n_rhythm else 'off'}")
+        f"timing branch={('%d layers%s; gap head weight %.2f; duration head %s' % (model_cfg.n_branch, ', trunk detached' if model_cfg.branch_detach else '', rhythm_weight, ('weight %.2f' % duration_weight) if model_cfg.n_duration else 'off')) if model_cfg.n_rhythm and not model_cfg.joint else 'off'}"
+        + (f"; joint decoder (gap weight {rhythm_weight:.2f}, duration weight {duration_weight:.2f}, scheduled sampling up to {ss_max:.2f})" if model_cfg.joint else ""))
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay, betas=(0.9, 0.98))
     steps_per_epoch = len(train_loader) if max_steps_per_epoch is None else min(len(train_loader), max_steps_per_epoch)
     total_steps = steps_per_epoch * epochs
@@ -95,6 +96,7 @@ def train(train_phrases, val_phrases, model_cfg: ModelConfig, sim_level: str, ou
     for epoch in range(epochs):
         model.train()
         train_ds.set_epoch(epoch + 1)
+        ss_prob = ss_max * epoch / max(epochs - 1, 1)  # ramps from 0 to ss_max over the run
         t0 = time.time()
         losses: list[float] = []
         for i, batch in enumerate(train_loader):
@@ -103,7 +105,7 @@ def train(train_phrases, val_phrases, model_cfg: ModelConfig, sim_level: str, ou
             for g in opt.param_groups:
                 g["lr"] = lr_at(step, total_steps, warmup, lr)
             batch = {k: v.to(device_t) for k, v in batch.items()}
-            loss = model.loss(batch, rhythm_weight, duration_weight)
+            loss = model.loss(batch, rhythm_weight, duration_weight, ss_prob)
             opt.zero_grad(set_to_none=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -158,12 +160,18 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--rhythm-weight", type=float, default=1.0, help="weight of the gap loss")
     ap.add_argument("--duration-weight", type=float, default=1.0, help="weight of the duration loss")
     ap.add_argument("--no-duration", action="store_true", help="timing branch without the duration head")
+    ap.add_argument("--joint", action="store_true",
+                    help="joint-token decoder: each step emits interval, gap and duration (implies --rhythm)")
+    ap.add_argument("--ss-max", type=float, default=0.25,
+                    help="joint decoder: scheduled-sampling share of fed-back tokens at the last epoch")
     ap.add_argument("--genre-dropout", type=float, default=0.2,
                     help="fraction of training sketches shown with genre 'unknown'")
     ap.add_argument("--source", default=None,
                     help="train and validate only on phrases from this source (per-genre model)")
     args = ap.parse_args(argv)
     n_genres = 0 if args.no_genre else len(GENRES)
+    if args.joint:
+        args.rhythm, args.no_duration = True, False
     n_rhythm = len(RHYTHM_CLASSES) if args.rhythm else 0
     n_duration = len(DURATION_CLASSES) if args.rhythm and not args.no_duration else 0
 
@@ -172,13 +180,13 @@ def main(argv: list[str] | None = None) -> None:
         splits = split_by_song(phrases, 0.2, 0.0, args.seed)
         cfg = ModelConfig(d_model=64, n_layers=2, n_heads=4, d_ff=128, dropout=0.0, n_genres=n_genres,
                           n_rhythm=n_rhythm, n_duration=n_duration, n_branch=min(args.branch_layers, 1),
-                          branch_detach=args.branch_detach)
+                          branch_detach=args.branch_detach, joint=args.joint)
         epochs = args.epochs if args.epochs != 20 else 3
         out = args.out if args.out != Path("runs/first") else Path("runs/smoke")
         train(splits["train"], splits["val"], cfg, args.sim, out, epochs=epochs, batch_size=32,
               lr=1e-3, max_steps_per_epoch=args.max_steps_per_epoch or 10, seed=args.seed,
               device=args.device or "cpu", genre_dropout=args.genre_dropout, rhythm_weight=args.rhythm_weight,
-              duration_weight=args.duration_weight)
+              duration_weight=args.duration_weight, ss_max=args.ss_max if args.joint else 0.0)
         return
 
     if args.synthetic:
@@ -197,11 +205,13 @@ def main(argv: list[str] | None = None) -> None:
     print({k: len(v) for k, v in splits.items()})
     cfg = ModelConfig(d_model=args.d_model, n_layers=args.layers, n_heads=args.heads, d_ff=args.d_ff,
                       dropout=args.dropout, n_genres=n_genres, n_rhythm=n_rhythm, n_duration=n_duration,
-                      n_branch=args.branch_layers if n_rhythm else 0, branch_detach=args.branch_detach)
+                      n_branch=args.branch_layers if n_rhythm else 0, branch_detach=args.branch_detach,
+                      joint=args.joint)
     train(splits["train"], splits["val"], cfg, args.sim, args.out, epochs=args.epochs,
           batch_size=args.batch_size, lr=args.lr, weight_decay=args.weight_decay,
           max_steps_per_epoch=args.max_steps_per_epoch, seed=args.seed, device=args.device,
-          genre_dropout=args.genre_dropout, rhythm_weight=args.rhythm_weight, duration_weight=args.duration_weight)
+          genre_dropout=args.genre_dropout, rhythm_weight=args.rhythm_weight, duration_weight=args.duration_weight,
+          ss_max=args.ss_max if args.joint else 0.0)
 
 
 if __name__ == "__main__":

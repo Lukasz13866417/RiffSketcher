@@ -24,11 +24,14 @@ one, hold `P` and drag to paint heights. The graph toolbar zooms the time and pi
 centres on the selection) and `Fit` frames the drawn heights.
 
 If `runs/genre_facts/best.pt` exists (or `RIFF_MODEL` points at a checkpoint) the API loads the trained
-Transformer and makes it the default engine; otherwise it uses the deterministic search. A second
-checkpoint (`RIFF_RHYTHM_MODEL`, default `runs/genre_facts_rh/best.pt`) supplies note timing from its
-rhythm head, which beats the rule-based grid snap; without it timing falls back to the quantiser. Step 4 has an
-engine switch and, for genre-conditioned checkpoints, a genre dropdown listing the genres that
-checkpoint was trained on (any / pop / rock today). Train a model with the commands in `ml/README.md`.
+Transformer and makes it the default engine; otherwise it uses the deterministic search. The served
+checkpoint (`runs/joint_large_genres/best.pt`) is a joint-token decoder: every note it emits carries
+pitch, timing and duration, so one model replaces the rule-based grid snap and the old legato rule
+(a pitch-only checkpoint can still borrow timing from `RIFF_RHYTHM_MODEL`, else it quantises). The
+tapping step records how long each tap is held, and the model turns that into note lengths. Step 4
+has an engine switch and, for genre-conditioned checkpoints, a genre dropdown listing the genres that
+checkpoint was trained on (fourteen, from the MusicBrainz artist lookup). Train a model with the
+commands in `ml/README.md`.
 
 ```bash
 uv run pytest -q                       # all tests
@@ -136,8 +139,9 @@ play it.
 2. Gesture system: region tags, inserted tropes, rule-based suggestions — **done (first version)**;
    a "Tapping / fast run" tag plus *Fill in missed taps* inserts placeholder notes (unknown height)
    where a gap in the run looks like two or more notes, and the model fills in their pitch
-3. First playback: deterministic inference + synthesis — **done**; timing now comes from a learned
-   rhythm head that takes the rule-based grid snap as input and beats it (`ml/README.md`)
+3. First playback: deterministic inference + synthesis — **done**; timing and note durations now
+   come from the joint-token decoder, which beats the rule-based grid snap by fourteen points on
+   gaps and the legato rule by twenty-three on durations (`ml/README.md`)
 4. Data pipeline: MIDI extraction, sketch simulator, song-level splits — **done (`ml/`)**
 5. First trained model: 1.9M-parameter Transformer over interval classes — **done on POP909**, see `ml/README.md` Results
 6. Model integration: `ml/reconstructor.py` wraps the trained model behind the same `Reconstructor`

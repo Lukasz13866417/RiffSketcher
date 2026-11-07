@@ -341,7 +341,8 @@ Heaven", "Y.M.C.A" / "Y.M.C.A."); a path-based song id, as the first mixed
 file used, treated those as different songs and put six of them on both
 sides of its split (e.g. "Sweet Child O' Mine" in train and test): too few
 to move the result tables above, and impossible now that splits are per
-song. The served pair (`runs/genre_facts/best.pt` for pitches,
+song. Superseded by the joint-token decoder, see below; at the time, the
+served pair (`runs/genre_facts/best.pt` for pitches,
 `runs/genre_facts_rh/best.pt` for timing; see "Constrained decoding") is
 trained on the note-linked export: teacher-forced validation accuracy 0.762
 and 0.750; on 2,000 test sketches of the database split (medium noise, true
@@ -401,7 +402,14 @@ tag counts zero, and ties go to the more specific genre (pop punk is punk).
 `genres apply` writes `song.genre` (POP909 songs are pop) and the exported
 phrases carry it; training, evaluation and the catalogue use the song's genre
 where there is one (`phrase_genre`) and the source default elsewhere.
-Genre counts after the lookup: *(filled in below once the pass finishes)*.
+Genre counts after the lookup (songs): rock 3,733, pop 2,890 (909 of them
+POP909), unknown 1,611 (no MusicBrainz match above score 90, or tags that
+name no genre), soul 571, jazz 423, electronic 389, folk 306, classical 225,
+metal 199, country 168, punk 151, hiphop 128, blues 86, reggae 43. So the
+Lakh guitar tracks are far from all rock: a third of the labelled songs are
+something else, which the source-only label hid. `data/processed/
+mixed_genres.jsonl` is the export with these labels; `mixed.jsonl` keeps
+the source labels so earlier results stay comparable.
 
 ### Timing branch and note durations: one model (2026-11-07)
 
@@ -438,26 +446,108 @@ before. `ml.evaluate` reports duration accuracy against two baselines, legato
 (every note "full") and the hold time read off directly.
 
 Results so far (same export, 20 epochs, medium noise; test = 2,000 sketches
-with facts, re-simulated with hold times so the quantiser baseline reads
-0.648 here against 0.655 before; gap-only models, no duration head yet):
+with facts, all four re-simulated with hold times, so the quantiser baseline
+reads 0.648 here against 0.655 in the tables above; gap-only models, no
+duration head yet):
 
 ```
 model                                   val intervals  val gaps   test intervals  test gaps
-genre_facts (pitch only, served)            0.762         -           0.594          -
-genre_facts_rh (gap head on the trunk)      0.750       0.716         0.575        0.748
+genre_facts (pitch only, served)            0.762         -           0.588          -
+genre_facts_rh (gap head on the trunk)      0.750       0.716         0.584        0.747
 branch, joint (2 timing layers)             0.753       0.726         0.588        0.755
 branch, trunk detached                      0.762       0.656         0.594        0.690
 ```
 
 The trunk matters to timing: letting the gap loss shape it is worth six
-points of gap accuracy and costs under one point of intervals. The joint
-branch model is within a point of the served pair on pitch and ahead on
-timing, in one network. Two runs with the duration head and gap/duration
+points of gap accuracy over the detached control. The joint branch model
+matches the pitch-only model on test intervals and beats the old head on
+gaps, in one network, so it replaces the pair. Two runs with the duration head and gap/duration
 loss weights 1.0 and 0.5 (`runs/branch_dur_w1`, `runs/branch_dur_w05`) were
 started to pick the final weights; they were interrupted by a shutdown and
 need rerunning, after which the one chosen model replaces the pair, is
 retrained once more on the export with real genres, and the duration
 accuracy table goes here.
+
+### Joint-token decoder (2026-11-08)
+
+The branches above keep timing as a per-note denoising task on the encoder.
+The more general design, and the one that can later emit notes that are not
+in the input at all (fill-ins, transitions), is a decoder whose every step
+emits a whole note: `ModelConfig.joint` (`ml.train --joint`). Step k emits
+the interval k→k+1, the gap k→k+1 and the duration of note k+1 with
+factorised heads on one decoder state, in a fixed order within the step
+(interval; gap given the interval; duration given both), and takes the
+previous step's three tokens as input next to the local encoder evidence.
+Note 0's duration, which no step covers, comes from its encoder state. So
+timing conditions on pitch and pitch on the previous timing.
+
+Two things that broke the first decoder-side attempt are handled:
+
+* **Compounding.** Training feeds back the true previous tokens; free
+  decoding feeds back the model's own. `--ss-max` (default 0.25) is
+  scheduled sampling: a share of the fed-back tokens, ramping from 0 to that
+  value over the run, is replaced by the model's own greedy prediction from
+  a no-grad pass, so the decoder has seen its own mistakes before it is
+  judged on them.
+* **The vocabulary.** 49 × 17 × 5 joint classes would be 4,165 outputs;
+  factorised heads keep three small ones and still condition each on the
+  earlier choices in the step.
+
+Decoding (`TransformerReconstructor._decode_joint`): the beam branches on
+intervals under the same fact masks as before, and each hypothesis carries
+the gaps and durations the decoder chose for its intervals, chosen greedily
+within the step. Candidates therefore differ in timing as well as pitch.
+
+The inputs also grew from 16 to 22 columns: position in the sketch, sketch
+length, the ratio of the next IOI to the previous (accelerating or slowing),
+the quantised gap to the *next* note, and the tempo hint with a flag.
+
+Results on the same 2,000 test sketches (medium noise, facts shown, free
+decoding; source genre labels, 20 epochs, the large model 16). Interval
+accuracy comes from sampled candidates and moves by about half a point
+with the random state, so the branch model reads 0.584 here and 0.588 in
+the table above:
+
+```
+model                                    inputs  params  val intervals (TF)  test intervals  top-5   gaps    durations
+branch, gap head only                      16     2.4M        0.753              0.584       0.301   0.755    -  (legato)
+branch, gap + duration heads               22     2.4M        0.750              0.581       0.284   0.803   0.661
+joint, d_model 128, 4+4 layers             22     1.9M        0.726              0.580       0.241   0.774   0.641
+joint, d_model 192, 6+6 layers             22     6.6M        0.741              0.591       0.281   0.787   0.647
+baselines                                                                                           0.648 q  0.419 legato / 0.426 hold
+```
+
+Reading it honestly:
+
+* The six extra input columns did most of the timing work: the branch model
+  went from 0.755 to 0.803 on gaps when it got them (the gap to the *next*
+  note and the IOI ratio are exactly what a gap head wants).
+* With equal inputs the two designs tie within noise on intervals and top-5
+  reconstruction (0.581/0.284 vs 0.591/0.281), and the branch model is a
+  point or two *ahead* on gaps and durations at a third of the parameters
+  and with cheaper decoding (one encoder pass for all timing, no per-step
+  timing heads in the beam).
+* Teacher-forced validation accuracy is lower for the joint decoder yet its
+  free decoding holds up: it is judged on its own previous timing tokens in
+  validation too, and scheduled sampling trades teacher-forced fit for
+  robustness. Capacity matters for it: the small joint model loses six
+  points of top-5 reconstruction, the large one recovers it.
+* Both learned duration heads are right for about two notes in three,
+  against 42% for the legato rule or for reading the tap hold time alone.
+
+So the joint decoder is not a better *denoiser* than the branch; its case is
+what it can emit that the branch cannot, notes that are not in the input
+(fill-ins, transitions), and one search over pitch and timing. It is the
+served model for that reason, retrained on the genre-labelled export
+(`runs/joint_large_genres`: on the genre-labelled test sketches, intervals
+0.588 / gaps 0.783 / durations 0.642 with the song's genre shown, and
+0.578 / 0.777 / 0.634 with it hidden, so the fourteen-way token is worth
+about a point on each axis, roughly what the two-way one was). The branch model retrained on
+the same export is `runs/branch_dur_genres`: intervals 0.571, top-5 0.279,
+gaps 0.804, durations 0.653 with the genre shown, so on equal data the
+joint model leads by 1.7 points on intervals and trails by 3.4 on top-5
+reconstruction, 2 on gaps and 1 on durations; a draw, decided by what the
+joint decoder can grow into. The server takes either through `RIFF_MODEL`.
 
 ### Constrained decoding and facts as inputs (2026-11-06)
 

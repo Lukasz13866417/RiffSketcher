@@ -55,6 +55,9 @@ class ModelConfig:
     branch_detach: bool = False  # True: the timing branch reads the trunk but never reshapes it
     n_duration: int = 0  # 0 = no duration head; else len(DURATION_CLASSES): one length class per note,
     #                      read from the same timing branch as the gap head
+    joint: bool = False  # joint-token decoder: every decoder step emits interval, gap and duration,
+    #                      conditioned on the previous step's three tokens (needs n_rhythm and n_duration);
+    #                      the encoder-side timing branch is not built
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -93,13 +96,29 @@ class SketchTransformer(nn.Module):
         # layers of its own, so the gap loss has capacity that is not the trunk's. A head read
         # straight off the trunk (n_branch=0, the first version) cost two points of interval
         # accuracy because the gap loss reshaped the shared states.
+        if c.joint:  # timing comes out of the decoder, see decode_joint_hidden
+            assert c.n_rhythm > 0 and c.n_duration > 0, "a joint decoder needs gap and duration classes"
+            self.out_rhythm = None
         self.rhythm_branch = nn.TransformerEncoder(enc_layer, c.n_branch, enable_nested_tensor=False) \
-            if c.n_rhythm > 0 and c.n_branch > 0 else None
+            if c.n_rhythm > 0 and c.n_branch > 0 and not c.joint else None
         self.branch_norm = nn.LayerNorm(c.d_model) if self.rhythm_branch is not None else None
         # duration head: how long note k sounds as a share of its gap, from the timing state of note k
         self.out_duration = nn.Sequential(nn.Linear(c.d_model, c.d_model), nn.GELU(),
                                           nn.Linear(c.d_model, c.n_duration)) \
-            if c.n_rhythm > 0 and c.n_duration > 0 else None
+            if c.n_rhythm > 0 and c.n_duration > 0 and not c.joint else None
+        # joint-token decoder: previous gap and duration classes are decoder inputs next to the
+        # previous interval; within a step the gap is predicted given the interval and the
+        # duration given both (factorised heads on one decoder state); note 0's duration, which
+        # no step covers, comes from its encoder state
+        if c.joint:
+            self.gap_emb = nn.Embedding(c.n_rhythm + 1, c.d_model)  # last index = BOS
+            self.dur_emb = nn.Embedding(c.n_duration + 1, c.d_model)
+            self.out_gap_j = nn.Sequential(nn.Linear(2 * c.d_model, c.d_model), nn.GELU(),
+                                           nn.Linear(c.d_model, c.n_rhythm))
+            self.out_dur_j = nn.Sequential(nn.Linear(3 * c.d_model, c.d_model), nn.GELU(),
+                                           nn.Linear(c.d_model, c.n_duration))
+            self.out_dur0 = nn.Sequential(nn.Linear(c.d_model, c.d_model), nn.GELU(),
+                                          nn.Linear(c.d_model, c.n_duration))
         self.dec_pos = nn.Embedding(c.max_len, c.d_model)
         self.local_proj = nn.Linear(2 * c.d_model, c.d_model)
         dec_layer = nn.TransformerDecoderLayer(c.d_model, c.n_heads, c.d_ff, c.dropout,
@@ -132,11 +151,19 @@ class SketchTransformer(nn.Module):
 
     @property
     def has_rhythm(self) -> bool:
-        return self.out_rhythm is not None
+        return self.out_rhythm is not None or self.cfg.joint
 
     @property
     def has_duration(self) -> bool:
-        return self.out_duration is not None
+        return self.out_duration is not None or self.cfg.joint
+
+    @property
+    def bos_gap(self) -> int:
+        return self.cfg.n_rhythm
+
+    @property
+    def bos_dur(self) -> int:
+        return self.cfg.n_duration
 
     def _timing_states(self, memory: torch.Tensor, mask: torch.Tensor | None) -> torch.Tensor:
         """Per-note states of the timing branch (the trunk itself without branch layers)."""
@@ -167,13 +194,21 @@ class SketchTransformer(nn.Module):
         return self.out_rhythm(pair)
 
     def decode_hidden(self, tokens: torch.Tensor, memory: torch.Tensor, mask: torch.Tensor,
-                      rtokens: torch.Tensor | None = None) -> torch.Tensor:
+                      rtokens: torch.Tensor | None = None, dtokens: torch.Tensor | None = None) -> torch.Tensor:
         """Decoder hidden states (B, L, d) for interval inputs ``tokens`` (BOS +
-        previous classes). ``rtokens`` is accepted and ignored for API stability."""
+        previous classes). In joint mode ``rtokens`` (BOS + previous gap classes) and
+        ``dtokens`` (BOS + previous notes' duration classes) are added; otherwise
+        they are ignored."""
         B, L = tokens.shape
         n = memory.shape[1]
         pos = torch.arange(L, device=tokens.device)
         x = self.tok_emb(tokens) + self.dec_pos(pos.clamp(max=self.cfg.max_len - 1))[None]
+        if self.cfg.joint:
+            if rtokens is None:
+                rtokens = torch.full_like(tokens, self.bos_gap)
+            if dtokens is None:
+                dtokens = torch.full_like(tokens, self.bos_dur)
+            x = x + self.gap_emb(rtokens) + self.dur_emb(dtokens)
         # local evidence: encoder states of note k and k+1 for step k
         idx_a = pos.clamp(max=n - 1)
         idx_b = (pos + 1).clamp(max=n - 1)
@@ -215,20 +250,60 @@ class SketchTransformer(nn.Module):
         """Teacher-forced interval logits (B, n-1, 49) from ``batch['target']``."""
         return self.forward_joint(batch)[0]
 
-    def forward_joint(self, batch: dict[str, torch.Tensor]
+    def forward_joint(self, batch: dict[str, torch.Tensor], ss_prob: float = 0.0
                       ) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None]:
-        """Teacher-forced (interval logits, gap logits or None, duration logits or None)."""
+        """Teacher-forced (interval logits, gap logits or None, duration logits or None).
+
+        In joint mode the duration logits cover every note (note 0 from its encoder
+        state), and ``ss_prob`` is scheduled sampling: that share of the fed-back
+        previous tokens is replaced by the model's own greedy prediction, so free
+        decoding is not the first time it sees its own mistakes.
+        """
         memory, mask = self.encode(batch)
-        prev, rprev = self._prev_tokens(batch)
-        iv = self.out(self.decode_hidden(prev, memory, mask))
-        rh, du = self.timing_logits(memory, mask)
-        return iv, rh, du
+        prev, _ = self._prev_tokens(batch)
+        if not self.cfg.joint:
+            iv = self.out(self.decode_hidden(prev, memory, mask))
+            rh, du = self.timing_logits(memory, mask)
+            return iv, rh, du
+        gprev, dprev = self._prev_timing_tokens(batch)
+        if ss_prob > 0:
+            with torch.no_grad():
+                iv0, rh0, du0 = self._joint_logits(batch, memory, mask, prev, gprev, dprev)
+                flip = torch.rand_like(prev, dtype=torch.float) < ss_prob
+                flip[:, 0] = False  # BOS stays
+                prev = torch.where(flip, torch.cat([prev[:, :1], iv0.argmax(-1)[:, :-1]], 1), prev)
+                gprev = torch.where(flip, torch.cat([gprev[:, :1], rh0.argmax(-1)[:, :-1]], 1), gprev)
+                dprev = torch.where(flip, torch.cat([dprev[:, :1], du0.argmax(-1)[:, 1:prev.shape[1]]], 1), dprev)
+        return self._joint_logits(batch, memory, mask, prev, gprev, dprev)
+
+    def _prev_timing_tokens(self, batch: dict[str, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+        """Teacher-forcing timing inputs: BOS + previous gap classes, BOS + the previous note's
+        duration class (step k emits note k+1's duration, so its input is note k's)."""
+        target = batch["target"]
+        B, L = target.shape
+        g = torch.full((B, 1), self.bos_gap, dtype=torch.long, device=target.device)
+        d = torch.full((B, 1), self.bos_dur, dtype=torch.long, device=target.device)
+        gprev = torch.cat([g, batch["rhythm"][:, :-1].clamp(min=0)], 1)
+        dur = batch["duration"].clamp(min=0)
+        dprev = torch.cat([d, dur[:, 1:L]], 1) if L > 1 else d
+        return gprev, dprev
+
+    def _joint_logits(self, batch, memory, mask, prev, gprev, dprev):
+        """Joint-mode logits with the within-step heads conditioned on the true tokens."""
+        h = self.decode_hidden(prev, memory, mask, gprev, dprev)
+        iv = self.out(h)
+        true_iv = batch["target"].clamp(min=0)
+        true_gap = batch["rhythm"].clamp(min=0)
+        rh = self.out_gap_j(torch.cat([h, self.tok_emb(true_iv)], -1))
+        du = self.out_dur_j(torch.cat([h, self.tok_emb(true_iv), self.gap_emb(true_gap)], -1))
+        du0 = self.out_dur0(memory[:, :1])
+        return iv, rh, torch.cat([du0, du], 1)
 
     def loss(self, batch: dict[str, torch.Tensor], rhythm_weight: float = 1.0,
-             duration_weight: float = 1.0) -> torch.Tensor:
+             duration_weight: float = 1.0, ss_prob: float = 0.0) -> torch.Tensor:
         """Interval cross-entropy plus, with the timing heads and their targets, ``rhythm_weight``
         times the gap cross-entropy and ``duration_weight`` times the duration cross-entropy."""
-        iv, rh, du = self.forward_joint(batch)
+        iv, rh, du = self.forward_joint(batch, ss_prob)
         loss = F.cross_entropy(iv.reshape(-1, N_INTERVAL_CLASSES), batch["target"].reshape(-1),
                                ignore_index=PAD_TARGET)
         if rh is not None and "rhythm" in batch:
@@ -264,6 +339,8 @@ class SketchTransformer(nn.Module):
         """
         self.eval()
         memory, mask = self.encode(batch)
+        if self.cfg.joint:
+            return self._generate_joint(memory, mask, n_samples, temperature, mode)
         if mode == "beam":
             return self._beam(memory, mask, n_samples)
         B, n, d = memory.shape
@@ -295,6 +372,112 @@ class SketchTransformer(nn.Module):
         else:
             logp = logp.view(B, S)
         return classes, logp, step_probs
+
+    # -- joint-token decoding ------------------------------------------- #
+
+    def joint_step(self, tokens: torch.Tensor, gtokens: torch.Tensor, dtokens: torch.Tensor,
+                   memory: torch.Tensor, mask: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """One joint decoder step for a batch of prefixes: (interval log-probs (B, 49), state (B, d))."""
+        h = self.decode_hidden(tokens, memory, mask, gtokens, dtokens)[:, -1]
+        return F.log_softmax(self.out(h), -1), h
+
+    def joint_timing(self, h: torch.Tensor, interval_cls: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Greedy gap and duration classes given the decoder state and the chosen interval."""
+        g = self.out_gap_j(torch.cat([h, self.tok_emb(interval_cls)], -1)).argmax(-1)
+        d = self.out_dur_j(torch.cat([h, self.tok_emb(interval_cls), self.gap_emb(g)], -1)).argmax(-1)
+        return g, d
+
+    def duration0(self, memory: torch.Tensor) -> torch.Tensor:
+        """Duration class of note 0 (B,) in joint mode."""
+        return self.out_dur0(memory[:, 0]).argmax(-1)
+
+    def _generate_joint(self, memory, mask, n_samples, temperature, mode):
+        """Joint decoding; sets ``_last_rhythm`` (B, S, L) and ``_last_duration`` (B, n) (first
+        sample) plus ``_last_duration_all`` (B, S, n)."""
+        B, n, _ = memory.shape
+        L = max(n - 1, 1)
+        dur0 = self.duration0(memory)
+        if mode == "beam":
+            classes, logp, probs, gaps, durs = self._beam_joint(memory, mask, n_samples)
+        else:
+            S = n_samples if mode == "sample" else 1
+            mem = memory.repeat_interleave(S, 0)
+            msk = mask.repeat_interleave(S, 0)
+            dev = memory.device
+            tokens = torch.full((B * S, 1), BOS, dtype=torch.long, device=dev)
+            gtok = torch.full((B * S, 1), self.bos_gap, dtype=torch.long, device=dev)
+            dtok = torch.full((B * S, 1), self.bos_dur, dtype=torch.long, device=dev)
+            logp = torch.zeros(B * S, device=dev)
+            probs_all = []
+            for _ in range(L):
+                lp, h = self.joint_step(tokens, gtok, dtok, mem, msk)
+                p = F.softmax(lp / max(temperature, 1e-4), -1)
+                nxt = p.argmax(-1) if mode == "greedy" else torch.multinomial(p, 1).squeeze(-1)
+                logp = logp + torch.log(p.gather(1, nxt[:, None]).squeeze(1) + 1e-12)
+                probs_all.append(p)
+                g, d = self.joint_timing(h, nxt)
+                tokens = torch.cat([tokens, nxt[:, None]], 1)
+                gtok = torch.cat([gtok, g[:, None]], 1)
+                dtok = torch.cat([dtok, d[:, None]], 1)
+            classes = tokens[:, 1:].view(B, S, L)
+            gaps = gtok[:, 1:].view(B, S, L)
+            durs = torch.cat([dur0.repeat_interleave(S, 0)[:, None], dtok[:, 1:]], 1).view(B, S, n)
+            probs = torch.stack(probs_all, 1).view(B, S, L, N_INTERVAL_CLASSES)
+            if mode == "greedy" and n_samples > 1:
+                classes = classes.expand(B, n_samples, L)
+                probs = probs.expand(B, n_samples, L, N_INTERVAL_CLASSES)
+                logp = logp.view(B, 1).expand(B, n_samples)
+                gaps = gaps.expand(B, n_samples, L)
+                durs = durs.expand(B, n_samples, n)
+            else:
+                logp = logp.view(B, S)
+        self._last_rhythm = gaps.contiguous()
+        self._last_duration_all = durs.contiguous()
+        self._last_duration = durs[:, 0].contiguous()
+        return classes, logp, probs
+
+    def _beam_joint(self, memory, mask, beam):
+        B, n_max, _ = memory.shape
+        L = max(n_max - 1, 1)
+        dev = memory.device
+        dur0 = self.duration0(memory)
+        out_cls = torch.zeros(B, beam, L, dtype=torch.long, device=dev)
+        out_gap = torch.zeros(B, beam, L, dtype=torch.long, device=dev)
+        out_dur = torch.zeros(B, beam, n_max, dtype=torch.long, device=dev)
+        out_lp = torch.full((B, beam), -1e9, device=dev)
+        out_pr = torch.full((B, beam, L, N_INTERVAL_CLASSES), 1.0 / N_INTERVAL_CLASSES, device=dev)
+        for b in range(B):
+            n_b = int(mask[b].sum())
+            steps = max(n_b - 1, 0)
+            mem_b, msk_b = memory[b:b + 1, :n_b], mask[b:b + 1, :n_b]
+            # (score, intervals, gaps, durations, probs)
+            beams: list[tuple[float, list[int], list[int], list[int], list[torch.Tensor]]] = [(0.0, [], [], [], [])]
+            for _ in range(steps):
+                tok = torch.tensor([[BOS] + s[1] for s in beams], dtype=torch.long, device=dev)
+                gt = torch.tensor([[self.bos_gap] + s[2] for s in beams], dtype=torch.long, device=dev)
+                dt = torch.tensor([[self.bos_dur] + s[3] for s in beams], dtype=torch.long, device=dev)
+                lp, h = self.joint_step(tok, gt, dt, mem_b.expand(len(beams), -1, -1), msk_b.expand(len(beams), -1))
+                cand = []
+                for bi, ((s, seq, gs, ds, pr), row) in enumerate(zip(beams, lp)):
+                    top = torch.topk(row, min(beam, N_INTERVAL_CLASSES))
+                    for v, c in zip(top.values.tolist(), top.indices.tolist()):
+                        cand.append((s + v, seq + [c], gs, ds, pr + [row.exp()], bi))
+                cand.sort(key=lambda x: -x[0])
+                cand = cand[:beam]
+                hc = h[[c[5] for c in cand]]
+                ic = torch.tensor([c[1][-1] for c in cand], dtype=torch.long, device=dev)
+                g, d = self.joint_timing(hc, ic)
+                beams = [(s, seq, gs + [int(gi)], ds + [int(di)], pr)
+                         for (s, seq, gs, ds, pr, _), gi, di in zip(cand, g.tolist(), d.tolist())]
+            for j, (s, seq, gs, ds, pr) in enumerate(beams[:beam]):
+                if seq:
+                    out_cls[b, j, :len(seq)] = torch.tensor(seq, device=dev)
+                    out_gap[b, j, :len(gs)] = torch.tensor(gs, device=dev)
+                    out_dur[b, j, 1:1 + len(ds)] = torch.tensor(ds, device=dev)
+                    out_pr[b, j, :len(seq)] = torch.stack(pr)
+                out_dur[b, j, 0] = dur0[b]
+                out_lp[b, j] = s
+        return out_cls, out_lp, out_pr, out_gap, out_dur
 
     def _duration_classes(self, memory: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor | None:
         """Greedy duration classes (B, n) from the duration head, or None without one."""

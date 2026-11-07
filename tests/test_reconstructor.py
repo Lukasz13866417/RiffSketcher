@@ -173,3 +173,25 @@ def test_propagate_pins_through_same_chains():
     cs = build_constraints(sk)
     TransformerReconstructor._propagate(cs)
     assert cs.fixed_pitch == {0: 50, 2: 50, 4: 50}
+
+
+def test_joint_model_reconstructs_with_facts_and_model_timing():
+    import torch
+    from core.representation import Constraint, Observation, Sketch
+    from ml.datasets import DURATION_CLASSES, GENRES, RHYTHM_CLASSES, class_to_ratio
+    from ml.model import ModelConfig, SketchTransformer
+    from ml.reconstructor import TransformerReconstructor
+    torch.manual_seed(0)
+    model = SketchTransformer(ModelConfig(d_model=32, n_layers=1, n_heads=2, n_genres=len(GENRES),
+                                          n_rhythm=len(RHYTHM_CLASSES), n_duration=len(DURATION_CLASSES), joint=True)).eval()
+    r = TransformerReconstructor(model=model, rhythm_checkpoint=None, device="cpu")
+    obs = [Observation(0.25 * i, 0.3 * i, 0.8, hold=0.1) for i in range(6)]
+    sk = Sketch(obs, constraints=[Constraint("pitch", 0, value=45), Constraint("same", 0, 2), Constraint("direction", 3, value=1)])
+    riffs = r.reconstruct(sk, 4)
+    assert riffs and all(len(x.notes) == 6 for x in riffs)
+    ratios = {round(class_to_ratio(i), 2) for i in range(len(DURATION_CLASSES))}
+    for x in riffs:
+        assert x.notes[0].pitch == 45 and x.notes[2].pitch == 45 and x.notes[4].pitch > x.notes[3].pitch
+        assert x.meta["rhythm"] == "model" and x.meta["durations"] == "model"
+        gaps = [b.onset - a.onset for a, b in zip(x.notes, x.notes[1:])]
+        assert all(round(nt.duration / g, 2) in ratios for nt, g in zip(x.notes, gaps))
