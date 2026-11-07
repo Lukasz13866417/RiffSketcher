@@ -468,6 +468,33 @@ need rerunning, after which the one chosen model replaces the pair, is
 retrained once more on the export with real genres, and the duration
 accuracy table goes here.
 
+### Per-task MLPs: branching inside the layer (2026-11-08)
+
+The branch gives timing whole private layers; the detached control showed the
+trunk must keep seeing the timing gradient. A finer split
+(`ModelConfig.n_expert_layers`, `ml.train --expert-layers k`): the last k
+encoder layers keep **one shared attention** (mixing information across notes
+is the same job for every task) and give each task **its own MLP**, with a
+pitch stream that feeds the decoder and a timing stream that feeds the gap
+and duration heads. Attention runs once on the mean of the streams; each
+stream adds it and its own MLP. It costs one extra MLP per expert layer
+instead of a whole layer.
+
+Result against the branch model with the same inputs and heads (2 private
+layers, 2.4M), 2,000 test sketches, free decoding:
+
+```
+model                                  params  intervals  top-5   gaps    durations
+branch, 2 private timing layers         2.4M     0.581    0.284   0.803    0.661
+per-task MLPs in the last 2 layers      2.25M    0.580    0.289   0.793    0.656
+```
+
+A tie: pitch identical, half a point more top-5 reconstruction, a point less
+on gaps, half a point less on durations, with 6% fewer parameters. Where the
+split happens, whole layers or only the MLPs, does not matter at this size;
+what matters is that both tasks keep training the shared attention. The
+branch model stays the reference for the encoder-side design.
+
 ### Joint-token decoder (2026-11-08)
 
 The branches above keep timing as a per-note denoising task on the encoder.

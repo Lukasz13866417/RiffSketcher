@@ -83,7 +83,7 @@ def train(train_phrases, val_phrases, model_cfg: ModelConfig, sim_level: str, ou
     log(f"device {device_t}; model {count_parameters(model) / 1e6:.2f}M params; "
         f"{len(train_ds)} train / {len(val_ds)} val phrases; sim={sim_level}; "
         f"genres={'on (dropout %.2f)' % genre_dropout if model_cfg.n_genres else 'off'}; "
-        f"timing branch={('%d layers%s; gap head weight %.2f; duration head %s' % (model_cfg.n_branch, ', trunk detached' if model_cfg.branch_detach else '', rhythm_weight, ('weight %.2f' % duration_weight) if model_cfg.n_duration else 'off')) if model_cfg.n_rhythm and not model_cfg.joint else 'off'}"
+        f"timing branch={('%d layers%s%s; gap head weight %.2f; duration head %s' % (model_cfg.n_branch, ', trunk detached' if model_cfg.branch_detach else '', (', %d per-task MLP layers' % model_cfg.n_expert_layers) if model_cfg.n_expert_layers else '', rhythm_weight, ('weight %.2f' % duration_weight) if model_cfg.n_duration else 'off')) if model_cfg.n_rhythm and not model_cfg.joint else 'off'}"
         + (f"; joint decoder (gap weight {rhythm_weight:.2f}, duration weight {duration_weight:.2f}, scheduled sampling up to {ss_max:.2f})" if model_cfg.joint else ""))
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay, betas=(0.9, 0.98))
     steps_per_epoch = len(train_loader) if max_steps_per_epoch is None else min(len(train_loader), max_steps_per_epoch)
@@ -155,6 +155,8 @@ def main(argv: list[str] | None = None) -> None:
                     help="add the rhythm (gap class) branch; one model then gives pitches and timing")
     ap.add_argument("--branch-layers", type=int, default=2,
                     help="encoder layers owned by the rhythm branch above the shared trunk (0 = head on the trunk)")
+    ap.add_argument("--expert-layers", type=int, default=0,
+                    help="last encoder layers with shared attention and per-task MLPs (pitch / timing streams)")
     ap.add_argument("--branch-detach", action="store_true",
                     help="the rhythm branch reads the trunk but its loss never changes it")
     ap.add_argument("--rhythm-weight", type=float, default=1.0, help="weight of the gap loss")
@@ -180,7 +182,7 @@ def main(argv: list[str] | None = None) -> None:
         splits = split_by_song(phrases, 0.2, 0.0, args.seed)
         cfg = ModelConfig(d_model=64, n_layers=2, n_heads=4, d_ff=128, dropout=0.0, n_genres=n_genres,
                           n_rhythm=n_rhythm, n_duration=n_duration, n_branch=min(args.branch_layers, 1),
-                          branch_detach=args.branch_detach, joint=args.joint)
+                          branch_detach=args.branch_detach, joint=args.joint, n_expert_layers=min(args.expert_layers, 1))
         epochs = args.epochs if args.epochs != 20 else 3
         out = args.out if args.out != Path("runs/first") else Path("runs/smoke")
         train(splits["train"], splits["val"], cfg, args.sim, out, epochs=epochs, batch_size=32,
@@ -206,7 +208,7 @@ def main(argv: list[str] | None = None) -> None:
     cfg = ModelConfig(d_model=args.d_model, n_layers=args.layers, n_heads=args.heads, d_ff=args.d_ff,
                       dropout=args.dropout, n_genres=n_genres, n_rhythm=n_rhythm, n_duration=n_duration,
                       n_branch=args.branch_layers if n_rhythm else 0, branch_detach=args.branch_detach,
-                      joint=args.joint)
+                      joint=args.joint, n_expert_layers=args.expert_layers)
     train(splits["train"], splits["val"], cfg, args.sim, args.out, epochs=args.epochs,
           batch_size=args.batch_size, lr=args.lr, weight_decay=args.weight_decay,
           max_steps_per_epoch=args.max_steps_per_epoch, seed=args.seed, device=args.device,

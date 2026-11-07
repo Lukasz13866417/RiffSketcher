@@ -653,6 +653,35 @@ def test_joint_decoder_emits_interval_gap_and_duration_per_step():
             assert int(model._last_rhythm.max()) < len(RHYTHM_CLASSES) and int(model._last_duration.max()) < len(DURATION_CLASSES)
 
 
+def test_per_task_mlp_layers_give_pitch_and_timing_their_own_streams():
+    import numpy as np
+    import torch
+    from ml.datasets import DURATION_CLASSES, GENRES, RHYTHM_CLASSES, Phrase, PhraseDataset, collate
+    from ml.model import ModelConfig, SketchTransformer
+    from ml.sketch_simulator import SketchSimulator
+    phrases = [Phrase(f"s{i}", [60, 62, 64, 65, 67], [0, 0.5, 1, 1.5, 2], [0.5, 0.25, 0.5, 0.25, 1], "pop909") for i in range(4)]
+    ds = PhraseDataset(phrases, SketchSimulator(np.random.default_rng(0), "easy"), seed=0)
+    batch = collate([ds[i] for i in range(4)])
+    torch.manual_seed(0)
+    model = SketchTransformer(ModelConfig(d_model=32, n_layers=2, n_heads=2, n_genres=len(GENRES),
+                                          n_rhythm=len(RHYTHM_CLASSES), n_duration=len(DURATION_CLASSES), n_expert_layers=1))
+    assert len(model.encoder.layers) == 1 and len(model.expert_layers) == 1 and model.rhythm_branch is None
+    memory, mask = model.encode(batch)
+    timing = model._timing_states(memory, mask)
+    assert timing.shape == memory.shape and not torch.allclose(timing, memory)
+    iv, rh, du = model.forward_joint(batch)
+    assert rh.shape[-1] == len(RHYTHM_CLASSES) and du.shape[-1] == len(DURATION_CLASSES)
+    loss = model.loss(batch)
+    loss.backward()
+    # the gap loss reaches the timing MLP and the shared attention, the pitch MLP only via the interval loss
+    layer = model.expert_layers[0]
+    assert all(p.grad is not None for p in layer.ffn[1].parameters()) and all(p.grad is not None for p in layer.attn.parameters())
+    model.eval()
+    with torch.no_grad():
+        cls, _, _ = model.generate(batch, 2, mode="beam")
+        assert model._last_rhythm.shape == cls.shape and model._last_duration.shape == batch["mask"].shape
+
+
 def test_rhythm_branch_shares_trunk_and_detach_keeps_trunk_out_of_the_gap_loss():
     import numpy as np
     import torch

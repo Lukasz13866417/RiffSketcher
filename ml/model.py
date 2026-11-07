@@ -55,6 +55,9 @@ class ModelConfig:
     branch_detach: bool = False  # True: the timing branch reads the trunk but never reshapes it
     n_duration: int = 0  # 0 = no duration head; else len(DURATION_CLASSES): one length class per note,
     #                      read from the same timing branch as the gap head
+    n_expert_layers: int = 0  # encoder layers (the last ones) whose attention is shared but whose MLP
+    #                            is per task: a pitch stream feeds the decoder, a timing stream feeds the
+    #                            gap and duration heads. An alternative to n_branch (whole private layers).
     joint: bool = False  # joint-token decoder: every decoder step emits interval, gap and duration,
     #                      conditioned on the previous step's three tokens (needs n_rhythm and n_duration);
     #                      the encoder-side timing branch is not built
@@ -71,6 +74,36 @@ def count_parameters(model: nn.Module, trainable_only: bool = True) -> int:
     return sum(p.numel() for p in model.parameters() if p.requires_grad or not trainable_only)
 
 
+class TaskExpertLayer(nn.Module):
+    """A pre-norm transformer layer with one shared attention and one MLP per task.
+
+    Attention mixes information across notes, which is the same job for every
+    task, so it runs once on the mean of the task streams; each stream then
+    adds the attention output and its own MLP, so the tasks stop competing for
+    MLP weights while still shaping the same attention.
+    """
+
+    def __init__(self, d_model: int, n_heads: int, d_ff: int, dropout: float, n_tasks: int) -> None:
+        super().__init__()
+        self.norm1 = nn.LayerNorm(d_model)
+        self.attn = nn.MultiheadAttention(d_model, n_heads, dropout=dropout, batch_first=True)
+        self.norm2 = nn.ModuleList([nn.LayerNorm(d_model) for _ in range(n_tasks)])
+        self.ffn = nn.ModuleList([nn.Sequential(nn.Linear(d_model, d_ff), nn.GELU(), nn.Dropout(dropout),
+                                                nn.Linear(d_ff, d_model)) for _ in range(n_tasks)])
+        self.drop = nn.Dropout(dropout)
+
+    def forward(self, streams: list[torch.Tensor], key_padding_mask: torch.Tensor | None) -> list[torch.Tensor]:
+        shared = torch.stack(streams).mean(0)
+        h = self.norm1(shared)
+        a, _ = self.attn(h, h, h, key_padding_mask=key_padding_mask, need_weights=False)
+        a = self.drop(a)
+        out = []
+        for x, n2, f in zip(streams, self.norm2, self.ffn):
+            x = x + a
+            out.append(x + self.drop(f(n2(x))))
+        return out
+
+
 class SketchTransformer(nn.Module):
     def __init__(self, cfg: ModelConfig | None = None) -> None:
         super().__init__()
@@ -82,8 +115,14 @@ class SketchTransformer(nn.Module):
         self.genre_emb = nn.Embedding(c.n_genres, c.d_model) if c.n_genres > 0 else None
         enc_layer = nn.TransformerEncoderLayer(c.d_model, c.n_heads, c.d_ff, c.dropout,
                                                activation="gelu", batch_first=True, norm_first=True)
-        self.encoder = nn.TransformerEncoder(enc_layer, c.n_layers, enable_nested_tensor=False)
+        n_shared = c.n_layers - (c.n_expert_layers if c.n_rhythm > 0 and not c.joint else 0)
+        assert n_shared >= 0, "n_expert_layers cannot exceed n_layers"
+        self.encoder = nn.TransformerEncoder(enc_layer, n_shared, enable_nested_tensor=False)
         self.enc_norm = nn.LayerNorm(c.d_model)
+        # per-task MLP layers: shared attention, a pitch stream and a timing stream
+        self.expert_layers = nn.ModuleList([TaskExpertLayer(c.d_model, c.n_heads, c.d_ff, c.dropout, 2)
+                                            for _ in range(c.n_layers - n_shared)])
+        self._timing_memory: torch.Tensor | None = None
 
         self.tok_emb = nn.Embedding(N_INTERVAL_CLASSES + 1, c.d_model)
         # rhythm head: gap k from the encoder states of notes k and k+1. Non-autoregressive on
@@ -101,7 +140,7 @@ class SketchTransformer(nn.Module):
             self.out_rhythm = None
         self.rhythm_branch = nn.TransformerEncoder(enc_layer, c.n_branch, enable_nested_tensor=False) \
             if c.n_rhythm > 0 and c.n_branch > 0 and not c.joint else None
-        self.branch_norm = nn.LayerNorm(c.d_model) if self.rhythm_branch is not None else None
+        self.branch_norm = nn.LayerNorm(c.d_model) if (self.rhythm_branch is not None or self.expert_layers) else None
         # duration head: how long note k sounds as a share of its gap, from the timing state of note k
         self.out_duration = nn.Sequential(nn.Linear(c.d_model, c.d_model), nn.GELU(),
                                           nn.Linear(c.d_model, c.n_duration)) \
@@ -147,6 +186,12 @@ class SketchTransformer(nn.Module):
                 genre = torch.zeros(B, dtype=torch.long, device=cont.device)
             x = x + self.genre_emb(genre.clamp(max=self.cfg.n_genres - 1))[:, None, :]
         mem = self.encoder(x, src_key_padding_mask=~mask)
+        if self.expert_layers:
+            streams = [mem, mem]
+            for layer in self.expert_layers:
+                streams = layer(streams, ~mask)
+            mem = streams[0]
+            self._timing_memory = self.branch_norm(streams[1])  # read by _timing_states for this batch
         return self.enc_norm(mem), mask
 
     @property
@@ -166,7 +211,10 @@ class SketchTransformer(nn.Module):
         return self.cfg.n_duration
 
     def _timing_states(self, memory: torch.Tensor, mask: torch.Tensor | None) -> torch.Tensor:
-        """Per-note states of the timing branch (the trunk itself without branch layers)."""
+        """Per-note states of the timing branch (the trunk itself without branch layers; the
+        timing stream of the last ``encode`` call with per-task MLP layers)."""
+        if self.expert_layers and self._timing_memory is not None and self._timing_memory.shape[:2] == memory.shape[:2]:
+            return self._timing_memory
         h = memory.detach() if self.cfg.branch_detach else memory
         if self.rhythm_branch is not None:
             h = self.branch_norm(self.rhythm_branch(h, src_key_padding_mask=None if mask is None else ~mask))
