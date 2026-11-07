@@ -110,6 +110,20 @@ that drops to 77% / 86%. That is the baseline the Transformer has to beat (`ml/e
 | `POST /api/reconstruct` | `{sketch, n_candidates, engine}` | ranked candidate riffs with note names, violations, and the tropes each candidate uses with a familiarity score; `engine` is `auto`, `model` or `deterministic` |
 | `POST /api/synthesize` | riff | `audio/wav` |
 
+## Data and licences
+
+The code is MIT licensed (`LICENSE`). The data is not all ours:
+
+- `data/artist_genres.json` holds MusicBrainz artist tags, which MusicBrainz releases as
+  supplementary data under **CC BY-NC-SA 3.0**; that file and the genre labels folded from it carry
+  that licence, not MIT (see its `_about` entry). Data from MusicBrainz.
+- `data/tropes.json` is aggregate statistics (trope shares, interval and rhythm n-gram counts per
+  genre) mined from POP909 and the Lakh clean subset; it contains no music.
+- Nothing raw is in the repository, and nothing should be added: POP909 is for research use only,
+  the Lakh MIDI Dataset is CC BY 4.0 (attribute it in anything trained on it), and DadaGP is
+  distributed by its authors on request for research and must not be redistributed. `data/raw/`,
+  `data/riffs.db`, `data/processed/` and `runs/` are git-ignored for that reason.
+
 ## Song database
 
 Everything known about every song lives in one SQLite file, `data/riffs.db` (`ml/db.py`). A *song* row

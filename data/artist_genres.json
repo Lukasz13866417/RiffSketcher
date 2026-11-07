@@ -765,6 +765,11 @@
 "score": null,
 "tags": []
 },
+"_about": {
+"attribution": "Data from MusicBrainz, licensed under CC BY-NC-SA 3.0",
+"licence": "MusicBrainz tags are supplementary data under CC BY-NC-SA 3.0 (https://musicbrainz.org/doc/MusicBrainz_Database/License); this file and the genre labels folded from it carry that licence, not the repository's MIT licence",
+"source": "MusicBrainz artist tags and genres (https://musicbrainz.org), fetched by ml/genres.py"
+},
 "a ha": {
 "genre": "pop",
 "mb_id": "7364dea6-ca9a-48e3-be01-b44ad0d19897",
