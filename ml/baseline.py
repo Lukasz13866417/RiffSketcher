@@ -133,7 +133,7 @@ class DeterministicBaseline:
         hi = mean + (self.cfg.pitch_hi - self.cfg.center_pitch) - 2.0
         if min(ys) >= lo and max(ys) <= hi:
             return sketch
-        obs = [Observation(o.t, None if o.y is None else float(np.clip(o.y, lo, hi)), o.confidence)
+        obs = [Observation(o.t, None if o.y is None else float(np.clip(o.y, lo, hi)), o.confidence, o.hold)
                for o in sketch.observations]
         return Sketch(obs, list(sketch.gestures), list(sketch.constraints), sketch.tempo_hint,
                       dict(sketch.meta))

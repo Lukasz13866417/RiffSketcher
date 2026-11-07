@@ -72,7 +72,8 @@ def test_ingest_ids_songs_renditions_tracks_notes_phrases(tmp_path, raw):
     row = con.execute("""SELECT n.onset_beats, n.pitch FROM note n JOIN track t ON t.id=n.track_id
                          WHERE t.role='melody' ORDER BY t.id, n.idx LIMIT 2""").fetchall()
     assert [r["pitch"] for r in row] == [60, 62] and row[1]["onset_beats"] == pytest.approx(1.0)
-    assert con.execute("SELECT COUNT(*) c FROM note n JOIN track t ON t.id=n.track_id WHERE t.role='drums'").fetchone()["c"] == 0
+    # drum tracks keep kick and snare hits (the fixture's one kick per file), nothing else
+    assert con.execute("SELECT COUNT(*) c FROM note n JOIN track t ON t.id=n.track_id WHERE t.role='drums'").fetchone()["c"] == 4
     assert con.execute("SELECT COUNT(*) c FROM phrase").fetchone()["c"] > 0
     assert ingest_all(con, pop, lakh).get("renditions", 0) == 0  # already present: no-op
 

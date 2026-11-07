@@ -36,14 +36,16 @@ class Observation:
     t: float  # onset time in seconds, relative to recording start
     y: float | None = None  # approximate pitch height; None = unknown
     confidence: float = 0.5  # 0..1, how sure the user is about y
+    hold: float | None = None  # seconds the tap was held (key down to key up); None = not recorded
 
     def to_dict(self) -> dict[str, Any]:
-        return {"t": self.t, "y": self.y, "confidence": self.confidence}
+        return {"t": self.t, "y": self.y, "confidence": self.confidence, "hold": self.hold}
 
     @classmethod
     def from_dict(cls, d: dict[str, Any]) -> "Observation":
         return cls(t=float(d["t"]), y=None if d.get("y") is None else float(d["y"]),
-                   confidence=float(d.get("confidence", 0.5)))
+                   confidence=float(d.get("confidence", 0.5)),
+                   hold=None if d.get("hold") is None else float(d["hold"]))
 
 
 @dataclass

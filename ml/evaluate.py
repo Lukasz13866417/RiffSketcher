@@ -32,24 +32,54 @@ import torch
 
 from core.representation import Sketch, interval_to_class
 from ml.baseline import ContourBaseline, DeterministicBaseline, IntervalPredictor
-from ml.datasets import Phrase, apply_split_ids, genre_of_source, load_phrases, synthetic_phrases
+from ml.datasets import Phrase, apply_split_ids, load_phrases, phrase_genre, synthetic_phrases
 from ml.sketch_simulator import SketchSimulator
 
 Example = tuple[Sketch, list[int]]
 
 
 def make_examples(phrases: list[Phrase], simulator: SketchSimulator, seed: int = 0) -> list[Example]:
-    return [ex for ex, _ in make_examples_with_rhythm(phrases, simulator, seed)]
+    return [ex for ex, *_ in make_examples_with_rhythm(phrases, simulator, seed)]
 
 
 def make_examples_with_rhythm(phrases: list[Phrase], simulator: SketchSimulator,
-                              seed: int = 0) -> list[tuple[Example, list[float]]]:
-    """Examples plus the true gap between consecutive notes in beats."""
-    out: list[tuple[Example, list[float]]] = []
+                              seed: int = 0) -> list[tuple[Example, list[float], list[float]]]:
+    """Examples plus the true gaps between consecutive notes and the true note lengths, in beats."""
+    out: list[tuple[Example, list[float], list[float]]] = []
     for i, p in enumerate(phrases):
         r = simulator.simulate(p, rng=np.random.default_rng([seed, i]))
         iois = [b - a for a, b in zip(r.onsets_beats, r.onsets_beats[1:])]
-        out.append(((r.sketch, r.intervals), iois))
+        out.append(((r.sketch, r.intervals), iois, list(r.durations_beats)))
+    return out
+
+
+def duration_accuracy(examples_with_rhythm, model=None) -> dict[str, float]:
+    """Fraction of notes whose predicted duration class (share of the gap) is right.
+
+    ``legato`` is the old rule: every note lasts until the next onset ("full").
+    ``hold`` reads the class straight off the tap hold time where recorded (and
+    "full" elsewhere); ``model`` is the duration head of a checkpoint that has one.
+    """
+    from ml.datasets import DURATION_CLASSES, duration_class, duration_ratios
+    from ml.datasets import sketch_to_features
+    full = [i for i, (name, _) in enumerate(DURATION_CLASSES) if name == "full"][0]
+    legato_hit, hold_hit, m_hit, n = 0, 0, 0, 0
+    for (sketch, _), iois, durs in examples_with_rhythm:
+        if not iois or len(durs) != len(iois) + 1:
+            continue
+        truth = [duration_class(r) for r in duration_ratios(durs, iois)]
+        legato_hit += sum(int(c == full) for c in truth)
+        f = sketch_to_features(sketch)["cont"]
+        hold_guess = [duration_class(float(row[14])) if row[15] > 0.5 else full for row in f]
+        hold_hit += sum(int(a == b) for a, b in zip(hold_guess, truth))
+        if model is not None and getattr(model, "has_duration", False):
+            model.generate(model._batch_from_sketch(sketch), 1, mode="greedy")
+            pred = model._last_duration[0, :len(truth)].tolist()
+            m_hit += sum(int(a == b) for a, b in zip(pred, truth))
+        n += len(truth)
+    out = {"legato": legato_hit / max(n, 1), "hold": hold_hit / max(n, 1)}
+    if model is not None and getattr(model, "has_duration", False):
+        out["model"] = m_hit / max(n, 1)
     return out
 
 
@@ -62,7 +92,7 @@ def rhythm_accuracy(examples_with_rhythm: list[tuple[Example, list[float]]], mod
     from core.rhythm import quantise
     from ml.datasets import rhythm_class
     q_hit, m_hit, n = 0, 0, 0
-    for (sketch, _), iois in examples_with_rhythm:
+    for (sketch, _), iois, _durs in examples_with_rhythm:
         if not iois:
             continue
         truth = [rhythm_class(b) for b in iois]
@@ -180,12 +210,12 @@ def load_examples_from_args(args: argparse.Namespace) -> tuple[list[Example], li
         cfg = replace(cfg, facts_prob=0.0)
     sim = SketchSimulator(args.seed, cfg)
     with_rhythm = make_examples_with_rhythm(phrases, sim, seed=args.seed)
-    examples = [ex for ex, _ in with_rhythm]
+    examples = [ex for ex, *_ in with_rhythm]
     args._with_rhythm = with_rhythm
     # genre label shown to conditioned models: the phrase's own (via its source), none, or a fixed one
     mode = getattr(args, "genre", "auto")
     for (sketch, _), p in zip(examples, phrases):
-        sketch.meta["genre"] = genre_of_source(p.source) if mode == "auto" else mode
+        sketch.meta["genre"] = phrase_genre(p) if mode == "auto" else mode
     return examples, [p.source for p in phrases]
 
 
@@ -239,6 +269,13 @@ def main(argv: list[str] | None = None) -> None:
         print(f"  quantise (rule-based)   {base['quantise']:.3f}")
         for p in rh_models:
             print(f"  {p.name:22s}  {rhythm_accuracy(args._with_rhythm, p)['model']:.3f}")
+        print("\nduration (length class) accuracy:")
+        base = duration_accuracy(args._with_rhythm, None)
+        print(f"  legato (every note full)   {base['legato']:.3f}")
+        print(f"  tap hold time alone        {base['hold']:.3f}")
+        for p in predictors:
+            if getattr(p, "has_duration", False):
+                print(f"  {p.name:22s}  {duration_accuracy(args._with_rhythm, p)['model']:.3f}")
     for source in sorted(set(sources)) if len(set(sources)) > 1 else []:
         sel = [i for i, s in enumerate(sources) if s == source]
         print(f"\nsource = {source}")

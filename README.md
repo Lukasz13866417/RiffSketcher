@@ -111,8 +111,11 @@ is the composition; a *rendition* is one file of it from one source (several Lak
 song are renditions of one song row); tracks and per-note rows hang off renditions, with typed columns
 for string, fret and articulation that tabs and audio extraction fill in; training phrases are cut
 from those note rows and record which notes they cover. Every derived row names its
-*extractor* (name, version, parameters), so extractions can be re-run and replaced. Splits are per
-song, so a song never straddles train and test through two files. Training files are exported from
+*extractor* (name, version, parameters), so extractions can be re-run and replaced. Bass and drum
+(kick/snare) notes are stored too, and `ml/features.py` computes key, metre, swing, doubled tracks and,
+per phrase, where it sits in the bar and which notes land with the bass, kick or snare; `ml/genres.py`
+looks each artist up on MusicBrainz and gives every song a genre (cached in `data/artist_genres.json`).
+Splits are per song, so a song never straddles train and test through two files. Training files are exported from
 it (`uv run python -m ml.db export`) in the same JSONL format as before, so the rest of `ml/` is
 unchanged. See `ml/README.md`, "Song database".
 

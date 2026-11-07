@@ -48,16 +48,22 @@ class SimConfig:
     pin_prob: float = 0.15  # per note, given facts
     direction_prob: float = 0.15  # per interval, given facts
     same_prob: float = 0.3  # per exact-repeat pair (within 8 notes), given facts
+    # how long each tap was held: the true note length in seconds times log-normal noise, recorded
+    # for a share of the sketches (a mouse tap or a phone touch may not report it)
+    hold_prob: float = 0.7  # share of sketches whose taps carry a hold time
+    hold_noise: float = 0.3  # std of log(hold / true duration)
 
 
 PRESETS: dict[str, SimConfig] = {
     "easy": SimConfig(name="easy", onset_jitter_ms=10.0, drop_prob=0.0, double_prob=0.0,
                       tempo_drift=0.02, height_noise=0.5, missing_prob=0.0,
-                      compression_range=(0.9, 1.1), tag_drop_prob=0.1, tag_shift_prob=0.1),
+                      compression_range=(0.9, 1.1), tag_drop_prob=0.1, tag_shift_prob=0.1,
+                      hold_prob=0.9, hold_noise=0.15),
     "medium": SimConfig(),
     "hard": SimConfig(name="hard", onset_jitter_ms=45.0, drop_prob=0.08, double_prob=0.05,
                       tempo_drift=0.1, height_noise=1.8, missing_prob=0.15,
-                      compression_range=(0.6, 1.4), tag_drop_prob=0.5, tag_shift_prob=0.5),
+                      compression_range=(0.6, 1.4), tag_drop_prob=0.5, tag_shift_prob=0.5,
+                      hold_prob=0.5, hold_noise=0.5),
 }
 
 
@@ -77,6 +83,7 @@ class SimResult:
     source_index: list[int]  # phrase note index behind each observation
     phrase: Phrase
     meta: dict = field(default_factory=dict)
+    durations_beats: list[float] = field(default_factory=list)  # true note lengths aligned with observations
 
     @property
     def intervals(self) -> list[int]:
@@ -230,7 +237,9 @@ class SketchSimulator:
         pitches = [int(phrase.pitches[i]) for i in src]
         t, tempo = self._onsets_seconds(beats, rng)
         y, missing, conf, comp = self._heights(np.array(pitches, dtype=float), rng)
-        obs = [Observation(float(t[i]), None if missing[i] else float(y[i]), float(conf[i]))
+        durations = [float(phrase.durations_beats[i]) for i in src]
+        holds = self._holds(durations, tempo, rng)
+        obs = [Observation(float(t[i]), None if missing[i] else float(y[i]), float(conf[i]), holds[i])
                for i in range(len(events))]
         gestures = self._gestures(pitches, rng)
         facts = self._facts(pitches, rng)
@@ -239,7 +248,17 @@ class SketchSimulator:
                         meta={"song_id": phrase.song_id, "sim": self.cfg.name,
                               "compression": comp, "tempo": tempo})
         return SimResult(sketch, pitches, [float(b) for b in beats], src, phrase,
-                         meta={"tempo": tempo, "compression": comp})
+                         meta={"tempo": tempo, "compression": comp}, durations_beats=durations)
+
+    def _holds(self, durations_beats: list[float], tempo: float, rng: np.random.Generator) -> list[float | None]:
+        """Tap hold times in seconds: the true length with log-normal noise, or None for the
+        whole sketch when the device did not report them."""
+        cfg = self.cfg
+        if rng.random() >= cfg.hold_prob:
+            return [None] * len(durations_beats)
+        spb = 60.0 / max(tempo, 1e-3)
+        noise = np.exp(rng.normal(0.0, cfg.hold_noise, size=len(durations_beats)))
+        return [float(max(0.02, d * spb * z)) for d, z in zip(durations_beats, noise)]
 
     def __call__(self, phrase: Phrase, rng: np.random.Generator | None = None) -> SimResult:
         return self.simulate(phrase, rng)

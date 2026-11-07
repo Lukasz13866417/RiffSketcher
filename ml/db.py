@@ -121,6 +121,11 @@ CREATE TABLE IF NOT EXISTS rendition_feature (
     rendition_id INTEGER NOT NULL REFERENCES rendition(id) ON DELETE CASCADE,
     extractor_id INTEGER NOT NULL REFERENCES extractor(id), key TEXT NOT NULL,
     value_num REAL, value_text TEXT, PRIMARY KEY (rendition_id, extractor_id, key));
+CREATE TABLE IF NOT EXISTS phrase_feature (
+    phrase_id INTEGER NOT NULL REFERENCES phrase(id) ON DELETE CASCADE,
+    extractor_id INTEGER NOT NULL REFERENCES extractor(id), key TEXT NOT NULL,
+    value_num REAL, value_text TEXT, PRIMARY KEY (phrase_id, extractor_id, key));
+
 CREATE TABLE IF NOT EXISTS note_feature (
     note_id INTEGER NOT NULL REFERENCES note(id) ON DELETE CASCADE,
     extractor_id INTEGER NOT NULL REFERENCES extractor(id), key TEXT NOT NULL,
@@ -339,6 +344,14 @@ def file_hash(path: Path) -> str:
 Parsed = dict[str, Any]  # {"tracks": [...], "phrases": [...], "tempo":..., "resolution":..., "meta":...}
 
 
+# Roles whose notes are stored. Melody and guitar notes are what phrases are cut from; bass and
+# drum notes are the metric context (ml/features.py: which riff notes land with the bass, the
+# kick or the snare). Of a drum track only kick and snare hits are kept: hi-hats and cymbals
+# would triple the note table for little, and the two carry the downbeats and backbeats.
+STORED_ROLES: tuple[str, ...] = ("melody", "guitar", "bass", "drums")
+DRUM_KEEP: frozenset[int] = frozenset({35, 36, 38, 40})  # GM kick (35, 36) and snare (38, 40)
+
+
 def _midi_role(ins: Any, melody_ins: Any) -> str:
     if ins.is_drum:
         return "drums"
@@ -370,6 +383,8 @@ def parse_midi(path: Path, source: str, original_id: str, keep_roles: tuple[str,
         notes = []
         if role in keep_roles and ins.notes:
             src_notes = _monophonic_notes(ins.notes) if role == "melody" else sorted(ins.notes, key=lambda n: (n.start, n.pitch))
+            if role == "drums":
+                src_notes = [n for n in src_notes if int(n.pitch) in DRUM_KEEP]
             for k, n in enumerate(src_notes):
                 s, e = to_beats(n.start), to_beats(n.end)
                 # six decimals: a 480-tick quarter note is 1/480 = 0.002083 beats, and phrase onsets are
@@ -379,9 +394,12 @@ def parse_midi(path: Path, source: str, original_id: str, keep_roles: tuple[str,
         tracks.append({"idx": idx, "name": ins.name, "program": int(ins.program), "role": role,
                        "is_drum": int(ins.is_drum), "n_notes": len(ins.notes), "notes": notes})
     tempos = pm.get_tempo_changes()[1]
+    ts = pm.time_signature_changes
+    meta = {"n_instruments": len(pm.instruments), "n_tempos": int(len(tempos)), "n_time_signatures": len(ts),
+            "time_signature": f"{ts[0].numerator}/{ts[0].denominator}" if ts else None}
     return {"tracks": tracks,
             "tempo": float(tempos[0]) if len(tempos) else None, "resolution": int(pm.resolution),
-            "format": path.suffix.lower().lstrip("."), "meta": {"n_instruments": len(pm.instruments)}}
+            "format": path.suffix.lower().lstrip("."), "meta": meta}
 
 
 def parse_dadagp(path: Path, source: str, original_id: str, min_notes: int, max_notes: int) -> Parsed:
@@ -442,12 +460,12 @@ def jobs_for(pop909_dir: Path | None, guitar_dir: Path | None, dadagp_dir: Path 
         files = [f for f in _midi_files(pop909_dir) if "versions" not in f.parts]
         for f in files[:limit] if limit else files:
             oid = f.parent.name if f.parent != pop909_dir else f.stem
-            jobs.append(("midi", str(f), "pop909", oid, ("melody",), min_notes, max_notes, None, None))
+            jobs.append(("midi", str(f), "pop909", oid, STORED_ROLES, min_notes, max_notes, None, None))
     if guitar_dir:
         files = _midi_files(guitar_dir)
         for f in files[:limit] if limit else files:
             artist, title = lakh_artist_title(f, guitar_dir)
-            jobs.append(("midi", str(f), "lakh_guitar", str(f.relative_to(guitar_dir)), ("guitar",),
+            jobs.append(("midi", str(f), "lakh_guitar", str(f.relative_to(guitar_dir)), STORED_ROLES,
                          min_notes, max_notes, artist, title))
     if dadagp_dir:
         files = sorted(dadagp_dir.rglob("*.txt"))
@@ -516,6 +534,63 @@ def ingest(con: sqlite3.Connection, jobs: list[tuple], workers: int = 1, min_not
     con.commit()
     if new_renditions:
         counts["phrases"] = cut_phrases(con, new_renditions, min_notes, max_notes, log=log)
+    return dict(counts)
+
+
+def add_notes(con: sqlite3.Connection, roles: tuple[str, ...], workers: int = 1, log=print) -> dict[str, int]:
+    """Store the notes of tracks with one of ``roles`` that were ingested without them
+    (the files are re-read; nothing else changes). Also refreshes the rendition's
+    ``meta_json`` with the time signature. Returns counts."""
+    try:
+        from tqdm import tqdm
+    except ImportError:  # pragma: no cover
+        def tqdm(it, **kw):
+            return it
+    marks = ",".join("?" * len(roles))
+    rows = con.execute(
+        f"""SELECT DISTINCT r.id, r.path, s.name AS source, r.original_id FROM rendition r
+            JOIN source s ON s.id = r.source_id JOIN track t ON t.rendition_id = r.id
+            WHERE r.format = 'mid' AND t.role IN ({marks}) AND t.notes_stored = 0 AND t.n_notes > 0
+            ORDER BY r.id""", roles).fetchall()
+    jobs = [("midi", r["path"], r["source"], r["original_id"], tuple(roles), 5, 16) for r in rows
+            if r["path"] and os.path.exists(r["path"])]
+    rid_of = {r["path"]: int(r["id"]) for r in rows}
+    log(f"{len(rows)} renditions have {'/'.join(roles)} tracks without notes; {len(jobs)} files present")
+    counts: dict[str, int] = defaultdict(int)
+
+    def results():
+        if workers > 1:
+            with ProcessPoolExecutor(workers) as pool:
+                yield from pool.map(_run, jobs, chunksize=4)
+        else:
+            for j in jobs:
+                yield _run(j)
+
+    for job, parsed, err in tqdm(results(), total=len(jobs), desc="notes"):
+        rid = rid_of[job[1]]
+        if parsed is None:
+            counts["failed"] += 1
+            log(f"  skip {job[1]}: {err}")
+            continue
+        tracks = {int(t["idx"]): int(t["id"]) for t in
+                  con.execute("SELECT id, idx FROM track WHERE rendition_id=? AND notes_stored=0", (rid,))}
+        for t in parsed["tracks"]:
+            tid = tracks.get(t["idx"])
+            if tid is None or not t["notes"]:
+                continue
+            con.executemany(
+                "INSERT INTO note(track_id, idx, onset_beats, duration_beats, onset_s, pitch, velocity) VALUES (?,?,?,?,?,?,?)",
+                [(tid, k, s, d, os_, p, v) for k, s, d, os_, p, v in t["notes"]])
+            con.execute("UPDATE track SET notes_stored=1 WHERE id=?", (tid,))
+            counts["notes"] += len(t["notes"])
+            counts["tracks"] += 1
+        old = con.execute("SELECT meta_json FROM rendition WHERE id=?", (rid,)).fetchone()["meta_json"]
+        meta = {**(json.loads(old) if old else {}), **parsed["meta"]}
+        con.execute("UPDATE rendition SET meta_json=? WHERE id=?", (json.dumps(meta), rid))
+        counts["renditions"] += 1
+        if counts["renditions"] % 200 == 0:
+            con.commit()
+    con.commit()
     return dict(counts)
 
 
@@ -632,10 +707,10 @@ def assign_splits(con: sqlite3.Connection, val_frac: float = 0.1, test_frac: flo
 
 
 def load_db_phrases(con: sqlite3.Connection, sources: Iterable[str] | None = None) -> list[Phrase]:
-    q = ("SELECT r.song_id, r.id AS rendition_id, p.id AS phrase_id, s.name AS source, "
+    q = ("SELECT r.song_id, r.id AS rendition_id, p.id AS phrase_id, s.name AS source, w.genre AS genre, "
          "p.pitches_json, p.onsets_json, p.durations_json "
          "FROM phrase p JOIN rendition r ON r.id = p.rendition_id "
-         "JOIN source s ON s.id = r.source_id")
+         "JOIN source s ON s.id = r.source_id JOIN song w ON w.id = r.song_id")
     args: tuple = ()
     if sources:
         names = list(sources)
@@ -644,7 +719,7 @@ def load_db_phrases(con: sqlite3.Connection, sources: Iterable[str] | None = Non
     q += " ORDER BY r.id, p.idx"
     return [Phrase(str(r["song_id"]), json.loads(r["pitches_json"]), json.loads(r["onsets_json"]),
                    json.loads(r["durations_json"]), r["source"], rendition_id=int(r["rendition_id"]),
-                   phrase_id=int(r["phrase_id"]))
+                   phrase_id=int(r["phrase_id"]), genre=r["genre"])
             for r in con.execute(q, args)]
 
 
@@ -724,6 +799,9 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--max-notes", type=int, default=16)
     p.add_argument("--limit", type=int, default=None, help="max files per source (debug)")
     p.add_argument("--workers", type=int, default=max(1, (os.cpu_count() or 2) // 2))
+    p = sub.add_parser("notes", help="store the notes of bass/drum tracks ingested without them (re-reads the files)")
+    p.add_argument("--roles", default="bass,drums")
+    p.add_argument("--workers", type=int, default=1)
     p = sub.add_parser("cut", help="cut phrases from the stored notes (ingest does this for new files)")
     p.add_argument("--recut", action="store_true", help="replace the phrases of every rendition")
     p.add_argument("--min-notes", type=int, default=5)
@@ -756,6 +834,8 @@ def main(argv: list[str] | None = None) -> None:
     elif args.cmd == "ingest":
         jobs = jobs_for(args.pop909_dir, args.guitar_midi_dir, args.dadagp_dir, args.min_notes, args.max_notes, args.limit)
         print(ingest(con, jobs, args.workers, args.min_notes, args.max_notes))
+    elif args.cmd == "notes":
+        print(add_notes(con, tuple(r.strip() for r in args.roles.split(",") if r.strip()), args.workers))
     elif args.cmd == "cut":
         if args.recut:
             n = cut_phrases(con, None, args.min_notes, args.max_notes)

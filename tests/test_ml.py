@@ -562,8 +562,9 @@ def test_dataset_has_rhythm_targets_and_model_trains_with_head():
     assert batch["rhythm"].shape == batch["target"].shape
     model = SketchTransformer(ModelConfig(d_model=32, n_layers=1, n_heads=2, n_genres=len(GENRES),
                                           n_rhythm=len(RHYTHM_CLASSES)))
-    iv, rh = model.forward_joint(batch)
+    iv, rh, du = model.forward_joint(batch)
     assert rh is not None and rh.shape[:2] == iv.shape[:2] and rh.shape[2] == len(RHYTHM_CLASSES)
+    assert du is None  # no duration head unless asked for
     loss = model.loss(batch)
     assert torch.isfinite(loss) and loss.item() > 0
     model.eval()
@@ -575,6 +576,86 @@ def test_dataset_has_rhythm_targets_and_model_trains_with_head():
     # a model without the head still runs on batches that carry rhythm targets
     plain = SketchTransformer(ModelConfig(d_model=32, n_layers=1, n_heads=2))
     assert plain.forward_joint(batch)[1] is None and torch.isfinite(plain.loss(batch))
+
+
+def test_hold_time_is_a_feature_and_durations_are_targets_and_outputs():
+    import numpy as np
+    import torch
+    from core.representation import Observation, Sketch
+    from ml.datasets import (DURATION_CLASSES, GENRES, N_CONTINUOUS_FEATURES, RHYTHM_CLASSES, Phrase, PhraseDataset,
+                             class_to_ratio, collate, duration_class, duration_ratios, sketch_to_features)
+    from ml.model import ModelConfig, SketchTransformer
+    from ml.sketch_simulator import SketchSimulator
+    assert N_CONTINUOUS_FEATURES == 16
+    # hold ratio = hold / gap to the next tap; the last note against the median gap; unknown = 0 with flag 0
+    sk = Sketch([Observation(0.0, 0, 0.8, hold=0.25), Observation(0.5, 0, 0.8, hold=None), Observation(1.0, 0, 0.8, hold=0.6)])
+    f = sketch_to_features(sk)["cont"]
+    assert f.shape == (3, 16)
+    assert f[0, 14] == 0.5 and f[0, 15] == 1 and f[1, 14] == 0 and f[1, 15] == 0 and abs(f[2, 14] - 1.2) < 1e-6
+    # duration classes: share of the gap, nearest class
+    assert [n for n, _ in DURATION_CLASSES] == ["short", "half", "most", "full", "over"]
+    assert duration_ratios([0.25, 0.5, 0.5], [0.5, 0.5]) == [0.5, 1.0, 1.0]
+    assert duration_class(0.95) == 3 and duration_class(0.2) == 0 and class_to_ratio(4) == 1.3
+    # the simulator carries true durations and (mostly) hold times
+    phrases = [Phrase(f"s{i}", [60, 62, 64, 65, 67, 69], [0, 0.5, 1, 1.5, 2, 3], [0.25, 0.5, 0.5, 0.25, 1.0, 0.5], "pop909")
+               for i in range(8)]
+    sim = SketchSimulator(np.random.default_rng(0), "easy")
+    res = sim.simulate(phrases[0])
+    assert res.durations_beats == phrases[0].durations_beats and len(res.sketch) == 6
+    assert any(o.hold is not None for o in res.sketch.observations) or sim.cfg.hold_prob < 1
+    ds = PhraseDataset(phrases, sim, seed=0)
+    item = ds[0]
+    assert "duration" in item and item["duration"].shape[0] == item["cont"].shape[0]
+    batch = collate([ds[i] for i in range(4)])
+    assert batch["duration"].shape == batch["mask"].shape
+    model = SketchTransformer(ModelConfig(d_model=32, n_layers=1, n_heads=2, n_genres=len(GENRES),
+                                          n_rhythm=len(RHYTHM_CLASSES), n_duration=len(DURATION_CLASSES), n_branch=1))
+    assert model.has_duration
+    iv, rh, du = model.forward_joint(batch)
+    assert du.shape == (4, batch["mask"].shape[1], len(DURATION_CLASSES))
+    assert torch.isfinite(model.loss(batch, 1.0, 0.5))
+    model.eval()
+    with torch.no_grad():
+        cls, _, _ = model.generate(batch, 2, mode="beam")
+        assert model._last_duration.shape == (4, batch["mask"].shape[1])
+    onsets, durations, tempo = model.rhythm_from_classes([4, 4, 6], [0.0, 0.25, 0.5, 1.0], [0, 3, 1, 4])
+    assert onsets == [0.0, 0.5, 1.0, 2.0] and durations == [0.125, 0.5, 0.5, 0.65]
+
+
+def test_rhythm_branch_shares_trunk_and_detach_keeps_trunk_out_of_the_gap_loss():
+    import numpy as np
+    import torch
+    from ml.datasets import GENRES, PAD_TARGET, RHYTHM_CLASSES, Phrase, PhraseDataset, collate
+    from ml.model import ModelConfig, SketchTransformer
+    from ml.sketch_simulator import SketchSimulator
+    phrases = [Phrase(f"s{i}", [60, 62, 64, 65, 67], [0, 0.5, 1, 1.5, 2], [0.5] * 5, "pop909") for i in range(4)]
+    ds = PhraseDataset(phrases, SketchSimulator(np.random.default_rng(0), "easy"), seed=0)
+    batch = collate([ds[i] for i in range(4)])
+    for detach in (False, True):
+        torch.manual_seed(0)
+        model = SketchTransformer(ModelConfig(d_model=32, n_layers=1, n_heads=2, n_genres=len(GENRES),
+                                              n_rhythm=len(RHYTHM_CLASSES), n_branch=1, branch_detach=detach))
+        assert model.rhythm_branch is not None and model.has_rhythm
+        iv, rh, _ = model.forward_joint(batch)
+        assert rh.shape[:2] == iv.shape[:2]
+        # the rhythm loss alone: with the trunk detached it must leave the trunk untouched
+        memory, mask = model.encode(batch)
+        rl = model.rhythm_logits(memory, mask)
+        L = batch["rhythm"].shape[1]
+        loss = torch.nn.functional.cross_entropy(rl[:, :L].reshape(-1, len(RHYTHM_CLASSES)),
+                                                 batch["rhythm"].reshape(-1), ignore_index=PAD_TARGET)
+        model.zero_grad()
+        loss.backward()
+        trunk_grad = sum(float(p.grad.abs().sum()) for p in model.encoder.parameters() if p.grad is not None)
+        branch_grad = sum(float(p.grad.abs().sum()) for p in model.rhythm_branch.parameters() if p.grad is not None)
+        assert branch_grad > 0
+        assert (trunk_grad == 0) == detach
+        # the weighted joint loss and decoding still run
+        assert torch.isfinite(model.loss(batch, rhythm_weight=0.5))
+        model.eval()
+        with torch.no_grad():
+            cls, _, _ = model.generate(batch, 2, mode="beam")
+            assert model._last_rhythm.shape == cls.shape
 
 
 # -- trope catalogue ---------------------------------------------------------- #
@@ -630,7 +711,7 @@ def test_features_carry_facts_and_quantised_gaps():
                 constraints=[Constraint("pitch", 1, value=42), Constraint("pitch", 3, value=48),
                              Constraint("direction", 2, value=0), Constraint("same", 0, 4)])
     f = sketch_to_features(sk)["cont"]
-    assert f.shape == (5, N_CONTINUOUS_FEATURES) == (5, 14)
+    assert f.shape == (5, N_CONTINUOUS_FEATURES) == (5, 16)
     assert f[0, 7] == 0 and all(f[1:, 7] == 1) and len(set(f[1:, 6].round(6))) == 1  # even taps -> one snapped gap
     assert f[1, 8] == 1 and f[3, 8] == 1 and f[1, 9] == 0 and abs(f[3, 9] - 0.5) < 1e-6  # pins relative to the first pin
     assert f[3, 10] == 1 and f[3, 11] == 0 and f[2, 10] == 0  # direction fact on step 2 -> note 3

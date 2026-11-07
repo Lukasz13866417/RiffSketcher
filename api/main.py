@@ -118,7 +118,8 @@ def engines() -> dict[str, Any]:
             d["trained_on"] = eng.meta.get("sim")
             d["genres"] = eng.genres
             d["timing"] = eng.meta.get("timing")
-            d["rhythm_checkpoint"] = eng.rhythm_checkpoint if eng.rhythm_model is not None else None
+            d["rhythm_checkpoint"] = (eng.rhythm_checkpoint if eng.rhythm_model is not None
+                                      else eng.checkpoint if eng.model is not None and eng.model.has_rhythm else None)
         info.append(d)
     return {"engines": info, "default": DEFAULT_ENGINE}
 

@@ -31,7 +31,7 @@ GESTURE_KINDS: tuple[str, ...] = (
     "ascending_run", "descending_run", "repeated_note", "repeated_figure",
     "pedal_tone", "arpeggio", "big_leap",
 )
-N_CONTINUOUS_FEATURES = 14  # see sketch_to_features; the first 6 are the original ones
+N_CONTINUOUS_FEATURES = 16  # see sketch_to_features; the first 6 are the original ones
 FEATURE_VERSION = 1
 PAD_TARGET = -100  # ignore_index for cross-entropy
 
@@ -45,7 +45,11 @@ PAD_TARGET = -100  # ignore_index for cross-entropy
 # model gets a learned embedding per genre and is trained with the label
 # dropped to "unknown" part of the time, so inference works with or without
 # a genre choice.
-GENRES: tuple[str, ...] = ("unknown", "pop", "rock", "metal")
+# Genre vocabulary of the model's genre token. The first four are the original ones; the rest
+# arrived with the MusicBrainz artist lookup (ml/genres.py) and sit after them so that older
+# checkpoints keep their indices. A song's own genre (song.genre) wins over the source default.
+GENRES: tuple[str, ...] = ("unknown", "pop", "rock", "metal", "punk", "electronic", "hiphop", "jazz",
+                           "blues", "country", "folk", "classical", "soul", "reggae")
 SOURCE_GENRE: dict[str, str] = {
     "pop909": "pop",
     "lakh_guitar": "rock", "guitar_midi": "rock",
@@ -62,6 +66,33 @@ RHYTHM_CLASSES: tuple[float, ...] = (
 )
 _RHYTHM_LOG = np.log(np.array(RHYTHM_CLASSES))
 
+# Duration classes: how long a note sounds as a share of the gap to the next onset. Predicted per
+# note by the duration head next to the gap head, so a riff can have choked notes and rests
+# instead of every note ringing into the next. The last note's gap is the phrase's median gap.
+DURATION_CLASSES: tuple[tuple[str, float], ...] = (
+    ("short", 0.25), ("half", 0.5), ("most", 0.8), ("full", 1.0), ("over", 1.3))
+_DURATION_RATIOS = np.array([r for _, r in DURATION_CLASSES])
+
+
+def duration_class(ratio: float) -> int:
+    """Nearest duration class for ``duration / gap``."""
+    return int(np.argmin(np.abs(_DURATION_RATIOS - float(ratio))))
+
+
+def class_to_ratio(c: int) -> float:
+    return float(DURATION_CLASSES[int(c)][1])
+
+
+def duration_ratios(durations: list[float], gaps: list[float]) -> list[float]:
+    """duration / gap per note; the last note is judged against the median gap."""
+    pos = [g for g in gaps if g > 1e-6]
+    last = float(np.median(pos)) if pos else 1.0
+    out = []
+    for i, d in enumerate(durations):
+        g = gaps[i] if i < len(gaps) else last
+        out.append(float(d) / max(float(g), 1e-6))
+    return out
+
 
 def rhythm_class(beats: float) -> int:
     """Nearest rhythm class (in log space, so 1/3 vs 0.25 is judged by ratio)."""
@@ -74,6 +105,12 @@ def class_to_beats(c: int) -> float:
 
 def genre_of_source(source: str) -> str:
     return SOURCE_GENRE.get(source, "unknown")
+
+
+def phrase_genre(p: "Phrase") -> str:
+    """The phrase's genre label: the song's looked-up genre when the database has one,
+    else the source's default."""
+    return p.genre if p.genre in GENRES else genre_of_source(p.source)
 
 
 def genre_id(name: str | None) -> int:
@@ -92,6 +129,7 @@ class Phrase:
     source: str = "unknown"
     rendition_id: int | None = None  # which file of the song the phrase was cut from
     phrase_id: int | None = None  # the phrase row in the song database
+    genre: str | None = None  # song.genre from the database (artist lookup); None = source default
 
     def __len__(self) -> int:
         return len(self.pitches)
@@ -110,7 +148,8 @@ class Phrase:
                    durations_beats=[float(x) for x in d["durations_beats"]],
                    source=str(d.get("source", "unknown")),
                    rendition_id=None if d.get("rendition_id") is None else int(d["rendition_id"]),
-                   phrase_id=None if d.get("phrase_id") is None else int(d["phrase_id"]))
+                   phrase_id=None if d.get("phrase_id") is None else int(d["phrase_id"]),
+                   genre=None if d.get("genre") is None else str(d["genre"]))
 
 
 def save_phrases(phrases: Iterable[Phrase], path: str | Path) -> None:
@@ -610,7 +649,7 @@ def apply_split_ids(phrases: list[Phrase], ids: dict[str, list[str]]) -> dict[st
 def sketch_to_features(sketch: Sketch) -> dict[str, np.ndarray]:
     """Per-note model inputs from a sketch (tempo- and register-invariant).
 
-    Returns ``cont`` (n, 14) and ``gest`` (n, K) gesture multi-hot. The
+    Returns ``cont`` (n, 16) and ``gest`` (n, K) gesture multi-hot. The
     continuous columns, in order (checkpoints trained on fewer columns use a
     prefix, see ``SketchTransformer.encode``):
 
@@ -629,6 +668,9 @@ def sketch_to_features(sketch: Sketch) -> dict[str, np.ndarray]:
     11 that direction (-1, 0, +1)
     12 "same as an earlier note" flag
     13 how many notes back that earlier note is / 16
+    14 hold ratio: how long the tap was held as a share of the gap to the next tap
+       (the last note against the median gap), clipped to [0, 1.5]; 0 when not recorded
+    15 hold-known flag
     """
     sketch = sketch.sorted()
     n = len(sketch)
@@ -680,8 +722,17 @@ def sketch_to_features(sketch: Sketch) -> dict[str, np.ndarray]:
             a, b = sorted((c.i, c.j))
             same_flag[b] = 1.0
             same_back[b] = (b - a) / 16.0
+    # tap hold time as a share of the gap to the next tap
+    hold_ratio, hold_flag = np.zeros(n), np.zeros(n)
+    med_s = float(np.median(pos)) * 1.0 if len(pos) else 1.0
+    for i, o in enumerate(sketch.observations):
+        if o.hold is not None and o.hold >= 0:
+            gap_s = (t[i + 1] - t[i]) if i + 1 < n else med_s
+            hold_ratio[i] = float(np.clip(o.hold / max(gap_s, 1e-3), 0.0, 1.5))
+            hold_flag[i] = 1.0
     cont = np.stack([ioi, log_ioi, y / 12.0, dy / 12.0, conf, missing, qgap, qflag,
-                     pin_flag, pin_rel, dir_known, dir_sign, same_flag, same_back], axis=1).astype(np.float32)
+                     pin_flag, pin_rel, dir_known, dir_sign, same_flag, same_back,
+                     hold_ratio, hold_flag], axis=1).astype(np.float32)
 
     gest = np.zeros((n, len(GESTURE_KINDS)), dtype=np.float32)
     for g in sketch.gestures:
@@ -694,9 +745,11 @@ def sketch_to_features(sketch: Sketch) -> dict[str, np.ndarray]:
 
 
 def example_to_tensors(sketch: Sketch, intervals: list[int] | None,
-                       iois_beats: list[float] | None = None) -> dict[str, torch.Tensor]:
-    """Model inputs for one sketch; ``intervals`` and ``iois_beats`` (true gaps in
-    beats, one per interval) add the training targets when given."""
+                       iois_beats: list[float] | None = None,
+                       durations_beats: list[float] | None = None) -> dict[str, torch.Tensor]:
+    """Model inputs for one sketch; ``intervals``, ``iois_beats`` (true gaps in beats,
+    one per interval) and ``durations_beats`` (true note lengths, one per note) add
+    the training targets when given."""
     f = sketch_to_features(sketch)
     n = len(f["cont"])
     item = {
@@ -709,6 +762,9 @@ def example_to_tensors(sketch: Sketch, intervals: list[int] | None,
         item["target"] = torch.tensor([interval_to_class(d) for d in intervals], dtype=torch.long)
     if iois_beats is not None:
         item["rhythm"] = torch.tensor([rhythm_class(b) for b in iois_beats], dtype=torch.long)
+        if durations_beats is not None:
+            item["duration"] = torch.tensor([duration_class(r) for r in duration_ratios(durations_beats, iois_beats)],
+                                            dtype=torch.long)
     return item
 
 
@@ -739,14 +795,14 @@ class PhraseDataset(Dataset):
 
     def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
         res = self.simulate(idx)
-        genre = genre_of_source(self.phrases[idx].source)
+        genre = phrase_genre(self.phrases[idx])
         if self.genre_dropout > 0:
             rng = np.random.default_rng([self.seed, self.epoch, idx, 7])
             if rng.random() < self.genre_dropout:
                 genre = "unknown"
         res.sketch.meta["genre"] = genre
         iois = [b - a for a, b in zip(res.onsets_beats, res.onsets_beats[1:])]
-        return example_to_tensors(res.sketch, res.intervals, iois)
+        return example_to_tensors(res.sketch, res.intervals, iois, res.durations_beats)
 
 
 def collate(items: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
@@ -758,8 +814,10 @@ def collate(items: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
     mask = torch.zeros(B, n_max, dtype=torch.bool)
     has_target = "target" in items[0]
     has_rhythm = "rhythm" in items[0]
+    has_duration = "duration" in items[0]
     target = torch.full((B, max(n_max - 1, 1)), PAD_TARGET, dtype=torch.long)
     rhythm = torch.full((B, max(n_max - 1, 1)), PAD_TARGET, dtype=torch.long)
+    duration = torch.full((B, n_max), PAD_TARGET, dtype=torch.long)
     for b, it in enumerate(items):
         n = it["cont"].shape[0]
         cont[b, :n] = it["cont"]
@@ -769,10 +827,14 @@ def collate(items: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
             target[b, :n - 1] = it["target"]
         if has_rhythm:
             rhythm[b, :n - 1] = it["rhythm"]
+        if has_duration:
+            duration[b, :n] = it["duration"]
     batch = {"cont": cont, "gest": gest, "mask": mask,
              "genre": torch.stack([it.get("genre", torch.tensor(0)) for it in items])}
     if has_target:
         batch["target"] = target
     if has_rhythm:
         batch["rhythm"] = rhythm
+    if has_duration:
+        batch["duration"] = duration
     return batch

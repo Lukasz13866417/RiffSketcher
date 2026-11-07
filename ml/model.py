@@ -32,8 +32,8 @@ import torch.nn.functional as F
 
 from core.representation import N_INTERVAL_CLASSES, Note, Riff, Sketch, class_to_interval
 from core.rhythm import quantise
-from ml.datasets import (GESTURE_KINDS, N_CONTINUOUS_FEATURES, PAD_TARGET, RHYTHM_CLASSES, collate,
-                         example_to_tensors)
+from ml.datasets import (GESTURE_KINDS, N_CONTINUOUS_FEATURES, PAD_TARGET, RHYTHM_CLASSES, class_to_ratio,
+                         collate, example_to_tensors)
 
 BOS = N_INTERVAL_CLASSES  # extra decoder-input token
 
@@ -51,6 +51,10 @@ class ModelConfig:
     n_genres: int = 0  # 0 = no genre conditioning (checkpoints trained before it existed)
     n_rhythm: int = 0  # 0 = no rhythm head; else len(RHYTHM_CLASSES): one gap class per interval,
     #                    predicted from the encoder states of the two notes (not autoregressive)
+    n_branch: int = 0  # encoder layers owned by the timing branch, on top of the shared trunk
+    branch_detach: bool = False  # True: the timing branch reads the trunk but never reshapes it
+    n_duration: int = 0  # 0 = no duration head; else len(DURATION_CLASSES): one length class per note,
+    #                      read from the same timing branch as the gap head
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -84,6 +88,18 @@ class SketchTransformer(nn.Module):
         # because wrong gaps compounded, and it cost interval accuracy by sharing the decoder.
         self.out_rhythm = nn.Sequential(nn.Linear(2 * c.d_model, c.d_model), nn.GELU(),
                                         nn.Linear(c.d_model, c.n_rhythm)) if c.n_rhythm > 0 else None
+        # One model, two branches: the trunk (input projection, genre embedding, ``encoder``) is
+        # shared; the pitch branch is the decoder below; the rhythm branch is ``n_branch`` encoder
+        # layers of its own, so the gap loss has capacity that is not the trunk's. A head read
+        # straight off the trunk (n_branch=0, the first version) cost two points of interval
+        # accuracy because the gap loss reshaped the shared states.
+        self.rhythm_branch = nn.TransformerEncoder(enc_layer, c.n_branch, enable_nested_tensor=False) \
+            if c.n_rhythm > 0 and c.n_branch > 0 else None
+        self.branch_norm = nn.LayerNorm(c.d_model) if self.rhythm_branch is not None else None
+        # duration head: how long note k sounds as a share of its gap, from the timing state of note k
+        self.out_duration = nn.Sequential(nn.Linear(c.d_model, c.d_model), nn.GELU(),
+                                          nn.Linear(c.d_model, c.n_duration)) \
+            if c.n_rhythm > 0 and c.n_duration > 0 else None
         self.dec_pos = nn.Embedding(c.max_len, c.d_model)
         self.local_proj = nn.Linear(2 * c.d_model, c.d_model)
         dec_layer = nn.TransformerDecoderLayer(c.d_model, c.n_heads, c.d_ff, c.dropout,
@@ -118,13 +134,36 @@ class SketchTransformer(nn.Module):
     def has_rhythm(self) -> bool:
         return self.out_rhythm is not None
 
-    def rhythm_logits(self, memory: torch.Tensor) -> torch.Tensor | None:
-        """Gap-class logits (B, n-1, n_rhythm) from consecutive encoder states, or None."""
+    @property
+    def has_duration(self) -> bool:
+        return self.out_duration is not None
+
+    def _timing_states(self, memory: torch.Tensor, mask: torch.Tensor | None) -> torch.Tensor:
+        """Per-note states of the timing branch (the trunk itself without branch layers)."""
+        h = memory.detach() if self.cfg.branch_detach else memory
+        if self.rhythm_branch is not None:
+            h = self.branch_norm(self.rhythm_branch(h, src_key_padding_mask=None if mask is None else ~mask))
+        return h
+
+    def timing_logits(self, memory: torch.Tensor, mask: torch.Tensor | None = None
+                      ) -> tuple[torch.Tensor | None, torch.Tensor | None]:
+        """(gap logits (B, n-1, n_rhythm) or None, duration logits (B, n, n_duration) or None)."""
         if self.out_rhythm is None:
-            return None
-        pair = torch.cat([memory[:, :-1], memory[:, 1:]], dim=-1)
+            return None, None
+        h = self._timing_states(memory, mask)
+        return self._gap_logits(h), (self.out_duration(h) if self.out_duration is not None else None)
+
+    def rhythm_logits(self, memory: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor | None:
+        """Gap-class logits (B, n-1, n_rhythm) from consecutive timing states, or None without a head."""
+        return self.timing_logits(memory, mask)[0]
+
+    def duration_logits(self, memory: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor | None:
+        return self.timing_logits(memory, mask)[1]
+
+    def _gap_logits(self, h: torch.Tensor) -> torch.Tensor:
+        pair = torch.cat([h[:, :-1], h[:, 1:]], dim=-1)
         if pair.shape[1] == 0:  # single-note sketch
-            pair = torch.cat([memory, memory], dim=-1)
+            pair = torch.cat([h, h], dim=-1)
         return self.out_rhythm(pair)
 
     def decode_hidden(self, tokens: torch.Tensor, memory: torch.Tensor, mask: torch.Tensor,
@@ -160,7 +199,7 @@ class SketchTransformer(nn.Module):
 
         The rhythm logits come from the encoder and do not depend on ``tokens``.
         """
-        return self.out(self.decode_hidden(tokens, memory, mask)), self.rhythm_logits(memory)
+        return self.out(self.decode_hidden(tokens, memory, mask)), self.rhythm_logits(memory, mask)
 
     def _prev_tokens(self, batch: dict[str, torch.Tensor]) -> tuple[torch.Tensor, None]:
         """Teacher-forcing decoder inputs: BOS followed by the true previous classes."""
@@ -176,22 +215,32 @@ class SketchTransformer(nn.Module):
         """Teacher-forced interval logits (B, n-1, 49) from ``batch['target']``."""
         return self.forward_joint(batch)[0]
 
-    def forward_joint(self, batch: dict[str, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor | None]:
-        """Teacher-forced (interval logits, rhythm logits or None)."""
+    def forward_joint(self, batch: dict[str, torch.Tensor]
+                      ) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None]:
+        """Teacher-forced (interval logits, gap logits or None, duration logits or None)."""
         memory, mask = self.encode(batch)
         prev, rprev = self._prev_tokens(batch)
-        return self.decode_joint(prev, memory, mask, rprev)
+        iv = self.out(self.decode_hidden(prev, memory, mask))
+        rh, du = self.timing_logits(memory, mask)
+        return iv, rh, du
 
-    def loss(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
-        """Interval cross-entropy plus, with a rhythm head and targets, rhythm cross-entropy."""
-        iv, rh = self.forward_joint(batch)
+    def loss(self, batch: dict[str, torch.Tensor], rhythm_weight: float = 1.0,
+             duration_weight: float = 1.0) -> torch.Tensor:
+        """Interval cross-entropy plus, with the timing heads and their targets, ``rhythm_weight``
+        times the gap cross-entropy and ``duration_weight`` times the duration cross-entropy."""
+        iv, rh, du = self.forward_joint(batch)
         loss = F.cross_entropy(iv.reshape(-1, N_INTERVAL_CLASSES), batch["target"].reshape(-1),
                                ignore_index=PAD_TARGET)
         if rh is not None and "rhythm" in batch:
             L = batch["rhythm"].shape[1]
-            loss = loss + F.cross_entropy(rh[:, :L].reshape(-1, self.cfg.n_rhythm),
-                                          batch["rhythm"][:, :rh.shape[1]].reshape(-1),
-                                          ignore_index=PAD_TARGET)
+            loss = loss + rhythm_weight * F.cross_entropy(rh[:, :L].reshape(-1, self.cfg.n_rhythm),
+                                                          batch["rhythm"][:, :rh.shape[1]].reshape(-1),
+                                                          ignore_index=PAD_TARGET)
+        if du is not None and "duration" in batch:
+            n = min(du.shape[1], batch["duration"].shape[1])
+            loss = loss + duration_weight * F.cross_entropy(du[:, :n].reshape(-1, self.cfg.n_duration),
+                                                            batch["duration"][:, :n].reshape(-1),
+                                                            ignore_index=PAD_TARGET)
         return loss
 
     def step_logprobs(self, tokens: torch.Tensor, memory: torch.Tensor, mask: torch.Tensor,
@@ -235,7 +284,8 @@ class SketchTransformer(nn.Module):
             logp = logp + torch.log(p.gather(1, nxt[:, None]).squeeze(1) + 1e-12)
             probs_all.append(p)
             tokens = torch.cat([tokens, nxt[:, None]], dim=1)
-        self._last_rhythm = self._rhythm_classes(memory, S, L)
+        self._last_rhythm = self._rhythm_classes(memory, S, L, mask)
+        self._last_duration = self._duration_classes(memory, mask)
         classes = tokens[:, 1:].view(B, S, L)
         step_probs = torch.stack(probs_all, dim=1).view(B, S, L, N_INTERVAL_CLASSES)
         if mode == "greedy" and n_samples > 1:
@@ -246,9 +296,15 @@ class SketchTransformer(nn.Module):
             logp = logp.view(B, S)
         return classes, logp, step_probs
 
-    def _rhythm_classes(self, memory: torch.Tensor, S: int, L: int) -> torch.Tensor | None:
-        """Greedy gap classes (B, S, L) from the encoder head, or None without one."""
-        rl = self.rhythm_logits(memory)
+    def _duration_classes(self, memory: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor | None:
+        """Greedy duration classes (B, n) from the duration head, or None without one."""
+        dl = self.duration_logits(memory, mask)
+        return None if dl is None else dl.argmax(-1)
+
+    def _rhythm_classes(self, memory: torch.Tensor, S: int, L: int,
+                        mask: torch.Tensor | None = None) -> torch.Tensor | None:
+        """Greedy gap classes (B, S, L) from the rhythm branch, or None without one."""
+        rl = self.rhythm_logits(memory, mask)
         if rl is None:
             return None
         cls = rl.argmax(-1)
@@ -260,7 +316,8 @@ class SketchTransformer(nn.Module):
         """Per-example beam search (sequences are short, so a plain loop is fine)."""
         B, n_max, _ = memory.shape
         L = max(n_max - 1, 1)
-        self._last_rhythm = self._rhythm_classes(memory, beam, L)
+        self._last_rhythm = self._rhythm_classes(memory, beam, L, mask)
+        self._last_duration = self._duration_classes(memory, mask)
         out_cls = torch.zeros(B, beam, L, dtype=torch.long, device=memory.device)
         out_lp = torch.full((B, beam), -1e9, device=memory.device)
         out_pr = torch.full((B, beam, L, N_INTERVAL_CLASSES), 1.0 / N_INTERVAL_CLASSES, device=memory.device)
@@ -322,10 +379,14 @@ class SketchTransformer(nn.Module):
         return out
 
     @torch.no_grad()
-    def rhythm_from_classes(self, classes, onsets_s: list[float]) -> tuple[list[float], list[float], float]:
-        """Turn predicted gap classes into (onsets_beats, durations_beats, tempo).
+    def rhythm_from_classes(self, classes, onsets_s: list[float],
+                            duration_classes=None) -> tuple[list[float], list[float], float]:
+        """Turn predicted gap classes (and duration classes, if given) into
+        (onsets_beats, durations_beats, tempo).
 
-        The tempo is the least-squares fit of predicted beats to tapped seconds.
+        Without duration classes every note lasts until the next onset (the last
+        one a median gap); with them each lasts its class's share of that gap. The
+        tempo is the fit of predicted beats to tapped seconds.
         """
         gaps = [RHYTHM_CLASSES[int(c)] for c in classes]
         onsets = [0.0]
@@ -335,6 +396,8 @@ class SketchTransformer(nn.Module):
         tempo = 60.0 * onsets[-1] / span_s if span_s > 1e-3 and onsets[-1] > 0 else 120.0
         tempo = float(min(240.0, max(40.0, tempo)))
         durations = gaps + [float(np.median(gaps)) if gaps else 1.0]
+        if duration_classes is not None and len(duration_classes) >= len(durations):
+            durations = [round(class_to_ratio(int(c)) * g, 4) for c, g in zip(duration_classes, durations)]
         return onsets, durations, tempo
 
     def riffs_from_sketch(self, sketch: Sketch, n: int = 5, start_pitch: int = 52,

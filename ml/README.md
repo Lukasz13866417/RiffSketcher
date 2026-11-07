@@ -271,12 +271,12 @@ files. Tables:
 | `source` | dataset | licence and provenance text |
 | `song` | composition | `id` is the song id; artist/title keys (see below) match renditions across sources |
 | `rendition` | file of one source | `id` is the rendition id; `original_id` is the source's own identifier; path, content hash, tempo, resolution; several per song (Lakh versions) |
-| `track` | instrument track | role: melody / guitar / bass / drums / other; notes stored only for kept roles |
+| `track` | instrument track | role: melody / guitar / bass / drums / other; notes stored for melody, guitar, bass and drums (of drums only kick and snare hits) |
 | `note` | note event | onset and duration in beats, seconds, pitch, velocity, string, fret, palm mute, bend, slide, hammer, vibrato, dead, tie |
 | `extractor` | name + version + params | every derived row points at one |
 | `phrase` | training phrase | `id`; pitches / onsets / durations as JSON; the track and the **ids of the note rows it covers**; the extractor that cut it |
 | `split` | song | train / val / test, kept across runs and seedable |
-| `song_feature`, `rendition_feature`, `note_feature` | key/value | any extractor output at the right granularity |
+| `song_feature`, `rendition_feature`, `phrase_feature`, `note_feature` | key/value | any extractor output at the right granularity (see "Features from stored data") |
 | `frame_feature` | time-indexed value | signals not aligned to notes (audio curves) |
 
 Ingest parses files in worker processes (`pretty_midi` for MIDI, the DadaGP
@@ -353,6 +353,111 @@ were measured on the previous export: that export kept every repeated
 chorus of a POP909 melody as its own test phrase, so its test set was
 easier, and the two are not comparable. Earlier checkpoints were trained
 on a different split and are not comparable on this test set either.
+
+### Features from stored data, and genres from the artist (2026-11-07)
+
+Two enrichments that need no new licence, because they read what is on disk.
+
+**Bass and drum notes.** Ingest stores the notes of bass tracks and the kick
+and snare hits of drum tracks next to the melody and guitar notes (hi-hats
+and cymbals would triple the note table and carry no downbeat). `ml.db notes
+--roles bass,drums` backfills a database ingested without them by re-reading
+the files; it added 17.5M notes over 36,381 tracks of 16,097 renditions and
+took the database from 1.7 to 3.2 GB. The file's first time signature is kept
+in the rendition's `meta_json`.
+
+**`ml/features.py`** writes the feature tables with extractor provenance, so
+every value can be recomputed or replaced (`run --recompute`):
+
+| level | extractor | keys |
+| --- | --- | --- |
+| rendition | `rendition_key v1` | key, mode, tonic, key_confidence (margin over the runner-up), key_corr: Krumhansl-Schmuckler fit of the duration-weighted pitch-class histogram of all stored pitched notes |
+| rendition | `rendition_metre v1` | time_signature, beats_per_bar, swing (median within-beat position of off-beat lead notes: 0.5 straight, 0.67 swung), n_offbeat, doubled_tracks (guitar tracks copying an earlier one) |
+| song | `song_key v1` | key, mode, tonic: the rendition keys weighted by confidence |
+| phrase | `phrase_context v1` | bar_position (where the phrase starts in the bar), beats_per_bar, bass_hits / kick_hits / snare_hits (one 0/1 per note: does an accompaniment onset fall within 0.05 beats of it; value_num = the share) |
+| phrase | `phrase_tropes v1` | tropes (the catalogue's labels), familiarity |
+
+Context lives on the phrase, not the note: a phrase knows its start and its
+notes, and four keys for 22M note rows would double the database again.
+`note_feature` stays for things that are really per note (a palm-mute
+classifier's probability). Over the current database: 4/4 in 16,733 of
+17,886 renditions, then 3/4 (247), 2/4 (215), 6/8 and 12/8 (157 each); the
+most common song keys are C, G, D, A and E major; mean swing 0.534 over
+13,395 renditions with enough off-beat notes (most MIDI is straight); a riff
+note falls with a bass note half the time, with the kick 31% and with the
+snare 20% of the time. A tapped sketch has none of this context; it is what
+a downbeat-aware model or a trope-by-position analysis would read.
+
+**Genres from MusicBrainz** (`ml/genres.py`). The genre token used to come
+from the data source alone, so every Lakh song was "rock". `genres lookup`
+asks MusicBrainz for each of the 2,178 artists (one request per second, the
+rate it asks for; the search itself takes 2-5 s, so a full pass is about
+three hours) and caches the match, its community tags and the folded genre in
+`data/artist_genres.json` (committed). Tags vote by keyword into the
+vocabulary in `ml.datasets.GENRES` (unknown, pop, rock, metal, punk,
+electronic, hiphop, jazz, blues, country, folk, classical, soul, reggae; the
+first four keep their indices so older checkpoints still load), a downvoted
+tag counts zero, and ties go to the more specific genre (pop punk is punk).
+`genres apply` writes `song.genre` (POP909 songs are pop) and the exported
+phrases carry it; training, evaluation and the catalogue use the song's genre
+where there is one (`phrase_genre`) and the source default elsewhere.
+Genre counts after the lookup: *(filled in below once the pass finishes)*.
+
+### Timing branch and note durations: one model (2026-11-07)
+
+Until now timing came from a second checkpoint, because a gap head sitting
+directly on the shared encoder cost two points of interval accuracy when
+trained jointly. The model is now one network with one trunk and branches
+that diverge where the tasks do:
+
+* **trunk**: input projection, genre embedding, `n_layers` encoder layers,
+  shared by everything;
+* **pitch branch**: the decoder and the interval classifier, unchanged;
+* **timing branch** (`ModelConfig.n_branch` encoder layers of its own on top
+  of the trunk, `ml.train --rhythm --branch-layers 2`): the gap head (one
+  class per gap, as before) and a new **duration head** (one class per note).
+
+Training is one supervised run on one scalar: interval cross-entropy plus
+`--rhythm-weight` times the gap loss plus `--duration-weight` times the
+duration loss, one optimiser over all parameters. `--branch-detach` is a
+control: the timing branch reads the trunk but its gradient stops there, so
+the trunk is shaped by pitch alone and timing has only its own layers.
+
+**Durations.** The rhythm head predicts only the gap to the next onset, and
+every note was held for that gap, so a riff of choked notes and rests came
+out legato. Two additions: the tapping step records how long each tap was
+held (key down to key up, `Observation.hold`), and the model gets it as a
+share of the gap to the next tap plus a known flag (feature columns 14 and
+15; the simulator draws holds from the true lengths with log-normal noise,
+for 70% of sketches at medium noise). The duration head predicts, per note,
+`DURATION_CLASSES`: short (0.25 of the gap), half, most (0.8), full, over
+(1.3, ringing into the next note); the last note is judged against the
+median gap. `TransformerReconstructor` scales each gap by the predicted
+class (`riff.meta["durations"] == "model"`); without the head it is legato as
+before. `ml.evaluate` reports duration accuracy against two baselines, legato
+(every note "full") and the hold time read off directly.
+
+Results so far (same export, 20 epochs, medium noise; test = 2,000 sketches
+with facts, re-simulated with hold times so the quantiser baseline reads
+0.648 here against 0.655 before; gap-only models, no duration head yet):
+
+```
+model                                   val intervals  val gaps   test intervals  test gaps
+genre_facts (pitch only, served)            0.762         -           0.594          -
+genre_facts_rh (gap head on the trunk)      0.750       0.716         0.575        0.748
+branch, joint (2 timing layers)             0.753       0.726         0.588        0.755
+branch, trunk detached                      0.762       0.656         0.594        0.690
+```
+
+The trunk matters to timing: letting the gap loss shape it is worth six
+points of gap accuracy and costs under one point of intervals. The joint
+branch model is within a point of the served pair on pitch and ahead on
+timing, in one network. Two runs with the duration head and gap/duration
+loss weights 1.0 and 0.5 (`runs/branch_dur_w1`, `runs/branch_dur_w05`) were
+started to pick the final weights; they were interrupted by a shutdown and
+need rerunning, after which the one chosen model replaces the pair, is
+retrained once more on the export with real genres, and the duration
+accuracy table goes here.
 
 ### Constrained decoding and facts as inputs (2026-11-06)
 

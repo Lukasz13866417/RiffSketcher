@@ -21,8 +21,8 @@ import torch
 from torch.utils.data import DataLoader
 
 from core.representation import N_INTERVAL_CLASSES
-from ml.datasets import (GENRES, PAD_TARGET, RHYTHM_CLASSES, PhraseDataset, apply_split_ids, collate,
-                         genre_of_source, load_phrases,
+from ml.datasets import (DURATION_CLASSES, GENRES, PAD_TARGET, RHYTHM_CLASSES, PhraseDataset, apply_split_ids, collate,
+                         load_phrases, phrase_genre,
                          split_by_song, split_ids, synthetic_phrases)
 from ml.model import ModelConfig, SketchTransformer, count_parameters, save_checkpoint
 from ml.sketch_simulator import SketchSimulator
@@ -36,13 +36,14 @@ def lr_at(step: int, total: int, warmup: int, base: float, floor: float = 0.05) 
 
 
 @torch.no_grad()
-def evaluate(model: SketchTransformer, loader: DataLoader, device: torch.device) -> tuple[float, float, float]:
-    """Teacher-forced validation: interval loss, interval accuracy, rhythm accuracy (nan without a head)."""
+def evaluate(model: SketchTransformer, loader: DataLoader, device: torch.device) -> tuple[float, float, float, float]:
+    """Teacher-forced validation: interval loss, interval accuracy, gap accuracy and duration
+    accuracy (nan without the heads)."""
     model.eval()
-    tot_loss, tot_correct, tot_n, rh_correct, rh_n = 0.0, 0, 0, 0, 0
+    tot_loss, tot_correct, tot_n, rh_correct, rh_n, du_correct, du_n = 0.0, 0, 0, 0, 0, 0, 0
     for batch in loader:
         batch = {k: v.to(device) for k, v in batch.items()}
-        logits, rh_logits = model.forward_joint(batch)
+        logits, rh_logits, du_logits = model.forward_joint(batch)
         target = batch["target"]
         valid = target != PAD_TARGET
         loss = torch.nn.functional.cross_entropy(logits.reshape(-1, N_INTERVAL_CLASSES), target.reshape(-1),
@@ -53,14 +54,19 @@ def evaluate(model: SketchTransformer, loader: DataLoader, device: torch.device)
         if rh_logits is not None and "rhythm" in batch:
             rh_correct += int(((rh_logits.argmax(-1) == batch["rhythm"]) & valid).sum())
             rh_n += int(valid.sum())
+        if du_logits is not None and "duration" in batch:
+            dv = batch["duration"] != PAD_TARGET
+            du_correct += int(((du_logits.argmax(-1) == batch["duration"]) & dv).sum())
+            du_n += int(dv.sum())
     return (tot_loss / max(tot_n, 1), tot_correct / max(tot_n, 1),
-            rh_correct / rh_n if rh_n else float("nan"))
+            rh_correct / rh_n if rh_n else float("nan"), du_correct / du_n if du_n else float("nan"))
 
 
 def train(train_phrases, val_phrases, model_cfg: ModelConfig, sim_level: str, out: Path,
           epochs: int = 20, batch_size: int = 64, lr: float = 3e-4, weight_decay: float = 0.01,
           max_steps_per_epoch: int | None = None, seed: int = 0, device: str | None = None,
-          genre_dropout: float = 0.0, log=print) -> dict:
+          genre_dropout: float = 0.0, rhythm_weight: float = 1.0, duration_weight: float = 1.0,
+          log=print) -> dict:
     torch.manual_seed(seed)
     np.random.seed(seed)
     device_t = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
@@ -71,13 +77,13 @@ def train(train_phrases, val_phrases, model_cfg: ModelConfig, sim_level: str, ou
     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, collate_fn=collate)
 
     # genres with training data; the UI only offers these, an untrained genre embedding is noise
-    genres_seen = ["unknown"] + sorted({genre_of_source(p.source) for p in train_phrases} - {"unknown"}) \
+    genres_seen = ["unknown"] + sorted({phrase_genre(p) for p in train_phrases} - {"unknown"}) \
         if model_cfg.n_genres else []
     model = SketchTransformer(model_cfg).to(device_t)
     log(f"device {device_t}; model {count_parameters(model) / 1e6:.2f}M params; "
         f"{len(train_ds)} train / {len(val_ds)} val phrases; sim={sim_level}; "
         f"genres={'on (dropout %.2f)' % genre_dropout if model_cfg.n_genres else 'off'}; "
-        f"rhythm head={'on' if model_cfg.n_rhythm else 'off'}")
+        f"timing branch={('%d layers%s; gap head weight %.2f; duration head %s' % (model_cfg.n_branch, ', trunk detached' if model_cfg.branch_detach else '', rhythm_weight, ('weight %.2f' % duration_weight) if model_cfg.n_duration else 'off')) if model_cfg.n_rhythm else 'off'}")
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay, betas=(0.9, 0.98))
     steps_per_epoch = len(train_loader) if max_steps_per_epoch is None else min(len(train_loader), max_steps_per_epoch)
     total_steps = steps_per_epoch * epochs
@@ -97,20 +103,20 @@ def train(train_phrases, val_phrases, model_cfg: ModelConfig, sim_level: str, ou
             for g in opt.param_groups:
                 g["lr"] = lr_at(step, total_steps, warmup, lr)
             batch = {k: v.to(device_t) for k, v in batch.items()}
-            loss = model.loss(batch)
+            loss = model.loss(batch, rhythm_weight, duration_weight)
             opt.zero_grad(set_to_none=True)
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
             opt.step()
             losses.append(loss.item())
             step += 1
-        val_loss, val_acc, val_rhythm = evaluate(model, val_loader, device_t)
+        val_loss, val_acc, val_rhythm, val_duration = evaluate(model, val_loader, device_t)
         rec = {"epoch": epoch + 1, "train_loss": float(np.mean(losses)) if losses else float("nan"),
-               "val_loss": val_loss, "val_acc": val_acc, "val_rhythm_acc": val_rhythm,
+               "val_loss": val_loss, "val_acc": val_acc, "val_rhythm_acc": val_rhythm, "val_duration_acc": val_duration,
                "lr": opt.param_groups[0]["lr"], "seconds": time.time() - t0}
         history.append(rec)
         log(f"epoch {rec['epoch']:3d}  train {rec['train_loss']:.4f}  val {val_loss:.4f}  "
-            f"val_acc {val_acc:.3f}  rhythm_acc {val_rhythm:.3f}  lr {rec['lr']:.2e}  ({rec['seconds']:.1f}s)")
+            f"val_acc {val_acc:.3f}  rhythm_acc {val_rhythm:.3f}  duration_acc {val_duration:.3f}  lr {rec['lr']:.2e}  ({rec['seconds']:.1f}s)")
         extra = {"epoch": epoch + 1, "val_loss": val_loss, "val_acc": val_acc, "sim_level": sim_level,
                  "history": history, "genres_seen": genres_seen}
         save_checkpoint(model, str(out / "last.pt"), **extra)
@@ -144,7 +150,14 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--device", default=None)
     ap.add_argument("--no-genre", action="store_true", help="train without the genre embedding")
     ap.add_argument("--rhythm", action="store_true",
-                    help="add the rhythm (gap class) head; off by default, it ties the rule-based quantiser")
+                    help="add the rhythm (gap class) branch; one model then gives pitches and timing")
+    ap.add_argument("--branch-layers", type=int, default=2,
+                    help="encoder layers owned by the rhythm branch above the shared trunk (0 = head on the trunk)")
+    ap.add_argument("--branch-detach", action="store_true",
+                    help="the rhythm branch reads the trunk but its loss never changes it")
+    ap.add_argument("--rhythm-weight", type=float, default=1.0, help="weight of the gap loss")
+    ap.add_argument("--duration-weight", type=float, default=1.0, help="weight of the duration loss")
+    ap.add_argument("--no-duration", action="store_true", help="timing branch without the duration head")
     ap.add_argument("--genre-dropout", type=float, default=0.2,
                     help="fraction of training sketches shown with genre 'unknown'")
     ap.add_argument("--source", default=None,
@@ -152,17 +165,20 @@ def main(argv: list[str] | None = None) -> None:
     args = ap.parse_args(argv)
     n_genres = 0 if args.no_genre else len(GENRES)
     n_rhythm = len(RHYTHM_CLASSES) if args.rhythm else 0
+    n_duration = len(DURATION_CLASSES) if args.rhythm and not args.no_duration else 0
 
     if args.smoke:
         phrases = synthetic_phrases(256, seed=args.seed)
         splits = split_by_song(phrases, 0.2, 0.0, args.seed)
         cfg = ModelConfig(d_model=64, n_layers=2, n_heads=4, d_ff=128, dropout=0.0, n_genres=n_genres,
-                          n_rhythm=n_rhythm)
+                          n_rhythm=n_rhythm, n_duration=n_duration, n_branch=min(args.branch_layers, 1),
+                          branch_detach=args.branch_detach)
         epochs = args.epochs if args.epochs != 20 else 3
         out = args.out if args.out != Path("runs/first") else Path("runs/smoke")
         train(splits["train"], splits["val"], cfg, args.sim, out, epochs=epochs, batch_size=32,
               lr=1e-3, max_steps_per_epoch=args.max_steps_per_epoch or 10, seed=args.seed,
-              device=args.device or "cpu", genre_dropout=args.genre_dropout)
+              device=args.device or "cpu", genre_dropout=args.genre_dropout, rhythm_weight=args.rhythm_weight,
+              duration_weight=args.duration_weight)
         return
 
     if args.synthetic:
@@ -180,11 +196,12 @@ def main(argv: list[str] | None = None) -> None:
         splits = {k: [p for p in v if p.source == args.source] for k, v in splits.items()}
     print({k: len(v) for k, v in splits.items()})
     cfg = ModelConfig(d_model=args.d_model, n_layers=args.layers, n_heads=args.heads, d_ff=args.d_ff,
-                      dropout=args.dropout, n_genres=n_genres, n_rhythm=n_rhythm)
+                      dropout=args.dropout, n_genres=n_genres, n_rhythm=n_rhythm, n_duration=n_duration,
+                      n_branch=args.branch_layers if n_rhythm else 0, branch_detach=args.branch_detach)
     train(splits["train"], splits["val"], cfg, args.sim, args.out, epochs=args.epochs,
           batch_size=args.batch_size, lr=args.lr, weight_decay=args.weight_decay,
           max_steps_per_epoch=args.max_steps_per_epoch, seed=args.seed, device=args.device,
-          genre_dropout=args.genre_dropout)
+          genre_dropout=args.genre_dropout, rhythm_weight=args.rhythm_weight, duration_weight=args.duration_weight)
 
 
 if __name__ == "__main__":

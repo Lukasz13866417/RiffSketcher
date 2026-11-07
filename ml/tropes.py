@@ -24,7 +24,7 @@ from typing import Any, Iterable
 import numpy as np
 
 from core.inference import SCALES
-from ml.datasets import Phrase, genre_of_source, load_phrases, rhythm_class, RHYTHM_CLASSES
+from ml.datasets import Phrase, load_phrases, phrase_genre, rhythm_class, RHYTHM_CLASSES
 
 INTERVAL_CLIP = 12  # n-grams use intervals clipped to +-12 so octave-and-more leaps pool
 
@@ -186,7 +186,7 @@ def mine(phrases: list[Phrase], ngram_max: int = 5, examples_per_trope: int = 5)
     for p in phrases:
         if len(p.pitches) < 3:
             continue
-        g = genre_of_source(p.source)
+        g = phrase_genre(p)
         for key in (g, "all"):
             st = stats[key]
             st.songs.add(p.song_id)

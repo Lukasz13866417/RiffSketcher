@@ -8,6 +8,7 @@
 const state = {
   sketch: { observations: [], gestures: [], constraints: [], tempo_hint: null, meta: {} },
   passes: [],            // array of arrays of onset seconds (raw, per recording pass)
+  holds: [],             // per pass: how long each tap was held (seconds, null when not released cleanly)
   recording: null,       // { start: number|null, taps: [] } while recording
   selection: new Set(),  // indices into sketch.observations
   candidates: [],
@@ -36,7 +37,7 @@ async function api(path, body, raw = false) {
 
 // ----------------------------------------------------------------------------- step 1: tapping
 function startRecording() {
-  state.recording = { start: null, taps: [] };
+  state.recording = { start: null, taps: [], holds: [] };
   $('btn-record').disabled = true; $('btn-stop').disabled = false;
   $('tap-pad').classList.add('recording'); $('tap-pad').textContent = 'recording… tap now';
   $('tap-pad').focus();
@@ -48,34 +49,48 @@ function tap() {
   const now = performance.now() / 1000;
   if (state.recording.start === null) state.recording.start = now;
   state.recording.taps.push(now - state.recording.start);
+  state.recording.holds.push(null);
   const pad = $('tap-pad');
   pad.classList.add('flash'); setTimeout(() => pad.classList.remove('flash'), 60);
   pad.textContent = `${state.recording.taps.length} taps`;
 }
 
+// a key or pointer release ends the hold of the latest tap: the note's length, roughly
+function releaseTap() {
+  const r = state.recording;
+  if (!r || r.start === null) return;
+  const i = r.taps.length - 1;
+  if (i >= 0 && r.holds[i] === null) r.holds[i] = Math.max(0.02, performance.now() / 1000 - r.start - r.taps[i]);
+}
+
 function stopRecording() {
   if (!state.recording) return;
+  releaseTap();
   const taps = state.recording.taps;
+  const holds = state.recording.holds;
   state.recording = null;
   $('btn-record').disabled = false; $('btn-stop').disabled = true;
   $('tap-pad').classList.remove('recording'); $('tap-pad').textContent = 'tap here';
   if (taps.length === 0) { setStatus('no taps recorded'); return; }
   state.passes.push(taps);
+  state.holds.push(holds);
   renderPasses();
   usePass(state.passes.length - 1); // the newest pass becomes the timeline; drawn heights are kept by index
-  setStatus(`pass ${state.passes.length}: ${taps.length} taps`);
+  setStatus(`pass ${state.passes.length}: ${taps.length} taps, hold times recorded`);
 }
 
 function usePass(i) {
-  setOnsets(state.passes[i]);
+  setOnsets(state.passes[i], state.holds[i] || null);
   renderPasses(i);
 }
 
-function setOnsets(onsets) {
-  // keep heights where indices line up, so re-recording rhythm keeps drawn contour
+function setOnsets(onsets, holds = null) {
+  // keep heights where indices line up, so re-recording rhythm keeps drawn contour;
+  // hold times belong to the taps, so they come from the pass (merged passes have none)
   const old = state.sketch.observations;
   state.sketch.observations = onsets.map((t, i) => ({
     t, y: old[i] ? old[i].y : 0, confidence: old[i] ? old[i].confidence : 0.5,
+    hold: holds && holds[i] != null ? holds[i] : null,
   }));
   state.sketch.gestures = state.sketch.gestures.filter((g) => g.end < onsets.length);
   state.sketch.constraints = state.sketch.constraints.filter((c) => c.i < onsets.length && (c.j == null || c.j < onsets.length));
@@ -100,7 +115,7 @@ function renderPasses(active = -1) {
     const use = document.createElement('button'); use.className = 'small'; use.textContent = 'use';
     use.onclick = () => usePass(i);
     const del = document.createElement('button'); del.className = 'small'; del.textContent = '×';
-    del.onclick = () => { state.passes.splice(i, 1); renderPasses(); $('btn-merge').disabled = state.passes.length < 2; };
+    del.onclick = () => { state.passes.splice(i, 1); state.holds.splice(i, 1); renderPasses(); $('btn-merge').disabled = state.passes.length < 2; };
     li.append(use, del); ul.appendChild(li);
   });
   $('btn-merge').disabled = state.passes.length < 2;
@@ -319,7 +334,7 @@ function paintAt(ev) {
 
 let undoSnapshot = null;
 function snapshot() {
-  undoSnapshot = JSON.stringify({ sketch: state.sketch, passes: state.passes });
+  undoSnapshot = JSON.stringify({ sketch: state.sketch, passes: state.passes, holds: state.holds });
   $('btn-undo').disabled = false;
 }
 function undo() {
@@ -624,11 +639,11 @@ $('fb-low').onclick = () => nudge(+1);
 
 // ----------------------------------------------------------------------------- persistence and global keys
 function save() {
-  const blob = new Blob([JSON.stringify({ sketch: state.sketch, passes: state.passes }, null, 2)], { type: 'application/json' });
+  const blob = new Blob([JSON.stringify({ sketch: state.sketch, passes: state.passes, holds: state.holds }, null, 2)], { type: 'application/json' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'riff-sketch.json'; a.click();
 }
 function load(obj) {
-  state.sketch = obj.sketch || obj; state.passes = obj.passes || [];
+  state.sketch = obj.sketch || obj; state.passes = obj.passes || []; state.holds = obj.holds || [];
   state.sketch.gestures ||= []; state.sketch.constraints ||= []; state.sketch.meta ||= {};
   // sketches saved before the default confidence moved from 0.5 to 0.8: if nothing was ever
   // touched, lift them, otherwise the model treats every height as a semitone of noise
@@ -637,7 +652,7 @@ function load(obj) {
   state.selection.clear(); state.candidates = []; state.selectedCandidate = -1;
   renderAll(); renderPasses(); updateRhythmInfo(); updateGraphPanel();
 }
-function persist() { try { localStorage.setItem('riff-sketcher', JSON.stringify({ sketch: state.sketch, passes: state.passes, step: state.step })); } catch (e) { /* ignore */ } }
+function persist() { try { localStorage.setItem('riff-sketcher', JSON.stringify({ sketch: state.sketch, passes: state.passes, holds: state.holds, step: state.step })); } catch (e) { /* ignore */ } }
 $('btn-save').onclick = save;
 $('file-load').onchange = (ev) => { const f = ev.target.files[0]; if (!f) return; f.text().then((t) => load(JSON.parse(t))).catch((e) => setStatus(e.message)); };
 $('btn-clear').onclick = () => { if (confirm('Clear the whole sketch?')) { load({ sketch: { observations: [], gestures: [], constraints: [], tempo_hint: null, meta: {} }, passes: [] }); goTo(0); } };
@@ -647,6 +662,8 @@ $('btn-record').onclick = startRecording;
 $('btn-stop').onclick = stopRecording;
 $('btn-merge').onclick = () => mergePasses().catch((e) => setStatus(e.message));
 $('tap-pad').addEventListener('pointerdown', (ev) => { ev.preventDefault(); if (!state.recording) startRecording(); else tap(); });
+$('tap-pad').addEventListener('pointerup', releaseTap);
+$('tap-pad').addEventListener('pointercancel', releaseTap);
 
 document.addEventListener('keydown', (ev) => {
   const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(ev.target.tagName);
@@ -667,7 +684,10 @@ document.addEventListener('keydown', (ev) => {
     renderGraph();
   }
 });
-document.addEventListener('keyup', (ev) => { if (ev.key === 'p' || ev.key === 'P') { state.paint = false; svg.style.cursor = ''; } });
+document.addEventListener('keyup', (ev) => {
+  if (state.recording) { releaseTap(); return; }
+  if (ev.key === 'p' || ev.key === 'P') { state.paint = false; svg.style.cursor = ''; }
+});
 window.addEventListener('resize', renderGraph);
 window.addEventListener('beforeunload', persist);
 setInterval(persist, 5000);

@@ -88,7 +88,9 @@ class TransformerReconstructor:
         self.device = dev
         self.meta = {k: ckpt[k] for k in ("config", "epoch", "sim", "sim_level", "genres_seen") if k in ckpt}
         self.meta.setdefault("sim", self.meta.get("sim_level"))
-        if self.rhythm_model is None and self.rhythm_checkpoint and os.path.exists(self.rhythm_checkpoint):
+        # a separate timing model only when the pitch checkpoint has no rhythm branch of its own
+        if (self.rhythm_model is None and not self.model.has_rhythm and self.rhythm_checkpoint
+                and os.path.exists(self.rhythm_checkpoint)):
             rm, _ = load_checkpoint(self.rhythm_checkpoint, dev)
             self.rhythm_model = rm if rm.has_rhythm else None
         self.meta["timing"] = ("model" if (self.rhythm_model is not None or self.model.has_rhythm) else "quantiser")
@@ -220,10 +222,13 @@ class TransformerReconstructor:
 
         if self.rhythm_model is not None:
             with torch.no_grad():
-                rmem, _ = self.rhythm_model.encode(batch)
-                rcls = self.rhythm_model._rhythm_classes(rmem, 1, m)
+                rmem, rmask = self.rhythm_model.encode(batch)
+                rcls = self.rhythm_model._rhythm_classes(rmem, 1, m, rmask)
+                dcls = self.rhythm_model._duration_classes(rmem, rmask)
         else:
             rcls = self.model._rhythm_classes(memory, 1, m)
+            dcls = self.model._duration_classes(memory)
+        self._last_durations = dcls[0].tolist() if dcls is not None else None
         return rcls[0, 0].tolist() if rcls is not None else []
 
     def _decode(self, sketch: Sketch, cs, anchor: tuple[int, int] | None, beam: int, n_samples: int,
@@ -360,8 +365,9 @@ class TransformerReconstructor:
             rs = getattr(self, "_last_rhythms", {}).get(tuple(intervals), [])
             timing_model = self.rhythm_model if self.rhythm_model is not None else self.model
             if timing_model.has_rhythm and len(rs) == len(intervals) and intervals:
-                onsets, durations, tempo = timing_model.rhythm_from_classes(rs, sketch.onsets)
-                meta = {"method": "transformer", "rhythm": "model"}
+                ds = getattr(self, "_last_durations", None)
+                onsets, durations, tempo = timing_model.rhythm_from_classes(rs, sketch.onsets, ds)
+                meta = {"method": "transformer", "rhythm": "model", "durations": "model" if ds else "legato"}
             else:
                 onsets, durations, tempo = rhythm.onsets_beats, rhythm.durations_beats, rhythm.tempo
                 meta = {"method": "transformer", "rhythm": "quantised", "grid": rhythm.grid}
