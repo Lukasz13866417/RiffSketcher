@@ -30,6 +30,7 @@ if TYPE_CHECKING:  # avoid a circular import at runtime
 GESTURE_KINDS: tuple[str, ...] = (
     "ascending_run", "descending_run", "repeated_note", "repeated_figure",
     "pedal_tone", "arpeggio", "big_leap",
+    "tremolo",  # one tap stands for a fast run of the same note (expansion models emit the run)
 )
 N_CONTINUOUS_FEATURES = 22  # see sketch_to_features; the first 6 are the original ones
 FEATURE_VERSION = 1
@@ -761,12 +762,32 @@ def sketch_to_features(sketch: Sketch) -> dict[str, np.ndarray]:
     return {"cont": cont, "gest": gest}
 
 
+def expansion_targets(out_pitches: list[int], out_onsets: list[float], out_durations: list[float],
+                      align: list[int]) -> dict[str, torch.Tensor]:
+    """Targets for an expansion model: ``M`` decoder steps for ``M`` output notes. Step s
+    emits output note s+1 (interval, gap, duration class) and whether it advances to the
+    next tap; the last step emits the advance that ends the sequence (its other targets
+    are padding). ``align[s]`` is the tap that output note s belongs to, the local
+    evidence for step s."""
+    M = len(out_pitches)
+    iv = [interval_to_class(b - a) for a, b in zip(out_pitches, out_pitches[1:])] + [PAD_TARGET]
+    gaps = [b - a for a, b in zip(out_onsets, out_onsets[1:])]
+    rh = [rhythm_class(g) for g in gaps] + [PAD_TARGET]
+    du = [duration_class(r) for r in duration_ratios(out_durations, gaps)]
+    adv = [1 if align[s + 1] > align[s] else 0 for s in range(M - 1)] + [1]
+    return {"target": torch.tensor(iv, dtype=torch.long), "rhythm": torch.tensor(rh, dtype=torch.long),
+            "duration": torch.tensor(du, dtype=torch.long), "advance": torch.tensor(adv, dtype=torch.long),
+            "align": torch.tensor(list(align), dtype=torch.long)}
+
+
 def example_to_tensors(sketch: Sketch, intervals: list[int] | None,
                        iois_beats: list[float] | None = None,
-                       durations_beats: list[float] | None = None) -> dict[str, torch.Tensor]:
+                       durations_beats: list[float] | None = None,
+                       expansion: dict[str, torch.Tensor] | None = None) -> dict[str, torch.Tensor]:
     """Model inputs for one sketch; ``intervals``, ``iois_beats`` (true gaps in beats,
     one per interval) and ``durations_beats`` (true note lengths, one per note) add
-    the training targets when given."""
+    the training targets when given. ``expansion`` (from :func:`expansion_targets`)
+    replaces them for expansion models, whose output is longer than the sketch."""
     f = sketch_to_features(sketch)
     n = len(f["cont"])
     item = {
@@ -775,6 +796,9 @@ def example_to_tensors(sketch: Sketch, intervals: list[int] | None,
         "mask": torch.ones(n, dtype=torch.bool),
     }
     item["genre"] = torch.tensor(genre_id(sketch.meta.get("genre")), dtype=torch.long)
+    if expansion is not None:
+        item.update(expansion)
+        return item
     if intervals is not None:
         item["target"] = torch.tensor([interval_to_class(d) for d in intervals], dtype=torch.long)
     if iois_beats is not None:
@@ -819,6 +843,9 @@ class PhraseDataset(Dataset):
                 genre = "unknown"
         res.sketch.meta["genre"] = genre
         iois = [b - a for a, b in zip(res.onsets_beats, res.onsets_beats[1:])]
+        if res.align:  # expansion simulator: targets are the full output notes
+            return example_to_tensors(res.sketch, None, expansion=expansion_targets(
+                res.out_pitches, res.out_onsets_beats, res.out_durations_beats, res.align))
         return example_to_tensors(res.sketch, res.intervals, iois, res.durations_beats)
 
 
@@ -832,20 +859,31 @@ def collate(items: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
     has_target = "target" in items[0]
     has_rhythm = "rhythm" in items[0]
     has_duration = "duration" in items[0]
-    target = torch.full((B, max(n_max - 1, 1)), PAD_TARGET, dtype=torch.long)
-    rhythm = torch.full((B, max(n_max - 1, 1)), PAD_TARGET, dtype=torch.long)
-    duration = torch.full((B, n_max), PAD_TARGET, dtype=torch.long)
+    has_expand = "advance" in items[0]
+
+    def longest(key: str, default: int) -> int:
+        return max((int(it[key].shape[0]) for it in items if key in it), default=default)
+
+    L_max = max(longest("target", 1), 1)
+    target = torch.full((B, L_max), PAD_TARGET, dtype=torch.long)
+    rhythm = torch.full((B, L_max), PAD_TARGET, dtype=torch.long)
+    duration = torch.full((B, max(longest("duration", n_max), 1)), PAD_TARGET, dtype=torch.long)
+    advance = torch.full((B, L_max), PAD_TARGET, dtype=torch.long)
+    align = torch.full((B, L_max), PAD_TARGET, dtype=torch.long)
     for b, it in enumerate(items):
         n = it["cont"].shape[0]
         cont[b, :n] = it["cont"]
         gest[b, :n] = it["gest"]
         mask[b, :n] = True
         if has_target:
-            target[b, :n - 1] = it["target"]
+            target[b, :it["target"].shape[0]] = it["target"]
         if has_rhythm:
-            rhythm[b, :n - 1] = it["rhythm"]
+            rhythm[b, :it["rhythm"].shape[0]] = it["rhythm"]
         if has_duration:
-            duration[b, :n] = it["duration"]
+            duration[b, :it["duration"].shape[0]] = it["duration"]
+        if has_expand:
+            advance[b, :it["advance"].shape[0]] = it["advance"]
+            align[b, :it["align"].shape[0]] = it["align"]
     batch = {"cont": cont, "gest": gest, "mask": mask,
              "genre": torch.stack([it.get("genre", torch.tensor(0)) for it in items])}
     if has_target:
@@ -854,4 +892,7 @@ def collate(items: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
         batch["rhythm"] = rhythm
     if has_duration:
         batch["duration"] = duration
+    if has_expand:
+        batch["advance"] = advance
+        batch["align"] = align
     return batch

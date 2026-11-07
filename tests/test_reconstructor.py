@@ -195,3 +195,29 @@ def test_joint_model_reconstructs_with_facts_and_model_timing():
         assert x.meta["rhythm"] == "model" and x.meta["durations"] == "model"
         gaps = [b.onset - a.onset for a, b in zip(x.notes, x.notes[1:])]
         assert all(round(nt.duration / g, 2) in ratios for nt, g in zip(x.notes, gaps))
+
+
+def test_expansion_model_reconstructs_with_facts_on_taps():
+    import torch
+    from core.representation import Constraint, GestureTag, Observation, Sketch
+    from ml.datasets import DURATION_CLASSES, GENRES, RHYTHM_CLASSES
+    from ml.model import ModelConfig, SketchTransformer
+    from ml.reconstructor import TransformerReconstructor
+    torch.manual_seed(1)
+    model = SketchTransformer(ModelConfig(d_model=32, n_layers=1, n_heads=2, n_genres=len(GENRES), n_rhythm=len(RHYTHM_CLASSES),
+                                          n_duration=len(DURATION_CLASSES), joint=True, expand=True)).eval()
+    r = TransformerReconstructor(model=model, rhythm_checkpoint=None, device="cpu")
+    obs = [Observation(0.5 * i, 0.3 * i, 0.8, hold=0.4 if i == 0 else 0.1) for i in range(5)]
+    sk = Sketch(obs, gestures=[GestureTag("tremolo", 0, 0, 0.9)],
+                constraints=[Constraint("pitch", 0, value=45), Constraint("same", 0, 2), Constraint("direction", 3, value=1)])
+    riffs = r.reconstruct(sk, 4)
+    assert riffs
+    for x in riffs:
+        align = x.meta["align"]
+        assert len(align) == len(x.notes) and align[0] == 0 and align[-1] == 4
+        first = {}
+        for j, a in enumerate(align):
+            first.setdefault(a, j)
+        assert x.notes[first[0]].pitch == 45 and x.notes[first[2]].pitch == 45
+        assert x.notes[first[4]].pitch > x.notes[first[3]].pitch
+        assert x.meta["expanded"] == len(x.notes) - 5 and x.meta["durations"] == "model"

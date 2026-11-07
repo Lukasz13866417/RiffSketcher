@@ -495,6 +495,70 @@ split happens, whole layers or only the MLPs, does not matter at this size;
 what matters is that both tasks keep training the shared attention. The
 branch model stays the reference for the encoder-side design.
 
+### Expansion: sketches that are shorter than the riff (2026-11-08)
+
+Tremolo picking, chugging and fast fills cannot be tapped: sixteen notes a
+bar at 200 BPM is thirteen taps a second. So the sketch has to be allowed to
+be a *reduction* of the riff, and the model has to emit more notes than it
+was given. `ModelConfig.expand` (`ml.train --expand`, which implies the
+joint decoder) does that with three changes:
+
+* **A reduction simulator** (`SimConfig.expand`). A fast run of one repeated
+  note (at least four notes, eighths or faster) collapses into a single tap
+  tagged `tremolo` whose hold is the run's length; dropped taps become notes
+  the model must insert; doubles are off. The targets are the full phrase
+  from the first tapped note to the end of the last tap's run, with, per
+  output note, the tap it belongs to.
+* **A fourth field per decoder step**, *advance*: 1 if the note starts the
+  next tap, 0 if it is another note of the current tap. The decoder's local
+  evidence follows this alignment instead of the step index, and the
+  sequence ends when the model advances past the last tap, so the output
+  length is free (capped at 48 extra notes). The interval head is
+  conditioned on the advance choice; everything else is as in the joint
+  decoder, scheduled sampling included.
+* **Facts through the alignment.** Pins, "same", direction and interval
+  facts name taps. During decoding a step that advances to tap *a* is masked
+  on the pitch of that tap's first note, computed relative to the earlier
+  taps and mapped onto the interval from the previous *output* note, which
+  may be an inserted one; inserted notes are unmasked. Violations are
+  checked on each tap's first note, and the riff's `meta` carries the
+  alignment and how many notes were added, which the UI shows as "+N
+  notes".
+
+`ml.evaluate` adds an expansion block for such models: on 500 reduced test
+sketches decoded freely without facts, how often the output has the right
+length and the right interval sequence, how often a tremolo tap gets exactly
+(and within one of) the right number of notes, and the mean error in notes
+per tap. The usual interval, gap and duration numbers are measured with the
+advance forced to 1, one note per tap, so they stay comparable to the other
+models.
+
+Results (`runs/expand_large_genres`, d_model 192, 6+6 layers, 16 epochs on the
+genre-labelled export; same 2,000 test sketches):
+
+```
+                                         intervals  top-5   gaps    durations
+joint, large, genres (no expansion)        0.588    0.245   0.783    0.642
+expansion model, advance forced to 1       0.574    0.261   0.755    0.620
+```
+
+On 500 *reduced* test sketches decoded freely without facts: the output has
+the right length 80% of the time; the whole interval sequence is right 7% of
+the time (a strict bar: one wrong interval anywhere fails it, and the
+sequences are the full riffs, 9-16 notes); the mean error in notes per tap
+is 0.025. Only 20 of the 500 held a tremolo tap, because the test set is
+mostly POP909 melodies: those got exactly the right note count 30% of the
+time and within one note 75% of the time. Live, a single tap held for four
+beats and tagged tremolo comes out as 13-15 sixteenth notes on the pinned
+pitch, with the following taps following the drawn contour and the facts.
+
+The price of the capability is a point and a half of intervals and three
+points of gaps on ordinary sketches, which is the cost of training on
+reduced sketches with insertions the model must guess. It is served because
+the capability is the point; a model trained with `tremolo_prob` and
+`drop_prob` lower would sit between the two rows. More tremolo examples
+(DadaGP, metal) are the obvious lever for the count accuracy.
+
 ### Joint-token decoder (2026-11-08)
 
 The branches above keep timing as a per-note denoising task on the encoder.

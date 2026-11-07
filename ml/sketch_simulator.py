@@ -52,6 +52,13 @@ class SimConfig:
     # for a share of the sketches (a mouse tap or a phone touch may not report it)
     hold_prob: float = 0.7  # share of sketches whose taps carry a hold time
     hold_noise: float = 0.3  # std of log(hold / true duration)
+    # expansion: the sketch is a *reduction* of the phrase and the model emits the full phrase. A fast
+    # run of one repeated note (tremolo picking, chugging) collapses into a single tap tagged
+    # "tremolo" whose hold is the run's length; dropped taps become notes to insert. Doubles are off.
+    expand: bool = False
+    tremolo_prob: float = 0.7  # per fast same-pitch run, the chance it is collapsed
+    reduce_min_run: int = 4  # at least this many notes
+    reduce_max_ioi: float = 0.3  # beats; eighths at most (sixteenths and faster are the point)
 
 
 PRESETS: dict[str, SimConfig] = {
@@ -84,6 +91,12 @@ class SimResult:
     phrase: Phrase
     meta: dict = field(default_factory=dict)
     durations_beats: list[float] = field(default_factory=list)  # true note lengths aligned with observations
+    # expansion mode: the full output the model should emit (phrase notes from the first tapped
+    # note to the last), and per output note the tap it belongs to
+    out_pitches: list[int] = field(default_factory=list)
+    out_onsets_beats: list[float] = field(default_factory=list)
+    out_durations_beats: list[float] = field(default_factory=list)
+    align: list[int] = field(default_factory=list)
 
     @property
     def intervals(self) -> list[int]:
@@ -229,26 +242,91 @@ class SketchSimulator:
 
     # -- public ----------------------------------------------------------- #
 
+    def _reduced_events(self, phrase: Phrase, rng: np.random.Generator
+                        ) -> tuple[list[int], list[float], set[int], list[int]]:
+        """Expansion mode: (phrase note index per tap, hold length in beats per tap, tap
+        positions tagged tremolo, last phrase note each tap covers). Fast same-pitch
+        runs collapse into their first note; then taps are dropped as usual (never
+        the first), with no doubles."""
+        cfg = self.cfg
+        n = len(phrase)
+        on, pitches, durs = phrase.onsets_beats, phrase.pitches, phrase.durations_beats
+        keep: list[int] = []
+        hold: list[float] = []
+        ends: list[int] = []
+        tremolo: set[int] = set()
+        i = 0
+        while i < n:
+            j = i
+            while (j + 1 < n and pitches[j + 1] == pitches[i]
+                   and on[j + 1] - on[j] <= cfg.reduce_max_ioi + 1e-6):
+                j += 1
+            if j - i + 1 >= cfg.reduce_min_run and rng.random() < cfg.tremolo_prob:
+                keep.append(i)
+                hold.append(max(0.05, on[j] + durs[j] - on[i]))
+                ends.append(j)
+                tremolo.add(len(keep) - 1)
+                i = j + 1
+            else:
+                keep.append(i)
+                hold.append(float(durs[i]))
+                ends.append(i)
+                i += 1
+        # drops (never the first tap, never below min_notes)
+        max_drop = max(0, len(keep) - cfg.min_notes)
+        out_idx, out_hold, out_trem, out_ends = [], [], set(), []
+        dropped = 0
+        for k, (idx, h, e) in enumerate(zip(keep, hold, ends)):
+            if k > 0 and dropped < max_drop and k not in tremolo and rng.random() < cfg.drop_prob:
+                dropped += 1
+                continue
+            if k in tremolo:
+                out_trem.add(len(out_idx))
+            out_idx.append(idx)
+            out_hold.append(h)
+            out_ends.append(e)
+        return out_idx, out_hold, out_trem, out_ends
+
     def simulate(self, phrase: Phrase, rng: np.random.Generator | None = None) -> SimResult:
         rng = rng if rng is not None else self.rng
-        events = self._tap_events(phrase, rng)
-        src = [i for i, _ in events]
-        beats = np.array([b for _, b in events], dtype=float)
+        tremolo_taps: set[int] = set()
+        cover_end = 0
+        if self.cfg.expand:
+            src, hold_beats, tremolo_taps, ends = self._reduced_events(phrase, rng)
+            cover_end = ends[-1]
+            beats = np.array([phrase.onsets_beats[i] for i in src], dtype=float)
+        else:
+            events = self._tap_events(phrase, rng)
+            src = [i for i, _ in events]
+            beats = np.array([b for _, b in events], dtype=float)
+            hold_beats = [float(phrase.durations_beats[i]) for i in src]
         pitches = [int(phrase.pitches[i]) for i in src]
         t, tempo = self._onsets_seconds(beats, rng)
         y, missing, conf, comp = self._heights(np.array(pitches, dtype=float), rng)
         durations = [float(phrase.durations_beats[i]) for i in src]
-        holds = self._holds(durations, tempo, rng)
+        holds = self._holds(hold_beats, tempo, rng)
         obs = [Observation(float(t[i]), None if missing[i] else float(y[i]), float(conf[i]), holds[i])
-               for i in range(len(events))]
+               for i in range(len(src))]
         gestures = self._gestures(pitches, rng)
+        gestures += [GestureTag("tremolo", k, k, self.cfg.tag_confidence) for k in sorted(tremolo_taps)]
         facts = self._facts(pitches, rng)
         tempo_hint = float(tempo * rng.uniform(0.95, 1.05)) if rng.random() < self.cfg.tempo_hint_prob else None
         sketch = Sketch(obs, gestures, facts, tempo_hint,
                         meta={"song_id": phrase.song_id, "sim": self.cfg.name,
                               "compression": comp, "tempo": tempo})
-        return SimResult(sketch, pitches, [float(b) for b in beats], src, phrase,
-                         meta={"tempo": tempo, "compression": comp}, durations_beats=durations)
+        res = SimResult(sketch, pitches, [float(b) for b in beats], src, phrase,
+                        meta={"tempo": tempo, "compression": comp}, durations_beats=durations)
+        if self.cfg.expand:
+            lo, hi = src[0], cover_end
+            res.out_pitches = [int(p) for p in phrase.pitches[lo:hi + 1]]
+            res.out_onsets_beats = [float(b) for b in phrase.onsets_beats[lo:hi + 1]]
+            res.out_durations_beats = [float(d) for d in phrase.durations_beats[lo:hi + 1]]
+            a, res.align = 0, []
+            for o in range(lo, hi + 1):
+                while a + 1 < len(src) and src[a + 1] <= o:
+                    a += 1
+                res.align.append(a)
+        return res
 
     def _holds(self, durations_beats: list[float], tempo: float, rng: np.random.Generator) -> list[float | None]:
         """Tap hold times in seconds: the true length with log-normal noise, or None for the

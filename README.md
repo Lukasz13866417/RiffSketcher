@@ -25,10 +25,13 @@ centres on the selection) and `Fit` frames the drawn heights.
 
 If `runs/genre_facts/best.pt` exists (or `RIFF_MODEL` points at a checkpoint) the API loads the trained
 Transformer and makes it the default engine; otherwise it uses the deterministic search. The served
-checkpoint (`runs/joint_large_genres/best.pt`) is a joint-token decoder: every note it emits carries
-pitch, timing and duration, so one model replaces the rule-based grid snap and the old legato rule
-(a pitch-only checkpoint can still borrow timing from `RIFF_RHYTHM_MODEL`, else it quantises). The
-tapping step records how long each tap is held, and the model turns that into note lengths. Step 4
+checkpoint (`runs/expand_large_genres/best.pt`) is a joint-token decoder with expansion: every note it
+emits carries pitch, timing and duration, and it may emit more notes than you tapped. Tag a tap
+"Tremolo / chug run" and hold it as long as the run, and the model writes out the run; a note you
+missed between two taps can be filled in. One model replaces the rule-based grid snap and the old
+legato rule (a pitch-only checkpoint can still borrow timing from `RIFF_RHYTHM_MODEL`, else it
+quantises). The tapping step records how long each tap is held, and the model turns that into note
+lengths. Step 4
 has an engine switch and, for genre-conditioned checkpoints, a genre dropdown listing the genres that
 checkpoint was trained on (fourteen, from the MusicBrainz artist lookup). Train a model with the
 commands in `ml/README.md`.

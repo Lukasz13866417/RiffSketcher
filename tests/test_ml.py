@@ -804,3 +804,43 @@ def test_simulator_generates_facts_and_old_models_still_run():
     new = SketchTransformer(ModelConfig(d_model=32, n_layers=1, n_heads=2)).eval()
     with torch.no_grad():
         assert old(batch).shape == (1, 9, 49) and new(batch).shape == (1, 9, 49)
+
+
+def test_expansion_model_emits_more_notes_than_taps_and_stops():
+    import numpy as np
+    import torch
+    from ml.datasets import DURATION_CLASSES, GENRES, RHYTHM_CLASSES, Phrase, PhraseDataset, collate
+    from ml.model import ModelConfig, SketchTransformer
+    from ml.sketch_simulator import SimConfig, SketchSimulator
+    chug = Phrase("s", [40] * 8 + [43, 45, 47, 45, 43, 40, 40, 40, 40, 40], [i * 0.25 for i in range(18)], [0.2] * 18, "lakh_guitar")
+    tune = Phrase("t", [60, 62, 64, 65, 67, 69], [0, 0.5, 1, 1.5, 2, 3], [0.4] * 6, "pop909")
+    sim = SketchSimulator(np.random.default_rng(1), SimConfig(expand=True, drop_prob=0.2, tremolo_prob=1.0, double_prob=0.0))
+    r = sim.simulate(chug)
+    assert len(r.sketch) < len(r.out_pitches) and r.align[0] == 0 and r.align[-1] == len(r.sketch) - 1
+    assert any(g.kind == "tremolo" and g.start == 0 for g in r.sketch.gestures)
+    assert r.out_pitches == chug.pitches  # the last tap's run is covered to its end
+    ds = PhraseDataset([chug, tune, chug, tune], sim, seed=0)
+    batch = collate([ds[i] for i in range(4)])
+    assert batch["advance"].shape == batch["target"].shape == batch["align"].shape
+    assert int(batch["advance"][0, -1]) == 1 or int(batch["advance"][0].max()) == 1
+    torch.manual_seed(0)
+    model = SketchTransformer(ModelConfig(d_model=32, n_layers=1, n_heads=2, n_genres=len(GENRES), n_rhythm=len(RHYTHM_CLASSES),
+                                          n_duration=len(DURATION_CLASSES), joint=True, expand=True))
+    iv, rh, du = model.forward_joint(batch)
+    assert iv.shape[1] == batch["target"].shape[1] and model._last_adv_logits.shape[:2] == iv.shape[:2]
+    loss = model.loss(batch, ss_prob=0.3)
+    assert torch.isfinite(loss)
+    loss.backward()
+    assert all(p.grad is not None for p in model.out_adv.parameters())
+    model.eval()
+    with torch.no_grad():
+        cls, lp, pr = model.generate(batch, 2, mode="beam")  # forced advance: one note per tap
+        assert cls.shape == (4, 2, batch["mask"].shape[1] - 1)
+        for mode in ("greedy", "sample", "beam"):
+            cls, lp, pr = model.generate(batch, 2, mode=mode, force_advance=False)
+            al = model._last_align
+            assert al.shape[:2] == (4, 2) and model._last_rhythm.shape[:2] == (4, 2)
+            for b in range(4):
+                valid = [a for a in al[b, 0].tolist() if a >= 0]
+                assert valid[0] == 0 and valid[-1] == int(batch["mask"][b].sum()) - 1
+                assert all(y - x in (0, 1) for x, y in zip(valid, valid[1:]))

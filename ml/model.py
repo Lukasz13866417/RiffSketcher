@@ -58,6 +58,9 @@ class ModelConfig:
     n_expert_layers: int = 0  # encoder layers (the last ones) whose attention is shared but whose MLP
     #                            is per task: a pitch stream feeds the decoder, a timing stream feeds the
     #                            gap and duration heads. An alternative to n_branch (whole private layers).
+    expand: bool = False  # expansion decoder (implies joint): a fourth field per step says whether the
+    #                       note advances to the next tap (1) or is an extra note of the current tap (0);
+    #                       output length is free, decoding ends on an advance past the last tap
     joint: bool = False  # joint-token decoder: every decoder step emits interval, gap and duration,
     #                      conditioned on the previous step's three tokens (needs n_rhythm and n_duration);
     #                      the encoder-side timing branch is not built
@@ -149,6 +152,12 @@ class SketchTransformer(nn.Module):
         # previous interval; within a step the gap is predicted given the interval and the
         # duration given both (factorised heads on one decoder state); note 0's duration, which
         # no step covers, comes from its encoder state
+        if c.expand:
+            assert c.joint, "expand needs the joint decoder"
+            self.adv_emb = nn.Embedding(3, c.d_model)  # 0 stay, 1 next, 2 BOS
+            self.out_adv = nn.Sequential(nn.Linear(c.d_model, c.d_model), nn.GELU(), nn.Linear(c.d_model, 2))
+            self.out_iv_x = nn.Sequential(nn.Linear(2 * c.d_model, c.d_model), nn.GELU(),
+                                          nn.Linear(c.d_model, N_INTERVAL_CLASSES))  # interval given advance
         if c.joint:
             self.gap_emb = nn.Embedding(c.n_rhythm + 1, c.d_model)  # last index = BOS
             self.dur_emb = nn.Embedding(c.n_duration + 1, c.d_model)
@@ -177,6 +186,7 @@ class SketchTransformer(nn.Module):
         cont, gest, mask = batch["cont"], batch["gest"], batch["mask"]
         cont = cont[..., :self.cfg.n_cont]  # older checkpoints know a prefix of the feature columns
         B, n, _ = cont.shape
+        gest = gest[..., :self.cfg.n_gest]  # older checkpoints know a prefix of the gesture kinds
         x = self.in_proj(torch.cat([cont, gest], dim=-1))
         pos = torch.arange(n, device=cont.device).clamp(max=self.cfg.max_len - 1)
         x = x + self.enc_pos(pos)[None]
@@ -242,11 +252,14 @@ class SketchTransformer(nn.Module):
         return self.out_rhythm(pair)
 
     def decode_hidden(self, tokens: torch.Tensor, memory: torch.Tensor, mask: torch.Tensor,
-                      rtokens: torch.Tensor | None = None, dtokens: torch.Tensor | None = None) -> torch.Tensor:
+                      rtokens: torch.Tensor | None = None, dtokens: torch.Tensor | None = None,
+                      atokens: torch.Tensor | None = None, align: torch.Tensor | None = None) -> torch.Tensor:
         """Decoder hidden states (B, L, d) for interval inputs ``tokens`` (BOS +
         previous classes). In joint mode ``rtokens`` (BOS + previous gap classes) and
         ``dtokens`` (BOS + previous notes' duration classes) are added; otherwise
-        they are ignored."""
+        they are ignored. In expansion mode ``atokens`` (BOS + previous advance
+        tokens) are added too and ``align`` (B, L), the tap each step's current note
+        belongs to (PAD_TARGET past the end), selects the local evidence."""
         B, L = tokens.shape
         n = memory.shape[1]
         pos = torch.arange(L, device=tokens.device)
@@ -257,6 +270,24 @@ class SketchTransformer(nn.Module):
             if dtokens is None:
                 dtokens = torch.full_like(tokens, self.bos_dur)
             x = x + self.gap_emb(rtokens) + self.dur_emb(dtokens)
+        if self.cfg.expand:
+            if atokens is None:
+                atokens = torch.full_like(tokens, 2)
+            x = x + self.adv_emb(atokens)
+        if self.cfg.expand and align is not None:
+            # local evidence: the current tap and the next one, per step and per example
+            valid = align != PAD_TARGET
+            a = align.clamp(min=0, max=n - 1)
+            b = (a + 1).clamp(max=n - 1)
+            local = torch.cat([torch.gather(memory, 1, a[..., None].expand(-1, -1, memory.shape[-1])),
+                               torch.gather(memory, 1, b[..., None].expand(-1, -1, memory.shape[-1]))], dim=-1)
+            x = x + self.local_proj(local)
+            causal = torch.triu(torch.ones(L, L, dtype=torch.bool, device=tokens.device), diagonal=1)
+            tgt_pad = ~valid
+            tgt_pad[:, 0] = False
+            h = self.decoder(x, memory, tgt_mask=causal, tgt_key_padding_mask=tgt_pad,
+                             memory_key_padding_mask=~mask)
+            return self.dec_norm(h)
         # local evidence: encoder states of note k and k+1 for step k
         idx_a = pos.clamp(max=n - 1)
         idx_b = (pos + 1).clamp(max=n - 1)
@@ -314,15 +345,22 @@ class SketchTransformer(nn.Module):
             rh, du = self.timing_logits(memory, mask)
             return iv, rh, du
         gprev, dprev = self._prev_timing_tokens(batch)
+        aprev = None
+        if self.cfg.expand:
+            adv = batch["advance"]
+            aprev = torch.cat([torch.full((adv.shape[0], 1), 2, dtype=torch.long, device=adv.device),
+                               adv[:, :-1].clamp(min=0)], 1)
         if ss_prob > 0:
             with torch.no_grad():
-                iv0, rh0, du0 = self._joint_logits(batch, memory, mask, prev, gprev, dprev)
+                iv0, rh0, du0 = self._joint_logits(batch, memory, mask, prev, gprev, dprev, aprev)
                 flip = torch.rand_like(prev, dtype=torch.float) < ss_prob
                 flip[:, 0] = False  # BOS stays
                 prev = torch.where(flip, torch.cat([prev[:, :1], iv0.argmax(-1)[:, :-1]], 1), prev)
                 gprev = torch.where(flip, torch.cat([gprev[:, :1], rh0.argmax(-1)[:, :-1]], 1), gprev)
                 dprev = torch.where(flip, torch.cat([dprev[:, :1], du0.argmax(-1)[:, 1:prev.shape[1]]], 1), dprev)
-        return self._joint_logits(batch, memory, mask, prev, gprev, dprev)
+                if aprev is not None and self._last_adv_logits is not None:
+                    aprev = torch.where(flip, torch.cat([aprev[:, :1], self._last_adv_logits.argmax(-1)[:, :-1]], 1), aprev)
+        return self._joint_logits(batch, memory, mask, prev, gprev, dprev, aprev)
 
     def _prev_timing_tokens(self, batch: dict[str, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
         """Teacher-forcing timing inputs: BOS + previous gap classes, BOS + the previous note's
@@ -336,10 +374,18 @@ class SketchTransformer(nn.Module):
         dprev = torch.cat([d, dur[:, 1:L]], 1) if L > 1 else d
         return gprev, dprev
 
-    def _joint_logits(self, batch, memory, mask, prev, gprev, dprev):
-        """Joint-mode logits with the within-step heads conditioned on the true tokens."""
-        h = self.decode_hidden(prev, memory, mask, gprev, dprev)
-        iv = self.out(h)
+    _last_adv_logits: torch.Tensor | None = None
+
+    def _joint_logits(self, batch, memory, mask, prev, gprev, dprev, aprev=None):
+        """Joint-mode logits with the within-step heads conditioned on the true tokens.
+        In expansion mode the advance logits of the pass are kept in ``_last_adv_logits``."""
+        if self.cfg.expand:
+            h = self.decode_hidden(prev, memory, mask, gprev, dprev, aprev, batch["align"])
+            self._last_adv_logits = self.out_adv(h)
+            iv = self.out_iv_x(torch.cat([h, self.adv_emb(batch["advance"].clamp(min=0))], -1))
+        else:
+            h = self.decode_hidden(prev, memory, mask, gprev, dprev)
+            iv = self.out(h)
         true_iv = batch["target"].clamp(min=0)
         true_gap = batch["rhythm"].clamp(min=0)
         rh = self.out_gap_j(torch.cat([h, self.tok_emb(true_iv)], -1))
@@ -364,6 +410,9 @@ class SketchTransformer(nn.Module):
             loss = loss + duration_weight * F.cross_entropy(du[:, :n].reshape(-1, self.cfg.n_duration),
                                                             batch["duration"][:, :n].reshape(-1),
                                                             ignore_index=PAD_TARGET)
+        if self.cfg.expand and "advance" in batch and self._last_adv_logits is not None:
+            loss = loss + F.cross_entropy(self._last_adv_logits.reshape(-1, 2), batch["advance"].reshape(-1),
+                                          ignore_index=PAD_TARGET)
         return loss
 
     def step_logprobs(self, tokens: torch.Tensor, memory: torch.Tensor, mask: torch.Tensor,
@@ -377,7 +426,7 @@ class SketchTransformer(nn.Module):
 
     @torch.no_grad()
     def generate(self, batch: dict[str, torch.Tensor], n_samples: int = 1, temperature: float = 1.0,
-                 mode: str = "sample") -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+                 mode: str = "sample", force_advance: bool = True) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Decode interval classes for every sketch in the batch.
 
         Returns ``(classes (B, S, L), logp (B, S), step_probs (B, S, L, 49))``
@@ -387,6 +436,8 @@ class SketchTransformer(nn.Module):
         """
         self.eval()
         memory, mask = self.encode(batch)
+        if self.cfg.expand and not force_advance:
+            return self._generate_expand(memory, mask, n_samples, temperature, mode)
         if self.cfg.joint:
             return self._generate_joint(memory, mask, n_samples, temperature, mode)
         if mode == "beam":
@@ -424,10 +475,27 @@ class SketchTransformer(nn.Module):
     # -- joint-token decoding ------------------------------------------- #
 
     def joint_step(self, tokens: torch.Tensor, gtokens: torch.Tensor, dtokens: torch.Tensor,
-                   memory: torch.Tensor, mask: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        """One joint decoder step for a batch of prefixes: (interval log-probs (B, 49), state (B, d))."""
-        h = self.decode_hidden(tokens, memory, mask, gtokens, dtokens)[:, -1]
+                   memory: torch.Tensor, mask: torch.Tensor, atokens: torch.Tensor | None = None,
+                   align: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor]:
+        """One joint decoder step for a batch of prefixes: (interval log-probs (B, 49), state (B, d)).
+        In expansion mode the interval log-probs are those for *advancing*; use
+        :meth:`expand_step` for both choices."""
+        h = self.decode_hidden(tokens, memory, mask, gtokens, dtokens, atokens, align)[:, -1]
+        if self.cfg.expand:
+            one = torch.ones(h.shape[0], dtype=torch.long, device=h.device)
+            return F.log_softmax(self.out_iv_x(torch.cat([h, self.adv_emb(one)], -1)), -1), h
         return F.log_softmax(self.out(h), -1), h
+
+    def expand_step(self, tokens, gtokens, dtokens, atokens, align, memory, mask
+                    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """One expansion step: (advance log-probs (B, 2), interval log-probs if staying (B, 49),
+        interval log-probs if advancing (B, 49), state (B, d))."""
+        h = self.decode_hidden(tokens, memory, mask, gtokens, dtokens, atokens, align)[:, -1]
+        adv = F.log_softmax(self.out_adv(h), -1)
+        zero = torch.zeros(h.shape[0], dtype=torch.long, device=h.device)
+        stay = F.log_softmax(self.out_iv_x(torch.cat([h, self.adv_emb(zero)], -1)), -1)
+        nxt = F.log_softmax(self.out_iv_x(torch.cat([h, self.adv_emb(zero + 1)], -1)), -1)
+        return adv, stay, nxt, h
 
     def joint_timing(self, h: torch.Tensor, interval_cls: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Greedy gap and duration classes given the decoder state and the chosen interval."""
@@ -457,8 +525,9 @@ class SketchTransformer(nn.Module):
             dtok = torch.full((B * S, 1), self.bos_dur, dtype=torch.long, device=dev)
             logp = torch.zeros(B * S, device=dev)
             probs_all = []
-            for _ in range(L):
-                lp, h = self.joint_step(tokens, gtok, dtok, mem, msk)
+            for step in range(L):
+                at, al = self._forced_tokens(tokens.shape[0], step, n, mem.device) if self.cfg.expand else (None, None)
+                lp, h = self.joint_step(tokens, gtok, dtok, mem, msk, at, al)
                 p = F.softmax(lp / max(temperature, 1e-4), -1)
                 nxt = p.argmax(-1) if mode == "greedy" else torch.multinomial(p, 1).squeeze(-1)
                 logp = logp + torch.log(p.gather(1, nxt[:, None]).squeeze(1) + 1e-12)
@@ -484,6 +553,134 @@ class SketchTransformer(nn.Module):
         self._last_duration = durs[:, 0].contiguous()
         return classes, logp, probs
 
+    @staticmethod
+    def _forced_tokens(B: int, step: int, n: int, device) -> tuple[torch.Tensor, torch.Tensor]:
+        """Expansion inputs when every step advances (one output note per tap): advance tokens
+        BOS, 1, 1, ... and alignment 0, 1, 2, ... for steps 0..step."""
+        at = torch.full((B, step + 1), 1, dtype=torch.long, device=device)
+        at[:, 0] = 2
+        al = torch.arange(step + 1, device=device).clamp(max=n - 1)[None].expand(B, -1).contiguous()
+        return at, al
+
+    def _generate_expand(self, memory, mask, n_samples, temperature, mode):
+        """Free-length decoding, one sketch at a time: notes are emitted until the decoder
+        advances past the last tap (or a cap). Returns tensors padded to the longest
+        output, with ``_last_rhythm`` (B, S, L), ``_last_duration_all`` (B, S, L+1) and
+        ``_last_align`` (B, S, L+1); padded steps hold -1 in ``_last_align``."""
+        B, n, _ = memory.shape
+        dev = memory.device
+        S = n_samples
+        results: list[list[tuple[list[int], list[int], list[int], list[int], float, list[torch.Tensor]]]] = []
+        for b in range(B):
+            n_b = int(mask[b].sum())
+            mem_b, msk_b = memory[b:b + 1, :n_b], mask[b:b + 1, :n_b]
+            if mode == "beam":
+                hyps = self._beam_expand(mem_b, msk_b, n_b, S)
+            else:
+                hyps = [self._sample_expand(mem_b, msk_b, n_b, mode == "greedy", temperature) for _ in range(S if mode == "sample" else 1)]
+                if mode == "greedy":
+                    hyps = hyps * S
+            results.append(hyps)
+        L = max(max(len(h[0]) for h in hyps) for hyps in results) or 1
+        cls = torch.zeros(B, S, L, dtype=torch.long, device=dev)
+        gaps = torch.zeros(B, S, L, dtype=torch.long, device=dev)
+        durs = torch.zeros(B, S, L + 1, dtype=torch.long, device=dev)
+        aligns = torch.full((B, S, L + 1), -1, dtype=torch.long, device=dev)
+        lp = torch.full((B, S), -1e9, device=dev)
+        pr = torch.full((B, S, L, N_INTERVAL_CLASSES), 1.0 / N_INTERVAL_CLASSES, device=dev)
+        dur0 = self.duration0(memory)
+        for b, hyps in enumerate(results):
+            for s, (seq, gs, ds, al, score, probs) in enumerate(hyps[:S]):
+                m = len(seq)
+                if m:
+                    cls[b, s, :m] = torch.tensor(seq, device=dev)
+                    gaps[b, s, :m] = torch.tensor(gs, device=dev)
+                    durs[b, s, 1:m + 1] = torch.tensor(ds, device=dev)
+                    pr[b, s, :m] = torch.stack(probs)
+                durs[b, s, 0] = dur0[b]
+                aligns[b, s, :m + 1] = torch.tensor(al, device=dev)
+                lp[b, s] = score
+        self._last_rhythm = gaps
+        self._last_duration_all = durs
+        self._last_duration = durs[:, 0]
+        self._last_align = aligns
+        self._last_classes = cls
+        return cls, lp, pr
+
+    def _expand_inputs(self, hyps, dev):
+        tok = torch.tensor([[BOS] + h[0] for h in hyps], dtype=torch.long, device=dev)
+        gt = torch.tensor([[self.bos_gap] + h[1] for h in hyps], dtype=torch.long, device=dev)
+        dt = torch.tensor([[self.bos_dur] + h[2] for h in hyps], dtype=torch.long, device=dev)
+        at = torch.tensor([[2] + h[3] for h in hyps], dtype=torch.long, device=dev)
+        al = torch.tensor([h[4] for h in hyps], dtype=torch.long, device=dev)
+        return tok, gt, dt, at, al
+
+    def _sample_expand(self, mem, msk, n, greedy: bool, temperature: float, max_extra: int = 48):
+        """One free-length hypothesis: (intervals, gaps, durations, aligns, logp, probs)."""
+        dev = mem.device
+        seq, gs, ds, advs, al, probs = [], [], [], [], [0], []
+        score = 0.0
+        while True:
+            tok, gt, dt, at, ali = self._expand_inputs([(seq, gs, ds, advs, al)], dev)
+            adv, stay, nxt, h = self.expand_step(tok, gt, dt, at, ali, mem, msk)
+            a_now = al[-1]
+            if len(seq) >= n - 1 + max_extra:
+                adv_choice = 1
+            else:
+                pa = F.softmax(adv[0] / max(temperature, 1e-4), -1)
+                adv_choice = int(pa.argmax()) if greedy else int(torch.multinomial(pa, 1))
+            score += float(adv[0, adv_choice])
+            if adv_choice == 1 and a_now >= n - 1:
+                break  # end of sequence
+            row = nxt[0] if adv_choice == 1 else stay[0]
+            p = F.softmax(row / max(temperature, 1e-4), -1)
+            c = int(p.argmax()) if greedy else int(torch.multinomial(p, 1))
+            score += float(row[c])
+            g, d = self.joint_timing(h, torch.tensor([c], device=dev))
+            seq.append(c); gs.append(int(g)); ds.append(int(d)); advs.append(adv_choice)
+            al.append(a_now + adv_choice); probs.append(p)
+        return seq, gs, ds, al, score, probs
+
+    def _beam_expand(self, mem, msk, n, beam: int, max_extra: int = 48):
+        """Beam search over (advance, interval) choices with free length; finished hypotheses
+        are ranked by mean log-prob per step."""
+        dev = mem.device
+        live = [([], [], [], [], [0], 0.0, [])]  # seq, gaps, durs, advs, aligns, score, probs
+        done = []
+        while live and len(done) < beam * 4:
+            live_src = live
+            tok, gt, dt, at, ali = self._expand_inputs([h[:5] for h in live], dev)
+            adv, stay, nxt, h = self.expand_step(tok, gt, dt, at, ali, mem.expand(len(live), -1, -1),
+                                                 msk.expand(len(live), -1))
+            cand = []
+            for i, (seq, gs, ds, advs, al, score, probs) in enumerate(live):
+                a_now = al[-1]
+                over = len(seq) >= n - 1 + max_extra
+                for choice in (1, 0):
+                    if choice == 0 and over:
+                        continue
+                    s_adv = score + float(adv[i, choice])
+                    if choice == 1 and a_now >= n - 1:
+                        done.append((seq, gs, ds, al, s_adv / max(len(seq) + 1, 1), probs))
+                        continue
+                    row = nxt[i] if choice == 1 else stay[i]
+                    top = torch.topk(row, min(beam, N_INTERVAL_CLASSES))
+                    for v, c in zip(top.values.tolist(), top.indices.tolist()):
+                        cand.append((s_adv + v, i, choice, c, row.exp()))
+            cand.sort(key=lambda x: -x[0])
+            cand = cand[:beam]
+            if not cand:
+                break
+            hc = h[[c[1] for c in cand]]
+            ic = torch.tensor([c[3] for c in cand], dtype=torch.long, device=dev)
+            g, d = self.joint_timing(hc, ic)
+            live = []
+            for (s, i, choice, c, pr), gi, di in zip(cand, g.tolist(), d.tolist()):
+                seq, gs, ds, advs, al, _, probs = live_src[i]
+                live.append((seq + [c], gs + [gi], ds + [di], advs + [choice], al + [al[-1] + choice], s, probs + [pr]))
+        done.sort(key=lambda x: -x[4])
+        return done[:beam] if done else [([], [], [], [0], 0.0, [])]
+
     def _beam_joint(self, memory, mask, beam):
         B, n_max, _ = memory.shape
         L = max(n_max - 1, 1)
@@ -500,11 +697,12 @@ class SketchTransformer(nn.Module):
             mem_b, msk_b = memory[b:b + 1, :n_b], mask[b:b + 1, :n_b]
             # (score, intervals, gaps, durations, probs)
             beams: list[tuple[float, list[int], list[int], list[int], list[torch.Tensor]]] = [(0.0, [], [], [], [])]
-            for _ in range(steps):
+            for step in range(steps):
                 tok = torch.tensor([[BOS] + s[1] for s in beams], dtype=torch.long, device=dev)
                 gt = torch.tensor([[self.bos_gap] + s[2] for s in beams], dtype=torch.long, device=dev)
                 dt = torch.tensor([[self.bos_dur] + s[3] for s in beams], dtype=torch.long, device=dev)
-                lp, h = self.joint_step(tok, gt, dt, mem_b.expand(len(beams), -1, -1), msk_b.expand(len(beams), -1))
+                at, al = self._forced_tokens(len(beams), step, n_b, dev) if self.cfg.expand else (None, None)
+                lp, h = self.joint_step(tok, gt, dt, mem_b.expand(len(beams), -1, -1), msk_b.expand(len(beams), -1), at, al)
                 cand = []
                 for bi, ((s, seq, gs, ds, pr), row) in enumerate(zip(beams, lp)):
                     top = torch.topk(row, min(beam, N_INTERVAL_CLASSES))

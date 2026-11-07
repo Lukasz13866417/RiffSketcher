@@ -35,6 +35,8 @@ GESTURE_LIBRARY: dict[str, dict[str, Any]] = {
             "ascending_run": {"label": "Ascending run", "scope": "region", "desc": "Each note higher than the last"},
             "descending_run": {"label": "Descending run", "scope": "region", "desc": "Each note lower than the last"},
             "repeated_note": {"label": "Repeated note", "scope": "region", "desc": "Same pitch throughout"},
+            "tremolo": {"label": "Tremolo / chug run", "scope": "note",
+                        "desc": "One tap stands for a fast run of this note; hold the tap as long as the run"},
             "repeated_figure": {"label": "Repeated figure", "scope": "region",
                                 "desc": "A short pattern that repeats", "params": {"period": 4}},
             "pedal_tone": {"label": "Pedal tone", "scope": "region",

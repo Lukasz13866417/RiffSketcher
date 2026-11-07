@@ -575,7 +575,8 @@ function renderCandidates() {
       : `search score ${c.score.toFixed(2)}`;
     const chips = (c.tropes || []).map((t) => `<span class="chip" title="${t.song_frac != null ? Math.round(t.song_frac * 100) + '% of songs in this genre use it' : 'not in the catalogue'}">${t.label}</span>`).join('');
     const fam = c.familiarity == null ? '' : `<span class="chip fam" title="share of this riff's 3-interval patterns that are common in the genre catalogue">${Math.round(c.familiarity * 100)}% familiar patterns</span>`;
-    li.innerHTML = `<span class="key">${c.key}</span> <span class="muted">${scoreTxt} · ${method}</span><br>` +
+    const expanded = c.meta && c.meta.expanded ? ` · <span class="chip" title="notes the model added beyond your taps (tremolo runs, filled gaps)">+${c.meta.expanded} notes</span>` : '';
+    li.innerHTML = `<span class="key">${c.key}</span> <span class="muted">${scoreTxt} · ${method}${expanded}</span><br>` +
       `<span class="notes">${c.note_names.join(' ')}</span>` +
       ((chips || fam) ? `<br><span class="chips">${fam}${chips}</span>` : '') +
       (c.violations.length ? `<br><span class="viol">violates: ${c.violations.join('; ')}</span>` : '');

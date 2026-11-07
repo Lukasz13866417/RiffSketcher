@@ -34,7 +34,7 @@ from core.rhythm import quantise
 # The served model: the large joint-token decoder (d_model 192, 6+6 layers) trained on the
 # genre-labelled export; every decoder step emits interval, gap and duration, so one checkpoint
 # gives pitches and timing (see ml/README.md, "Joint-token decoder").
-DEFAULT_CHECKPOINT = os.environ.get("RIFF_MODEL", "runs/joint_large_genres/best.pt")
+DEFAULT_CHECKPOINT = os.environ.get("RIFF_MODEL", "runs/expand_large_genres/best.pt")
 # An optional second checkpoint used only for timing when the main one has no timing output of
 # its own (the older pitch-only models): its encoder-side gap head beats the rule-based quantiser.
 # Unset or missing -> the quantiser.
@@ -248,6 +248,8 @@ class TransformerReconstructor:
         m = len(sketch) - 1
         batch = self.model._batch_from_sketch(sketch)
         out: list[tuple[list[int], float, float, list[int]]] = []
+        if getattr(self.model.cfg, "expand", False):
+            return self._decode_expand(sketch, cs, anchor, beam, n_samples, rng, batch, target, sigma)
         if self.model.cfg.joint:
             return self._decode_joint(sketch, cs, anchor, beam, n_samples, rng, batch, target, sigma)
         with torch.no_grad():
@@ -412,6 +414,148 @@ class TransformerReconstructor:
                 self._last_durations_by_seq.setdefault(tuple(seq), [dur0] + ds)
         return out
 
+    def _masked_row_expand(self, row: np.ndarray, a_new: int, rel_in: list[int], p_prev: int, cs, anchor, n: int) -> np.ndarray:
+        """Fact mask for an expansion step that advances to tap ``a_new``: the facts constrain
+        the pitch of the tap's first note relative to the earlier taps (``rel_in``), while
+        the row is over intervals from the previous *output* note (``p_prev``), which may
+        be an inserted note. Allowed tap pitches are mapped to allowed output intervals."""
+        from core.representation import INTERVAL_MIN, N_INTERVAL_CLASSES
+
+        ok_in = self._allowed(cs, a_new, rel_in, anchor)
+        if ok_in is None:
+            ok_in = np.ones(N_INTERVAL_CLASSES, dtype=bool)
+        if a_new < n - 1:  # one-step lookahead on the tap sequence
+            look = ok_in.copy()
+            for c in np.flatnonzero(ok_in):
+                nxt = self._allowed(cs, a_new + 1, rel_in + [rel_in[-1] + c + INTERVAL_MIN], anchor)
+                if nxt is not None and not nxt.any():
+                    look[c] = False
+            if look.any():
+                ok_in = look
+        if ok_in.all():
+            return row
+        allowed = {rel_in[-1] + c + INTERVAL_MIN for c in np.flatnonzero(ok_in)}
+        classes = np.arange(N_INTERVAL_CLASSES) + INTERVAL_MIN
+        ok = np.array([(p_prev + c) in allowed for c in classes])
+        if not ok.any():
+            return row
+        r = np.where(ok, row, -np.inf)
+        return r - np.log(np.exp(r[ok]).sum())
+
+    def _decode_expand(self, sketch: Sketch, cs, anchor, beam: int, n_samples: int, rng, batch, target, sigma,
+                       max_extra: int = 48):
+        """Constrained free-length beam search over the expansion decoder. Each step every
+        hypothesis either advances to the next tap (its first note is fact-masked) or inserts
+        an extra note of the current tap (unmasked); an advance past the last tap ends it.
+        Finished hypotheses are ranked by mean log-prob per note. Returns
+        ``(intervals, model_logp, total_score, gap_classes)``; durations and alignments
+        are kept per interval sequence."""
+        import torch
+
+        model = self.model
+        n = len(sketch)
+        self._last_durations_by_seq = {}
+        self._last_align_by_seq = {}
+        out: list[tuple[list[int], float, float, list[int]]] = []
+        with torch.no_grad():
+            memory, mask = model.encode(batch)
+            dur0 = int(model.duration0(memory)[0])
+            dev = memory.device
+
+            def step(hyps):
+                tok, gt, dt, at, al = model._expand_inputs(
+                    [([interval_to_class(d) for d in h["seq"]], h["gaps"], h["durs"], h["advs"], h["al"]) for h in hyps], dev)
+                adv, stay, nxt, h = model.expand_step(tok, gt, dt, at, al, memory.expand(len(hyps), -1, -1),
+                                                      mask.expand(len(hyps), -1))
+                return adv.cpu().numpy(), stay.cpu().numpy(), nxt.cpu().numpy(), h
+
+            def finish(h, s_tot, s_mlp):
+                seq = h["seq"]
+                key = tuple(seq)
+                out.append((seq, s_mlp, s_tot / max(len(seq) + 1, 1), h["gaps"]))
+                self._last_durations_by_seq.setdefault(key, [dur0] + h["durs"])
+                self._last_align_by_seq.setdefault(key, h["al"])
+
+            def expand(hyps, adv, stay, nxt, pick):
+                """Candidate continuations; ``pick(row, k)`` returns the chosen classes for a row."""
+                cand = []
+                for i, h in enumerate(hyps):
+                    a_now = h["al"][-1]
+                    tot, mlp = h["tot"], h["mlp"]
+                    # advance (or finish)
+                    if a_now >= n - 1:
+                        finish(h, tot + float(adv[i, 1]), mlp + float(adv[i, 1]))
+                    else:
+                        row = self._masked_row_expand(nxt[i], a_now + 1, h["rel_in"], h["rel_out"][-1], cs, anchor, n)
+                        for c in pick(row, i):
+                            d = class_to_interval(int(c))
+                            new_rel = h["rel_out"][-1] + d
+                            guide = -self.guide_weight * 0.5 * ((new_rel - target[a_now + 1]) / sigma[a_now + 1]) ** 2
+                            cand.append((tot + float(adv[i, 1]) + float(row[c]) + guide, mlp + float(adv[i, 1]) + float(row[c]),
+                                         i, 1, int(c), d))
+                    # insert an extra note of the current tap
+                    if len(h["seq"]) < n - 1 + max_extra:
+                        row = stay[i]
+                        for c in pick(row, i):
+                            d = class_to_interval(int(c))
+                            cand.append((tot + float(adv[i, 0]) + float(row[c]), mlp + float(adv[i, 0]) + float(row[c]),
+                                         i, 0, int(c), d))
+                return cand
+
+            def grow(hyps, cand, h_states):
+                if not cand:
+                    return []
+                hc = h_states[[c[2] for c in cand]]
+                ic = torch.tensor([c[4] for c in cand], dtype=torch.long, device=dev)
+                g, dd = model.joint_timing(hc, ic)
+                new = []
+                for (tot, mlp, i, choice, c, d), gi, di in zip(cand, g.tolist(), dd.tolist()):
+                    h = hyps[i]
+                    new_rel = h["rel_out"][-1] + d
+                    new.append({"seq": h["seq"] + [d], "gaps": h["gaps"] + [int(gi)], "durs": h["durs"] + [int(di)],
+                                "advs": h["advs"] + [choice], "al": h["al"] + [h["al"][-1] + choice],
+                                "rel_out": h["rel_out"] + [new_rel],
+                                "rel_in": h["rel_in"] + ([new_rel] if choice == 1 else []),
+                                "tot": tot, "mlp": mlp})
+                return new
+
+            start = {"seq": [], "gaps": [], "durs": [], "advs": [], "al": [0], "rel_out": [0], "rel_in": [0], "tot": 0.0, "mlp": 0.0}
+            # beam
+            live = [dict(start)]
+            n_done_before = len(out)
+            while live and len(out) - n_done_before < 4 * beam:
+                adv, stay, nxt, hs = step(live)
+
+                def top(row, _i):
+                    return [c for c in np.argsort(row)[::-1][: max(beam, 8)] if np.isfinite(row[c])]
+                cand = expand(live, adv, stay, nxt, top)
+                cand.sort(key=lambda x: -x[0])
+                live = grow(live, cand[:beam], hs)
+            # ancestral samples for diversity
+            samples = [dict(start) for _ in range(n_samples)]
+            while samples:
+                adv, stay, nxt, hs = step(samples)
+                picks: dict[int, tuple[int, int]] = {}
+                for i, h in enumerate(samples):
+                    pa = np.exp(adv[i] - adv[i].max()); pa /= pa.sum()
+                    choice = int(rng.choice(2, p=pa)) if len(h["seq"]) < n - 1 + max_extra else 1
+                    picks[i] = (choice, -1)
+                cand = []
+                for i, h in enumerate(samples):
+                    choice = picks[i][0]
+                    a_now = h["al"][-1]
+                    if choice == 1 and a_now >= n - 1:
+                        finish(h, h["tot"] + float(adv[i, 1]), h["mlp"] + float(adv[i, 1]))
+                        continue
+                    row = (self._masked_row_expand(nxt[i], a_now + 1, h["rel_in"], h["rel_out"][-1], cs, anchor, n)
+                           if choice == 1 else stay[i])
+                    p = np.exp(row - row.max()); p[~np.isfinite(row)] = 0.0; p /= p.sum()
+                    c = int(rng.choice(len(p), p=p))
+                    cand.append((h["tot"] + float(adv[i, choice]) + float(row[c]), h["mlp"] + float(adv[i, choice]) + float(row[c]),
+                                 i, choice, c, class_to_interval(c)))
+                samples = grow(samples, cand, hs)
+        return out
+
     def _interval_candidates(self, sketch: Sketch, n: int, cs=None,
                              anchor: tuple[int, int] | None = None) -> list[tuple[list[int], float]]:
         """Candidate interval sequences with their model log-probability, best first.
@@ -437,6 +581,13 @@ class TransformerReconstructor:
     def _anchor(self, intervals: list[int], sketch: Sketch, fixed: dict[int, int],
                 anchor: tuple[int, int] | None = None) -> list[int]:
         rel = np.concatenate([[0], np.cumsum(intervals)]).astype(int)
+        align = getattr(self, "_last_align_by_seq", {}).get(tuple(intervals)) if getattr(self.model.cfg, "expand", False) else None
+        if align:  # pins name taps; the tap's pitch is its first output note's
+            first = {}
+            for j, a in enumerate(align):
+                first.setdefault(a, j)
+            fixed = {first[i]: p for i, p in fixed.items() if i in first}
+            anchor = (first[anchor[0]], anchor[1]) if anchor is not None and anchor[0] in first else None
         if anchor is not None and anchor[0] < len(rel):
             shift = anchor[1] - int(rel[anchor[0]])  # exact: later pins were masked relative to this note
         elif fixed:
@@ -473,7 +624,16 @@ class TransformerReconstructor:
                 meta = {"method": "transformer", "rhythm": "quantised", "grid": rhythm.grid}
             notes = [Note(p, o, d) for p, o, d in zip(pitches, onsets, durations)]
             riff = Riff(notes, tempo=tempo, key=guess_key(pitches), score=score, meta=meta)
-            if violations(riff, cs) or tuple(pitches) in seen:
+            align = getattr(self, "_last_align_by_seq", {}).get(tuple(intervals)) if getattr(self.model.cfg, "expand", False) else None
+            check = riff
+            if align:  # facts name taps: check them on each tap's first note
+                first = {}
+                for j, a in enumerate(align):
+                    first.setdefault(a, j)
+                check = Riff([notes[first[a]] for a in sorted(first)], tempo=tempo)
+                meta["align"] = list(align)
+                meta["expanded"] = len(notes) - len(first)
+            if violations(check, cs) or tuple(pitches) in seen:
                 continue
             seen.add(tuple(pitches))
             riffs.append(apply_articulation(riff, cs))

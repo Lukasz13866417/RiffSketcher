@@ -55,8 +55,9 @@ def evaluate(model: SketchTransformer, loader: DataLoader, device: torch.device)
             rh_correct += int(((rh_logits.argmax(-1) == batch["rhythm"]) & valid).sum())
             rh_n += int(valid.sum())
         if du_logits is not None and "duration" in batch:
-            dv = batch["duration"] != PAD_TARGET
-            du_correct += int(((du_logits.argmax(-1) == batch["duration"]) & dv).sum())
+            nd = min(du_logits.shape[1], batch["duration"].shape[1])
+            dv = batch["duration"][:, :nd] != PAD_TARGET
+            du_correct += int(((du_logits[:, :nd].argmax(-1) == batch["duration"][:, :nd]) & dv).sum())
             du_n += int(dv.sum())
     return (tot_loss / max(tot_n, 1), tot_correct / max(tot_n, 1),
             rh_correct / rh_n if rh_n else float("nan"), du_correct / du_n if du_n else float("nan"))
@@ -70,7 +71,12 @@ def train(train_phrases, val_phrases, model_cfg: ModelConfig, sim_level: str, ou
     torch.manual_seed(seed)
     np.random.seed(seed)
     device_t = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
-    sim = SketchSimulator(seed, sim_level)
+    from dataclasses import replace as _replace
+    from ml.sketch_simulator import get_config
+    sim_cfg = get_config(sim_level)
+    if model_cfg.expand:  # reduced sketches with free-length targets
+        sim_cfg = _replace(sim_cfg, expand=True, double_prob=0.0)
+    sim = SketchSimulator(seed, sim_cfg)
     train_ds = PhraseDataset(train_phrases, sim, seed=seed, genre_dropout=genre_dropout)
     val_ds = PhraseDataset(val_phrases, sim, seed=seed + 1, epoch=0)
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, collate_fn=collate)
@@ -84,7 +90,8 @@ def train(train_phrases, val_phrases, model_cfg: ModelConfig, sim_level: str, ou
         f"{len(train_ds)} train / {len(val_ds)} val phrases; sim={sim_level}; "
         f"genres={'on (dropout %.2f)' % genre_dropout if model_cfg.n_genres else 'off'}; "
         f"timing branch={('%d layers%s%s; gap head weight %.2f; duration head %s' % (model_cfg.n_branch, ', trunk detached' if model_cfg.branch_detach else '', (', %d per-task MLP layers' % model_cfg.n_expert_layers) if model_cfg.n_expert_layers else '', rhythm_weight, ('weight %.2f' % duration_weight) if model_cfg.n_duration else 'off')) if model_cfg.n_rhythm and not model_cfg.joint else 'off'}"
-        + (f"; joint decoder (gap weight {rhythm_weight:.2f}, duration weight {duration_weight:.2f}, scheduled sampling up to {ss_max:.2f})" if model_cfg.joint else ""))
+        + (f"; joint decoder (gap weight {rhythm_weight:.2f}, duration weight {duration_weight:.2f}, scheduled sampling up to {ss_max:.2f})" if model_cfg.joint else "")
+        + ("; expansion (reduced sketches, free-length output)" if model_cfg.expand else ""))
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay, betas=(0.9, 0.98))
     steps_per_epoch = len(train_loader) if max_steps_per_epoch is None else min(len(train_loader), max_steps_per_epoch)
     total_steps = steps_per_epoch * epochs
@@ -164,6 +171,8 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--no-duration", action="store_true", help="timing branch without the duration head")
     ap.add_argument("--joint", action="store_true",
                     help="joint-token decoder: each step emits interval, gap and duration (implies --rhythm)")
+    ap.add_argument("--expand", action="store_true",
+                    help="expansion model: reduced sketches (tremolo taps, dropped notes) and free-length output (implies --joint)")
     ap.add_argument("--ss-max", type=float, default=0.25,
                     help="joint decoder: scheduled-sampling share of fed-back tokens at the last epoch")
     ap.add_argument("--genre-dropout", type=float, default=0.2,
@@ -172,6 +181,8 @@ def main(argv: list[str] | None = None) -> None:
                     help="train and validate only on phrases from this source (per-genre model)")
     args = ap.parse_args(argv)
     n_genres = 0 if args.no_genre else len(GENRES)
+    if args.expand:
+        args.joint = True
     if args.joint:
         args.rhythm, args.no_duration = True, False
     n_rhythm = len(RHYTHM_CLASSES) if args.rhythm else 0
@@ -182,7 +193,8 @@ def main(argv: list[str] | None = None) -> None:
         splits = split_by_song(phrases, 0.2, 0.0, args.seed)
         cfg = ModelConfig(d_model=64, n_layers=2, n_heads=4, d_ff=128, dropout=0.0, n_genres=n_genres,
                           n_rhythm=n_rhythm, n_duration=n_duration, n_branch=min(args.branch_layers, 1),
-                          branch_detach=args.branch_detach, joint=args.joint, n_expert_layers=min(args.expert_layers, 1))
+                          branch_detach=args.branch_detach, joint=args.joint, expand=args.expand,
+                          n_expert_layers=min(args.expert_layers, 1))
         epochs = args.epochs if args.epochs != 20 else 3
         out = args.out if args.out != Path("runs/first") else Path("runs/smoke")
         train(splits["train"], splits["val"], cfg, args.sim, out, epochs=epochs, batch_size=32,
@@ -208,7 +220,7 @@ def main(argv: list[str] | None = None) -> None:
     cfg = ModelConfig(d_model=args.d_model, n_layers=args.layers, n_heads=args.heads, d_ff=args.d_ff,
                       dropout=args.dropout, n_genres=n_genres, n_rhythm=n_rhythm, n_duration=n_duration,
                       n_branch=args.branch_layers if n_rhythm else 0, branch_detach=args.branch_detach,
-                      joint=args.joint, n_expert_layers=args.expert_layers)
+                      joint=args.joint, expand=args.expand, n_expert_layers=args.expert_layers)
     train(splits["train"], splits["val"], cfg, args.sim, args.out, epochs=args.epochs,
           batch_size=args.batch_size, lr=args.lr, weight_decay=args.weight_decay,
           max_steps_per_epoch=args.max_steps_per_epoch, seed=args.seed, device=args.device,

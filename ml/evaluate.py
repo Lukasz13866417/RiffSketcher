@@ -30,7 +30,7 @@ from typing import Callable
 import numpy as np
 import torch
 
-from core.representation import Sketch, interval_to_class
+from core.representation import Sketch, interval_to_class, class_to_interval
 from ml.baseline import ContourBaseline, DeterministicBaseline, IntervalPredictor
 from ml.datasets import Phrase, apply_split_ids, load_phrases, phrase_genre, synthetic_phrases
 from ml.sketch_simulator import SketchSimulator
@@ -81,6 +81,52 @@ def duration_accuracy(examples_with_rhythm, model=None) -> dict[str, float]:
     if model is not None and getattr(model, "has_duration", False):
         out["model"] = m_hit / max(n, 1)
     return out
+
+
+def expansion_accuracy(phrases: list[Phrase], model, seed: int = 0, limit: int | None = 500) -> dict[str, float]:
+    """Free decoding of an expansion model on *reduced* sketches (tremolo taps, dropped
+    notes, no facts): how often the output has the right length, the right interval
+    sequence, and the right number of notes per tremolo tap."""
+    from dataclasses import replace
+    from ml.sketch_simulator import get_config
+    cfg = replace(get_config("medium"), expand=True, double_prob=0.0, facts_prob=0.0)
+    sim = SketchSimulator(seed, cfg)
+    n = len_ok = seq_ok = 0
+    trem = trem_ok = trem_1 = 0
+    per_tap_err = 0.0
+    taps_total = 0
+    for i, p in enumerate(phrases[:limit] if limit else phrases):
+        r = sim.simulate(p, rng=np.random.default_rng([seed, 7, i]))
+        if not r.align or len(r.out_pitches) < 2:
+            continue
+        model.generate(model._batch_from_sketch(r.sketch), 1, mode="greedy", force_advance=False)
+        al = [a for a in model._last_align[0, 0].tolist() if a >= 0]
+        m = len(al) - 1
+        pred = [class_to_interval(int(c)) for c in model._last_classes[0, 0, :m].tolist()] if hasattr(model, "_last_classes") else None
+        true_iv = [b - a for a, b in zip(r.out_pitches, r.out_pitches[1:])]
+        n += 1
+        if len(al) == len(r.out_pitches):
+            len_ok += 1
+            if pred is not None and pred == true_iv:
+                seq_ok += 1
+        true_counts = {}
+        for a in r.align:
+            true_counts[a] = true_counts.get(a, 0) + 1
+        pred_counts = {}
+        for a in al:
+            pred_counts[a] = pred_counts.get(a, 0) + 1
+        for k in true_counts:
+            taps_total += 1
+            per_tap_err += abs(true_counts[k] - pred_counts.get(k, 0))
+        for g in r.sketch.gestures:
+            if g.kind == "tremolo":
+                trem += 1
+                diff = abs(true_counts.get(g.start, 0) - pred_counts.get(g.start, 0))
+                trem_ok += int(diff == 0)
+                trem_1 += int(diff <= 1)
+    return {"n": n, "length": len_ok / max(n, 1), "sequence": seq_ok / max(n, 1),
+            "tremolo_count": trem_ok / max(trem, 1), "tremolo_within_1": trem_1 / max(trem, 1), "tremolo_taps": trem,
+            "notes_per_tap_error": per_tap_err / max(taps_total, 1)}
 
 
 def rhythm_accuracy(examples_with_rhythm: list[tuple[Example, list[float]]], model=None) -> dict[str, float]:
@@ -209,6 +255,7 @@ def load_examples_from_args(args: argparse.Namespace) -> tuple[list[Example], li
     if getattr(args, "no_facts", False):
         cfg = replace(cfg, facts_prob=0.0)
     sim = SketchSimulator(args.seed, cfg)
+    args._phrases = phrases
     with_rhythm = make_examples_with_rhythm(phrases, sim, seed=args.seed)
     examples = [ex for ex, *_ in with_rhythm]
     args._with_rhythm = with_rhythm
@@ -269,6 +316,13 @@ def main(argv: list[str] | None = None) -> None:
         print(f"  quantise (rule-based)   {base['quantise']:.3f}")
         for p in rh_models:
             print(f"  {p.name:22s}  {rhythm_accuracy(args._with_rhythm, p)['model']:.3f}")
+        for p in predictors:
+            if getattr(getattr(p, "cfg", None), "expand", False):
+                e = expansion_accuracy(args._phrases, p, seed=args.seed, limit=min(500, args.limit or 500))
+                print(f"\nexpansion ({p.name}; {e['n']} reduced sketches, free decoding, no facts):")
+                print(f"  right length {e['length']:.3f}   right interval sequence {e['sequence']:.3f}")
+                print(f"  tremolo taps ({e['tremolo_taps']}): right note count {e['tremolo_count']:.3f}, within one {e['tremolo_within_1']:.3f}")
+                print(f"  mean |notes per tap - true| {e['notes_per_tap_error']:.3f}")
         print("\nduration (length class) accuracy:")
         base = duration_accuracy(args._with_rhythm, None)
         print(f"  legato (every note full)   {base['legato']:.3f}")
