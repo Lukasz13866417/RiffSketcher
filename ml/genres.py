@@ -173,7 +173,7 @@ def apply(con: sqlite3.Connection, cache: dict[str, Any] | None = None, log=prin
     cache = load_cache() if cache is None else cache
     ext = extractor_id(con, EXTRACTOR[0], EXTRACTOR[1], {"min_score": MIN_SCORE})
     counts: Counter[str] = Counter()
-    for r in con.execute("SELECT id, artist_norm FROM song").fetchall():
+    for r in con.execute("SELECT id, artist_norm, genre FROM song").fetchall():
         entry = cache.get(r["artist_norm"]) if r["artist_norm"] else None
         genre = entry.get("genre") if entry else None
         if genre is None and r["artist_norm"] is None:
@@ -181,6 +181,8 @@ def apply(con: sqlite3.Connection, cache: dict[str, Any] | None = None, log=prin
                               (r["id"],)).fetchone()
             if src and src["name"] == "pop909":
                 genre = "pop"
+        if genre is None and r["genre"] is not None:
+            genre = r["genre"]  # a genre the source itself gave (GuitarSet styles) stays
         con.execute("UPDATE song SET genre=? WHERE id=?", (genre, r["id"]))
         if entry and entry.get("mb_id"):
             con.execute("INSERT OR REPLACE INTO song_feature(song_id, extractor_id, key, value_num, value_text) VALUES (?,?,?,?,?)",

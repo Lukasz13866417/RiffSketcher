@@ -335,7 +335,16 @@ Full ingest of POP909 and Lakh guitar: 909 + 16,977 renditions (279
 unreadable MIDI files skipped) into 10,923 songs, 173,201 tracks, 22.0M notes
 (melody and guitar tracks only) and 552,757 phrases cut from the note rows
 (104,085 exported after the 12-per-song cap); 1.7 GB; 3,425 songs have more
-than one rendition. Matching by normalised artist and title merges
+than one rendition. **GuitarSet** (2026-11-08, `ingest --guitarset-dir`,
+JAMS annotations only, 39 MB): 360 real excerpts by six players over 30
+chord progressions in five styles, so 30 songs with 12 renditions each
+(comp and solo takes), 62,476 notes, every one with its **string and fret**
+filled, the first rows in the database that have them, plus the annotated
+beat grid for honest timing, the key, and a style genre (bossa nova and
+jazz as jazz, funk as soul, rock, singer-songwriter as folk). 3,320 phrases;
+the comp takes are strummed chords and yield few, the solos yield melodic
+lines. It is small, so its value is as an evaluation set and as the first
+ground truth for fret positions rather than as training volume. Matching by normalised artist and title merges
 Lakh's case variants of one title ("Stairway to Heaven" / "Stairway To
 Heaven", "Y.M.C.A" / "Y.M.C.A."); a path-based song id, as the first mixed
 file used, treated those as different songs and put six of them on both

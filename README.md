@@ -120,8 +120,9 @@ The code is MIT licensed (`LICENSE`). The data is not all ours:
 - `data/tropes.json` is aggregate statistics (trope shares, interval and rhythm n-gram counts per
   genre) mined from POP909 and the Lakh clean subset; it contains no music.
 - Nothing raw is in the repository, and nothing should be added: POP909 is for research use only,
-  the Lakh MIDI Dataset is CC BY 4.0 (attribute it in anything trained on it), and DadaGP is
-  distributed by its authors on request for research and must not be redistributed. `data/raw/`,
+  the Lakh MIDI Dataset and GuitarSet are CC BY 4.0 (attribute them in anything trained on them;
+  GuitarSet is Xi et al. 2018, Zenodo record 3371780), and DadaGP is distributed by its authors on
+  request for research and must not be redistributed. `data/raw/`,
   `data/riffs.db`, `data/processed/` and `runs/` are git-ignored for that reason.
 
 ## Song database

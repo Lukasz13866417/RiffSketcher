@@ -201,3 +201,50 @@ def test_onsets_with_ids_groups_chords_and_keeps_lowest_note():
     onsets, lowest = db._onsets_with_ids(con.execute("SELECT * FROM note").fetchall())
     assert len(onsets) == 2 and sorted(onsets[0][2]) == [40, 47, 52] and lowest == [2, 4]
     assert onsets[0][1] == pytest.approx(0.51)  # the onset ends with its lowest note
+
+
+def write_jams(path, tempo=120.0, notes=((0, 0.0, 0.5, 40), (0, 0.5, 0.5, 43), (1, 1.0, 0.5, 45), (1, 1.5, 0.5, 47), (2, 2.0, 0.5, 50))):
+    """A minimal GuitarSet-style JAMS: notes as (string, time_s, duration_s, midi), beats every 0.5 s."""
+    import json
+    spb = 60.0 / tempo
+    per_string = {}
+    for s, t, d, p in notes:
+        per_string.setdefault(s, []).append({"time": t, "duration": d, "value": p + 0.03, "confidence": None})
+    anns = [{"namespace": "note_midi", "annotation_metadata": {"data_source": str(s)}, "data": data, "sandbox": {}}
+            for s, data in per_string.items()]
+    anns.append({"namespace": "beat_position", "annotation_metadata": {},
+                 "data": [{"time": k * spb, "duration": 0.0, "value": {"position": k % 4 + 1, "beat_units": 4, "measure": k // 4 + 1, "num_beats": 4},
+                           "confidence": None} for k in range(8)], "sandbox": {}})
+    anns.append({"namespace": "tempo", "annotation_metadata": {}, "data": [{"time": 0.0, "duration": 4.0, "value": tempo, "confidence": 1.0}], "sandbox": {}})
+    anns.append({"namespace": "key_mode", "annotation_metadata": {}, "data": [{"time": 0.0, "duration": 4.0, "value": "E:minor", "confidence": 1}], "sandbox": {}})
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"annotations": anns, "file_metadata": {"title": path.stem, "duration": 4.0}, "sandbox": {}}))
+
+
+def test_guitarset_ingest_stores_strings_frets_beats_and_style_genre(tmp_path):
+    gs = tmp_path / "guitarset"
+    write_jams(gs / "00_Rock1-120-E_comp.jams")
+    write_jams(gs / "00_Rock1-120-E_solo.jams")
+    write_jams(gs / "02_BN3-100-A_solo.jams", tempo=100.0)
+    con = db.connect(tmp_path / "t.db")
+    db.init(con)
+    counts = db.ingest(con, db.jobs_for(None, None, None, 5, 16, guitarset_dir=gs), workers=1, log=lambda *a: None)
+    assert counts["renditions"] == 3 and counts["notes"] == 15
+    songs = {r["title"]: r for r in con.execute("SELECT title, artist, genre, (SELECT COUNT(*) FROM rendition x WHERE x.song_id=song.id) n FROM song")}
+    assert songs["Rock1-120-E"]["n"] == 2 and songs["Rock1-120-E"]["genre"] == "rock" and songs["Rock1-120-E"]["artist"] == "GuitarSet"
+    assert songs["BN3-100-A"]["genre"] == "jazz"
+    rows = con.execute("""SELECT n.onset_beats, n.duration_beats, n.pitch, n.string, n.fret FROM note n JOIN track t ON t.id=n.track_id
+                          JOIN rendition r ON r.id=t.rendition_id WHERE r.original_id='00_Rock1-120-E_comp' ORDER BY n.idx""").fetchall()
+    assert [r["pitch"] for r in rows] == [40, 43, 45, 47, 50]
+    assert [r["string"] for r in rows] == [0, 0, 1, 1, 2] and [r["fret"] for r in rows] == [0, 3, 0, 2, 0]
+    assert [round(r["onset_beats"], 3) for r in rows] == [0.0, 1.0, 2.0, 3.0, 4.0]  # 120 BPM: 0.5 s is one beat
+    assert all(abs(r["duration_beats"] - 1.0) < 1e-6 for r in rows)
+    import json
+    meta = json.loads(con.execute("SELECT meta_json FROM rendition WHERE original_id='02_BN3-100-A_solo'").fetchone()["meta_json"])
+    assert meta["time_signature"] == "4/4" and meta["key"] == "E:minor" and meta["style"] == "BN" and meta["mode"] == "solo"
+    # phrases were cut from the stored notes and link to them
+    assert con.execute("SELECT COUNT(*) c FROM phrase").fetchone()["c"] >= 1
+    # the genre lookup leaves a source-given genre alone when it knows nothing about the artist
+    from ml.genres import apply
+    apply(con, {}, log=lambda *a: None)
+    assert con.execute("SELECT genre FROM song WHERE title='Rock1-120-E'").fetchone()["genre"] == "rock"

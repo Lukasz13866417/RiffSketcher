@@ -143,7 +143,13 @@ SOURCES = {
     "lakh_guitar": ("Lakh MIDI Dataset clean_midi subset (Raffel 2016), guitar tracks; "
                     "CC-BY 4.0 for the collection, underlying compositions are copyrighted"),
     "dadagp": "DadaGP (Sarmento et al. 2021): GuitarPro tabs as tokens; research-only, by request",
+    "guitarset": ("GuitarSet (Xi et al. 2018): 360 real guitar excerpts with per-string note transcriptions, "
+                  "beats, tempo and key; CC BY 4.0 (annotations from Zenodo record 3371780)"),
 }
+
+# GuitarSet file names: <player>_<style><progression>-<bpm>-<key>_<comp|solo>.jams
+GUITARSET_STYLE_GENRE = {"BN": "jazz", "Funk": "soul", "Jazz": "jazz", "Rock": "rock", "SS": "folk"}
+GUITARSET_OPEN_STRINGS = (40, 45, 50, 55, 59, 64)  # string index 0 = low E
 
 _NORM_RE = re.compile(r"[^a-z0-9]+")
 _PAREN_RE = re.compile(r"\s*[\(\[][^\)\]]*[\)\]]")  # "(Live)", "[Remastered]"
@@ -390,7 +396,7 @@ def parse_midi(path: Path, source: str, original_id: str, keep_roles: tuple[str,
                 # six decimals: a 480-tick quarter note is 1/480 = 0.002083 beats, and phrase onsets are
                 # differences of these values rounded to four, so the store must be finer than that
                 notes.append((k, round(s, 6), round(max(e - s, 0.0), 6), round(float(n.start), 6),
-                              int(n.pitch), int(n.velocity)))
+                              int(n.pitch), int(n.velocity), None, None))
         tracks.append({"idx": idx, "name": ins.name, "program": int(ins.program), "role": role,
                        "is_drum": int(ins.is_drum), "n_notes": len(ins.notes), "notes": notes})
     tempos = pm.get_tempo_changes()[1]
@@ -411,11 +417,71 @@ def parse_dadagp(path: Path, source: str, original_id: str, min_notes: int, max_
         notes = []
         for k, (s, e, pitches) in enumerate(_onsets_from_dadagp_events(events)):
             if pitches:
-                notes.append((k, round(s, 6), round(max(e - s, 0.0), 6), None, int(min(pitches)), None))
+                notes.append((k, round(s, 6), round(max(e - s, 0.0), 6), None, int(min(pitches)), None, None, None))
         tracks.append({"idx": idx, "name": name, "program": None, "role": "guitar", "is_drum": 0,
                        "n_notes": len(notes), "notes": notes})
     return {"tracks": tracks, "tempo": None, "resolution": 960,
             "format": "dadagp", "meta": {}}
+
+
+def guitarset_name(stem: str) -> tuple[str, str, str, str]:
+    """(player, title, style, mode) from a GuitarSet stem such as ``00_BN1-129-Eb_comp``;
+    the title ``BN1-129-Eb`` names the progression, so comp and solo takes by every
+    player are renditions of one song."""
+    m = re.match(r"(\d+)_([A-Za-z]+)(\d+-\d+-[A-G][b#]?)_(comp|solo)$", stem)
+    if not m:
+        return "", stem, "", ""
+    return m.group(1), m.group(2) + m.group(3), m.group(2), m.group(4)
+
+
+def parse_guitarset(path: Path, source: str, original_id: str) -> Parsed:
+    """One GuitarSet JAMS file: one guitar track with every note's string and fret,
+    seconds mapped to beats through the annotated beat grid."""
+    j = json.loads(Path(path).read_text())
+    anns = j["annotations"]
+    tempo_ann = next((a for a in anns if a["namespace"] == "tempo"), None)
+    tempo = float(tempo_ann["data"][0]["value"]) if tempo_ann and tempo_ann["data"] else 120.0
+    beats = next((a for a in anns if a["namespace"] == "beat_position"), None)
+    beat_times = np.array(sorted(d["time"] for d in beats["data"]), dtype=float) if beats and beats["data"] else np.zeros(0)
+    bps = tempo / 60.0
+
+    def to_beats(t: float) -> float:
+        if len(beat_times) >= 2:
+            if t < beat_times[0]:
+                return float((t - beat_times[0]) * bps)
+            if t > beat_times[-1]:
+                return float(len(beat_times) - 1 + (t - beat_times[-1]) * bps)
+            return float(np.interp(t, beat_times, np.arange(len(beat_times))))
+        return float(t * bps)
+
+    notes_raw = []
+    for a in anns:
+        if a["namespace"] != "note_midi":
+            continue
+        try:
+            string = int(a["annotation_metadata"].get("data_source"))
+        except (TypeError, ValueError):
+            string = None
+        for d in a["data"]:
+            pitch = int(round(float(d["value"])))
+            fret = pitch - GUITARSET_OPEN_STRINGS[string] if string is not None and 0 <= string < 6 else None
+            notes_raw.append((float(d["time"]), float(d["duration"]), pitch, string, fret))
+    notes_raw.sort(key=lambda x: (x[0], x[2]))
+    notes = []
+    for k, (t, dur, pitch, string, fret) in enumerate(notes_raw):
+        s = to_beats(t)
+        e = to_beats(t + dur)
+        notes.append((k, round(s, 6), round(max(e - s, 0.0), 6), round(t, 6), pitch, None, string, fret))
+    first = beats["data"][0]["value"] if beats and beats["data"] else {}
+    key_ann = next((a for a in anns if a["namespace"] == "key_mode"), None)
+    player, title, style, mode = guitarset_name(Path(path).stem)
+    meta = {"n_instruments": 1, "n_tempos": 1, "n_time_signatures": 1,
+            "time_signature": f"{first.get('num_beats', 4)}/{first.get('beat_units', 4)}",
+            "key": key_ann["data"][0]["value"] if key_ann and key_ann["data"] else None,
+            "player": player, "style": style, "mode": mode}
+    tracks = [{"idx": 0, "name": f"guitar ({mode})", "program": 25, "role": "guitar", "is_drum": 0,
+               "n_notes": len(notes), "notes": notes}]
+    return {"tracks": tracks, "tempo": tempo, "resolution": None, "format": "jams", "meta": meta}
 
 
 def _run(job: tuple) -> tuple[tuple, Parsed | None, str | None]:
@@ -423,6 +489,8 @@ def _run(job: tuple) -> tuple[tuple, Parsed | None, str | None]:
     try:
         if kind == "midi":
             return job, parse_midi(Path(path), source, original_id, keep_roles, min_notes, max_notes), None
+        if kind == "guitarset":
+            return job, parse_guitarset(Path(path), source, original_id), None
         return job, parse_dadagp(Path(path), source, original_id, min_notes, max_notes), None
     except Exception as e:  # corrupt files happen
         return job, None, f"{type(e).__name__}: {e}"
@@ -453,9 +521,16 @@ def dadagp_artist_title(path: Path) -> tuple[str | None, str]:
 
 
 def jobs_for(pop909_dir: Path | None, guitar_dir: Path | None, dadagp_dir: Path | None,
-             min_notes: int, max_notes: int, limit: int | None = None) -> list[tuple]:
-    """(kind, path, source, original_id, keep_roles, min, max, artist, title)."""
+             min_notes: int, max_notes: int, limit: int | None = None,
+             guitarset_dir: Path | None = None) -> list[tuple]:
+    """(kind, path, source, original_id, keep_roles, min, max, artist, title[, genre])."""
     jobs: list[tuple] = []
+    if guitarset_dir:
+        files = sorted(Path(guitarset_dir).rglob("*.jams"))
+        for f in files[:limit] if limit else files:
+            player, title, style, mode = guitarset_name(f.stem)
+            jobs.append(("guitarset", str(f), "guitarset", f.stem, ("guitar",), min_notes, max_notes,
+                         "GuitarSet", title, GUITARSET_STYLE_GENRE.get(style)))
     if pop909_dir:
         files = [f for f in _midi_files(pop909_dir) if "versions" not in f.parts]
         for f in files[:limit] if limit else files:
@@ -486,7 +561,7 @@ def ingest(con: sqlite3.Connection, jobs: list[tuple], workers: int = 1, min_not
     counts: dict[str, int] = defaultdict(int)
     new_renditions: list[int] = []
     parse_jobs = [j[:7] for j in jobs]
-    names = {j[1]: j[7:] for j in jobs}  # path -> (artist, title)
+    names = {j[1]: j[7:] for j in jobs}  # path -> (artist, title[, genre])
     done = set(r["path"] for r in con.execute("SELECT path FROM rendition"))
     todo = [j for j in parse_jobs if j[1] not in done]
     log(f"{len(jobs)} files, {len(todo)} not yet ingested")
@@ -501,13 +576,14 @@ def ingest(con: sqlite3.Connection, jobs: list[tuple], workers: int = 1, min_not
 
     for job, parsed, err in tqdm(results(), total=len(todo), desc="ingest"):
         kind, path, source, original_id, _, _, _ = job
-        artist, title = names[path]
+        artist, title, *rest = names[path]
+        genre = rest[0] if rest else None
         if parsed is None:
             counts["failed"] += 1
             log(f"  skip {path}: {err}")
             continue
         sid = source_id(con, source)
-        wid = get_or_create_song(con, title, artist)
+        wid = get_or_create_song(con, title, artist, genre)
         cur = con.execute(
             "INSERT INTO rendition(song_id, source_id, original_id, path, content_hash, format, tempo, resolution, meta_json)"
             " VALUES (?,?,?,?,?,?,?,?,?)",
@@ -523,8 +599,9 @@ def ingest(con: sqlite3.Connection, jobs: list[tuple], workers: int = 1, min_not
             track_ids[t["idx"]] = tid
             if t["notes"]:
                 con.executemany(
-                    "INSERT INTO note(track_id, idx, onset_beats, duration_beats, onset_s, pitch, velocity) VALUES (?,?,?,?,?,?,?)",
-                    [(tid, k, s, d, os_, p, v) for k, s, d, os_, p, v in t["notes"]])
+                    "INSERT INTO note(track_id, idx, onset_beats, duration_beats, onset_s, pitch, velocity, string, fret)"
+                    " VALUES (?,?,?,?,?,?,?,?,?)",
+                    [(tid, k, s, d, os_, p, v, st, fr) for k, s, d, os_, p, v, st, fr in t["notes"]])
                 counts["notes"] += len(t["notes"])
             counts["tracks"] += 1
         new_renditions.append(rid)
@@ -579,8 +656,9 @@ def add_notes(con: sqlite3.Connection, roles: tuple[str, ...], workers: int = 1,
             if tid is None or not t["notes"]:
                 continue
             con.executemany(
-                "INSERT INTO note(track_id, idx, onset_beats, duration_beats, onset_s, pitch, velocity) VALUES (?,?,?,?,?,?,?)",
-                [(tid, k, s, d, os_, p, v) for k, s, d, os_, p, v in t["notes"]])
+                "INSERT INTO note(track_id, idx, onset_beats, duration_beats, onset_s, pitch, velocity, string, fret)"
+                " VALUES (?,?,?,?,?,?,?,?,?)",
+                [(tid, k, s, d, os_, p, v, st, fr) for k, s, d, os_, p, v, st, fr in t["notes"]])
             con.execute("UPDATE track SET notes_stored=1 WHERE id=?", (tid,))
             counts["notes"] += len(t["notes"])
             counts["tracks"] += 1
@@ -795,6 +873,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--pop909-dir", type=Path)
     p.add_argument("--guitar-midi-dir", type=Path)
     p.add_argument("--dadagp-dir", type=Path)
+    p.add_argument("--guitarset-dir", type=Path, help="folder of GuitarSet .jams annotations")
     p.add_argument("--min-notes", type=int, default=5)
     p.add_argument("--max-notes", type=int, default=16)
     p.add_argument("--limit", type=int, default=None, help="max files per source (debug)")
@@ -832,7 +911,8 @@ def main(argv: list[str] | None = None) -> None:
     if args.cmd == "init":
         print(f"initialised {args.db}")
     elif args.cmd == "ingest":
-        jobs = jobs_for(args.pop909_dir, args.guitar_midi_dir, args.dadagp_dir, args.min_notes, args.max_notes, args.limit)
+        jobs = jobs_for(args.pop909_dir, args.guitar_midi_dir, args.dadagp_dir, args.min_notes, args.max_notes, args.limit,
+                        guitarset_dir=args.guitarset_dir)
         print(ingest(con, jobs, args.workers, args.min_notes, args.max_notes))
     elif args.cmd == "notes":
         print(add_notes(con, tuple(r.strip() for r in args.roles.split(",") if r.strip()), args.workers))
